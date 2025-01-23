@@ -1,16 +1,32 @@
-from mongoengine import Document, StringField, EmailField, BooleanField
 from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel, EmailStr, Field
 
-class user(Document):
-    full_name = StringField()
-    email = EmailField(required=True, unique=True)
-    password = StringField(required=True, min_length=6)
-    password2 = StringField(min_length=6)
-    profile_picture = StringField(default='default.png')
-    timestramp = StringField(default=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+class User(BaseModel):
+    full_name: str = Field(None, title="Full Name of the User")
+    email: EmailStr = Field(..., title="Email Address")
+    password: str = Field(..., title="Password")
+    password2: str = Field(..., title="Confirm Password")
+    disabled: bool = Field(default=False, title="User Account Status")
 
-class message(Document):
-    sender = StringField()
-    receiver = StringField()
-    message = StringField()
-    timestramp = StringField(default=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+class Message(BaseModel):
+    sender: str = Field(None, title="Sender ID or Name")
+    receiver: str = Field(None, title="Receiver ID or Name")
+    message: str = Field(None, title="Message Content")
+    timestamp: str = Field(default_factory=lambda: datetime.now().strftime('%Y-%m-%d %H:%M:%S'), title="Timestamp")
+
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
+class Login(BaseModel):
+    username: str
+    password:str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class UserInDB(User):
+    hashed_password: str
