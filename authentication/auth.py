@@ -77,6 +77,7 @@ async def signup(request: Request):
 async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     try:
         user = conn.auth.User.find_one({"email": form_data.username})
+        # print (user) # for debugging
         if not user:
             return {"error": "User not found"}
         if not Hash.verify(user["password"], form_data.password):
@@ -84,8 +85,8 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         token_data = {
             "email": user["email"]
         }
-        token = token.create_token(data=token_data)
-        return {"token": token}
+        access_token = token.create_access_token(data={"sub": user["email"]})
+        return {"access_token": access_token, "token_type": "bearer"}
     except Exception as e:
         return {"error": str(e)}
     
