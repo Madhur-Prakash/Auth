@@ -41,7 +41,11 @@ async def signup(request: Request):
             if field not in dict_data:
                 raise HTTPException(status_code=400, detail="All fields are required")
 
-        # # data validation
+        user = conn.auth.User.find_one({"email": dict_data["email"]})
+        
+        # data validation
+        if user:
+            raise HTTPException(status_code=400, detail = "User already exists")
         if dict_data["password"] != dict_data["password2"]:
             raise HTTPException(status_code=400, detail = "Password do not match")
         if(form_data["password"].__len__() < 6):
@@ -55,9 +59,7 @@ async def signup(request: Request):
 
 
         # hashing the password
-        # passw = dict_data["password"]
         hashed_password = Hash.bcrypt(dict_data["password"])
-        # passw = hashed_password
         dict_data["password"] = hashed_password
 
         # removing the password2 field from db
@@ -74,17 +76,19 @@ async def signup(request: Request):
     
 
 @auth.post("/login", status_code=status.HTTP_202_ACCEPTED)
-async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
+async def login(request: Request):
     try:
-        user = conn.auth.User.find_one({"email": form_data.username})
+        form_data = await request.form()
+        user = conn.auth.User.find_one({"email": form_data["email"]})
         # print (user) # for debugging
         if not user:
             return {"error": "User not found"}
-        if not Hash.verify(user["password"], form_data.password):
+        if not Hash.verify(user["password"], form_data["password"]):
             return {"error": "Invalid password"}
         token_data = {
             "email": user["email"]
         }
+        # print(token_data) # for debugging
         access_token = token.create_access_token(data={"sub": user["email"]})
         return {"access_token": access_token, "token_type": "bearer"}
     except Exception as e:
