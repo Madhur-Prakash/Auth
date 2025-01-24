@@ -21,6 +21,7 @@ async def read(request: Request):
         new_user.append({
             "id": i["_id"],
             "full_name": i["full_name"],
+            "user_name": i["user_name"],
             "email": i["email"],
             "password": i["password"],
             "password2": i["password2"],
@@ -36,16 +37,19 @@ async def signup(request: Request):
         dict_data = dict(form_data)
         dict_data["created_at"] = datetime.now()
 
-        required_fields = ["full_name", "email", "password", "password2"]
+        required_fields = ["full_name", "email", "user_name", "password", "password2"]
         for field in required_fields:
             if field not in dict_data:
                 raise HTTPException(status_code=400, detail="All fields are required")
 
-        user = conn.auth.User.find_one({"email": dict_data["email"]})
+        email = conn.auth.User.find_one({"email": dict_data["email"]})
+        user = conn.auth.User.find_one({"user_name": dict_data["user_name"]})
         
         # data validation
+        if email:
+            raise HTTPException(status_code=400, detail = "Email already exists")
         if user:
-            raise HTTPException(status_code=400, detail = "User already exists")
+            raise HTTPException(status_code=400, detail = "Username already exists")
         if dict_data["password"] != dict_data["password2"]:
             raise HTTPException(status_code=400, detail = "Password do not match")
         if(form_data["password"].__len__() < 6):
@@ -75,24 +79,99 @@ async def signup(request: Request):
 
     
 
+# @auth.post("/login", status_code=status.HTTP_202_ACCEPTED) # login using email and password
+# async def login(request: Request):
+    # try:
+    #     form_data = await request.form()
+
+    #     email_provided = form_data.get("email", None)
+    #     user_name_provided = form_data.get("user_name", None)
+    #     password_provided = form_data.get("password", None)
+
+    #     # check if email or user_name or password is provided
+    #     if not password_provided:
+    #         raise HTTPException(status_code=400, detail="Password is required")
+        
+    #     if not email_provided:
+    #         if not user_name_provided:
+    #             raise HTTPException(status_code=400, detail="User Name or Email is required")
+    #         else:
+    #             return 0
+    #             # raise HTTPException(status_code=400, detail="Email is required")
+        
+    #     else:
+    #         user = None # initialize user to None
+
+    #         # login using email and password
+    #         if email_provided:
+    #             user = conn.auth.User.find_one({"email": form_data["email"]})
+    #             if not user:
+    #                 raise HTTPException(status_code=400, detail="Email not found")
+    #             if not Hash.verify(user["password"], form_data["password"]):
+    #                 raise HTTPException(status_code=400, detail="Invalid password")
+                
+    #             token_data = {
+    #                 "email": user["email"]
+    #             }
+    #             # print(token_data) # for debugging
+
+    #             access_token = token.create_access_token(data={"sub": user["email"]})
+    #             return {"access_token": access_token, "token_type": "bearer"}
+            
+    #         # login using user_name and password
+    #         elif user_name_provided:
+    #             user = conn.auth.User.find_one({"user_name": form_data["user_name"]})
+    #             if not user:
+    #                 raise HTTPException(status_code=400, detail="User not found")
+    #             if not Hash.verify(user["password"], form_data["password"]):
+    #                 raise HTTPException(status_code=400, detail="Invalid password")
+                
+    #             token_data = {
+    #                 "user_name": user["user_name"]
+    #             }
+    #             # print(token_data) # for debugging
+
+    #             access_token = token.create_access_token(data={"sub": user["user_name"]})
+    #             return {"access_token": access_token, "token_type": "bearer"}
+    # except Exception as e:
+    #     return {"error": str(e)}
+
+
 @auth.post("/login", status_code=status.HTTP_202_ACCEPTED)
 async def login(request: Request):
     try:
         form_data = await request.form()
-        user = conn.auth.User.find_one({"email": form_data["email"]})
-        # print (user) # for debugging
-        if not user:
-            return {"error": "User not found"}
-        if not Hash.verify(user["password"], form_data["password"]):
-            return {"error": "Invalid password"}
-        token_data = {
-            "email": user["email"]
-        }
-        # print(token_data) # for debugging
-        access_token = token.create_access_token(data={"sub": user["email"]})
+
+        email = form_data.get("email")
+        user_name = form_data.get("user_name")
+        password = form_data.get("password")
+
+        if not password:
+            raise HTTPException(status_code=400, detail="Password is required")
+        if not email and not user_name:
+            raise HTTPException(status_code=400, detail="Provide either email or username")
+
+        # Determine if login is via email or username
+        user = None
+        if email:
+            user = conn.auth.User.find_one({"email": email})
+            if not user:
+                raise HTTPException(status_code=404, detail="Email not found")
+        elif user_name:
+            user = conn.auth.User.find_one({"user_name": user_name})
+            if not user:
+                raise HTTPException(status_code=404, detail="Username not found")
+
+        # Validate password
+        if not Hash.verify(user["password"], password):
+            raise HTTPException(status_code=400, detail="Invalid password")
+
+        # Generate token
+        identifier = user.get("email") or user.get("user_name")
+        access_token = token.create_access_token(data={"sub": identifier})
+
         return {"access_token": access_token, "token_type": "bearer"}
     except Exception as e:
         return {"error": str(e)}
-    
 
-   
+    

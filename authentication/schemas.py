@@ -2,6 +2,7 @@ def user(item) -> dict:
     return {
         "_id": str(item["_id"]),
         "full_name": item["full_name"],
+        "user_name": item["user_name"],
         "email": item["email"],
         "password": item["password"],
         "disabled": item.get("disabled", False)

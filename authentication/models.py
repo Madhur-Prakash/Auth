@@ -5,6 +5,7 @@ from pydantic import BaseModel, EmailStr, Field
 class User(BaseModel):
     full_name: str = Field(None, title="Full Name of the User")
     email: EmailStr = Field(..., title="Email Address")
+    user_name: str = Field(..., title="Username")
     password: str = Field(..., title="Password")
     password2: str = Field(..., title="Confirm Password")
     disabled: bool = Field(default=False, title="User Account Status")
