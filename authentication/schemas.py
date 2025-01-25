@@ -5,6 +5,8 @@ def user(item) -> dict:
         "user_name": item["user_name"],
         "email": item["email"],
         "password": item["password"],
+        "password2": item["password2"],
+        "phone_number": item["phone_number"],
         "disabled": item.get("disabled", False)
     }
         

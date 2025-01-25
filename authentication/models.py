@@ -8,6 +8,7 @@ class User(BaseModel):
     user_name: str = Field(..., title="Username")
     password: str = Field(..., title="Password")
     password2: str = Field(..., title="Confirm Password")
+    phone_number: int = Field(..., min_length=10, title="Phone Number")
     disabled: bool = Field(default=False, title="User Account Status")
 
 class Message(BaseModel):

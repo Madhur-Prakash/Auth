@@ -25,6 +25,7 @@ async def read(request: Request):
             "email": i["email"],
             "password": i["password"],
             "password2": i["password2"],
+            "phone_number": i["phone_number"],
             "disabled": i["disabled"]
         })
     return templates.TemplateResponse("signup.html", {"request": request, "user": new_user}) 
@@ -37,19 +38,24 @@ async def signup(request: Request):
         dict_data = dict(form_data)
         dict_data["created_at"] = datetime.now()
 
-        required_fields = ["full_name", "email", "user_name", "password", "password2"]
+        required_fields = ["full_name", "email", "user_name", "password", "password2", "phone_number"]
         for field in required_fields:
             if field not in dict_data:
                 raise HTTPException(status_code=400, detail="All fields are required")
 
         email = conn.auth.User.find_one({"email": dict_data["email"]})
         user = conn.auth.User.find_one({"user_name": dict_data["user_name"]})
+        phone_number = conn.auth.User.find_one({"phone_number": dict_data["phone_number"]})
         
         # data validation
         if email:
             raise HTTPException(status_code=400, detail = "Email already exists")
         if user:
             raise HTTPException(status_code=400, detail = "Username already exists")
+        if(form_data["phone_number"].__len__() < 10 or form_data["phone_number"].__len__() > 10):
+            raise HTTPException(status_code=400, detail = "Phone number must be 10 digits long")
+        if phone_number:
+            raise HTTPException(status_code=400, detail = "Phone number already in use")
         if dict_data["password"] != dict_data["password2"]:
             raise HTTPException(status_code=400, detail = "Password do not match")
         if(form_data["password"].__len__() < 6):
@@ -59,7 +65,7 @@ async def signup(request: Request):
         if(form_data["full_name"].__len__() < 2):
             raise HTTPException(status_code=400, detail = "Full name must be greater than 1 character")
         if(form_data["email"].__len__() < 4):
-            raise HTTPException("Email must be greater than 3 characters")
+            raise HTTPException("Email must be greater than 3 characters") 
 
 
         # hashing the password
@@ -87,14 +93,14 @@ async def login(request: Request):
         email_provided = form_data.get("email", None)
         user_name_provided = form_data.get("user_name", None)
         password_provided = form_data.get("password", None)
+        phone_number_provided = form_data.get("phone_number", None)
 
         # check if email or user_name or password is provided
         if not password_provided:
             raise HTTPException(status_code=400, detail="Password is required")
         
-        if not email_provided and not user_name_provided:
-                raise HTTPException(status_code=400, detail="User Name or Email is required")
-                # raise HTTPException(status_code=400, detail="Email is required")
+        if not email_provided and not user_name_provided and not phone_number_provided:
+                raise HTTPException(status_code=400, detail="User Name or Email or phone number is required")
         
         else:
             user = None # initialize user to None
@@ -118,6 +124,16 @@ async def login(request: Request):
                     raise HTTPException(status_code=400, detail="Invalid password")
 
                 access_token = token.create_access_token(data={"sub": user["user_name"]})
+
+            # login using phone_number and password
+            elif phone_number_provided:
+                user = conn.auth.User.find_one({"phone_number": form_data["phone_number"]})
+                if not user:
+                    raise HTTPException(status_code=400, detail="Invalid Phone Number")
+                if not Hash.verify(user["password"], form_data["password"]):
+                    raise HTTPException(status_code=400, detail="Invalid password")
+                
+                access_token = token.create_access_token(data={"sub": user["phone_number"]})
             return {"access_token": access_token, "token_type": "bearer"}
     except Exception as e:
         return {"error": str(e)}
