@@ -2,9 +2,7 @@ from fastapi import APIRouter, Request, status, HTTPException, Depends
 from .database import conn
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.middleware.cors import CORSMiddleware
+import aioredis
 from .hashing import Hash
 from datetime import datetime
 from . import models,token
@@ -12,6 +10,17 @@ from . import models,token
 auth = APIRouter()
 templates = Jinja2Templates(directory="authentication/templates")
 
+# redis connection
+client =  aioredis.from_url('redis://localhost', decode_responses=True)
+
+# implemeting cahing using redis
+async def cache(data: str):
+    CachedData = await client.get('data')
+    if CachedData:
+        print("Data is cached")
+        return CachedData
+    res = await client.set("data",data)
+    await client.expire('data',30) # expire in 30 seconds
 
 @auth.get("/", response_class=HTMLResponse)
 async def read(request: Request):
@@ -77,6 +86,13 @@ async def signup(request: Request):
 
         conn.auth.User.insert_one(dict_data)
         
+        # Generate a cache during signup with email as key
+        cache_key = dict_data["email"]
+        cached_data = await cache(cache_key)
+        if cached_data:
+                    access_token = token.create_access_token(data={"sub": cache_key})
+                    return {"access_token": access_token, "token_type": "bearer"}
+
         return RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
     
     except Exception as e:
@@ -107,6 +123,13 @@ async def login(request: Request):
 
             # login using email and password
             if email_provided:
+                # Generate a cache key based on login identifier
+                cache_key = email_provided
+                cached_data = await cache(cache_key)
+                if cached_data:
+                    access_token = token.create_access_token(data={"sub": cache_key})
+                    return {"access_token": access_token, "token_type": "bearer"}
+                
                 user = conn.auth.User.find_one({"email": form_data["email"]})
                 if not user:
                     raise HTTPException(status_code=400, detail="Invalid Email")
@@ -117,6 +140,13 @@ async def login(request: Request):
             
             # login using user_name and password
             elif user_name_provided:
+                # Generate a cache key based on login identifier
+                cache_key = user_name_provided
+                cached_data = await cache(cache_key)
+                if cached_data:
+                    access_token = token.create_access_token(data={"sub": cache_key})
+                    return {"access_token": access_token, "token_type": "bearer"}
+                
                 user = conn.auth.User.find_one({"user_name": form_data["user_name"]})
                 if not user:
                     raise HTTPException(status_code=400, detail="Invalid User Name")
@@ -127,6 +157,13 @@ async def login(request: Request):
 
             # login using phone_number and password
             elif phone_number_provided:
+                # Generate a cache key based on login identifier
+                cache_key = phone_number_provided
+                cached_data = await cache(cache_key)
+                if cached_data:
+                    access_token = token.create_access_token(data={"sub": cache_key})
+                    return {"access_token": access_token, "token_type": "bearer"}
+
                 user = conn.auth.User.find_one({"phone_number": form_data["phone_number"]})
                 if not user:
                     raise HTTPException(status_code=400, detail="Invalid Phone Number")
