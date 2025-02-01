@@ -8,7 +8,7 @@ from datetime import datetime
 from . import models,token
 
 auth = APIRouter()
-templates = Jinja2Templates(directory="auth/templates")
+templates = Jinja2Templates(directory="authemtication/templates")
 
 # redis connection
 client =  aioredis.from_url('redis://localhost', decode_responses=True)
