@@ -8,19 +8,25 @@ from datetime import datetime
 from . import models,token
 
 auth = APIRouter()
-templates = Jinja2Templates(directory="authentication/templates")
+templates = Jinja2Templates(directory="auth/templates")
 
 # redis connection
 client =  aioredis.from_url('redis://localhost', decode_responses=True)
 
 # implemeting cahing using redis
 async def cache(data: str):
+    email = conn.auth.User.find_one({"email": data})
+    user_name = conn.auth.User.find_one({"user_name": data})
+    phone_number = conn.auth.User.find_one({"phone_number": data})
     CachedData = await client.get('data')
     if CachedData:
-        print("Data is cached")
-        return CachedData
-    res = await client.set("data",data)
-    await client.expire('data',30) # expire in 30 seconds
+        if email or user_name or phone_number:  
+            print("Data is cached") # debug
+            return CachedData
+    if email or user_name or phone_number:
+        res = await client.set("data",data)
+        await client.expire('data',30) # expire in 30 seconds
+        return res
 
 @auth.get("/", response_class=HTMLResponse)
 async def read(request: Request):
@@ -88,12 +94,13 @@ async def signup(request: Request):
         
         # Generate a cache during signup with email as key
         cache_key = dict_data["email"]
-        cached_data = await cache(cache_key)
-        if cached_data:
-                    access_token = token.create_access_token(data={"sub": cache_key})
-                    return {"access_token": access_token, "token_type": "bearer"}
-
-        return RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+        count_doc = conn.auth.User.count_documents({})
+        cached_data = await client.set(f"data:{count_doc}",cache_key)
+        await client.expire(f"data:{count_doc}",3600) # expire in 30 seconds
+        access_token = token.create_access_token(data={"sub": cache_key})
+        response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+        response.set_cookie(key="access_token", value=access_token, max_age=3600)
+        return response
     
     except Exception as e:
         print(f"Error creating new user: {str(e)}")
@@ -128,6 +135,8 @@ async def login(request: Request):
                 cached_data = await cache(cache_key)
                 if cached_data:
                     access_token = token.create_access_token(data={"sub": cache_key})
+                    response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                    response.set_cookie(key="access_token", value=access_token, max_age=3600)
                     return {"access_token": access_token, "token_type": "bearer"}
                 
                 user = conn.auth.User.find_one({"email": form_data["email"]})
@@ -137,6 +146,8 @@ async def login(request: Request):
                     raise HTTPException(status_code=400, detail="Invalid password")
                 
                 access_token = token.create_access_token(data={"sub": user["email"]})
+                response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                response.set_cookie(key="access_token", value=access_token, max_age=3600)
             
             # login using user_name and password
             elif user_name_provided:
@@ -145,6 +156,8 @@ async def login(request: Request):
                 cached_data = await cache(cache_key)
                 if cached_data:
                     access_token = token.create_access_token(data={"sub": cache_key})
+                    response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                    response.set_cookie(key="access_token", value=access_token, max_age=3600)
                     return {"access_token": access_token, "token_type": "bearer"}
                 
                 user = conn.auth.User.find_one({"user_name": form_data["user_name"]})
@@ -154,6 +167,8 @@ async def login(request: Request):
                     raise HTTPException(status_code=400, detail="Invalid password")
 
                 access_token = token.create_access_token(data={"sub": user["user_name"]})
+                response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                response.set_cookie(key="access_token", value=access_token, max_age=3600)
 
             # login using phone_number and password
             elif phone_number_provided:
@@ -162,6 +177,8 @@ async def login(request: Request):
                 cached_data = await cache(cache_key)
                 if cached_data:
                     access_token = token.create_access_token(data={"sub": cache_key})
+                    response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                    response.set_cookie(key="access_token", value=access_token, max_age=3600)
                     return {"access_token": access_token, "token_type": "bearer"}
 
                 user = conn.auth.User.find_one({"phone_number": form_data["phone_number"]})
@@ -171,6 +188,9 @@ async def login(request: Request):
                     raise HTTPException(status_code=400, detail="Invalid password")
                 
                 access_token = token.create_access_token(data={"sub": user["phone_number"]})
+                response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                response.set_cookie(key="access_token", value=access_token, max_age=3600)
+
             return {"access_token": access_token, "token_type": "bearer"}
     except Exception as e:
         return {"error": str(e)}
