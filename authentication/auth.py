@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, status, HTTPException, Depends
-from .database import conn
+from .database import conn,mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 import aioredis
@@ -15,18 +15,18 @@ client =  aioredis.from_url('redis://localhost', decode_responses=True)
 
 # implemeting cahing using redis
 async def cache(data: str):
-    email = conn.auth.User.find_one({"email": data})
-    user_name = conn.auth.User.find_one({"user_name": data})
-    phone_number = conn.auth.User.find_one({"phone_number": data})
+    user = await mongo_client.auth.User.find_one({"$or": [{
+        "email": data}, 
+        {"user_name": data}, 
+        {"phone_number": data}]})
     CachedData = await client.get('data')
-    if CachedData:
-        if email or user_name or phone_number:  
+    if CachedData and user:
             print("Data is cached") # debug
             return CachedData
-    if email or user_name or phone_number:
-        res = await client.set("data",data)
-        await client.expire('data',30) # expire in 30 seconds
-        return res
+    if user:
+        await client.set("data",data, ex=30) # expire in 30 seconds
+        return data
+    return None
 
 @auth.get("/", response_class=HTMLResponse)
 async def read(request: Request):
