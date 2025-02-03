@@ -19,12 +19,13 @@ async def cache(data: str):
         "email": data}, 
         {"user_name": data}, 
         {"phone_number": data}]})
-    CachedData = await client.get('data')
+    CachedData = await client.get(f'data:{data}')
     if CachedData and user:
             print("Data is cached") # debug
+            print(CachedData) # debug
             return CachedData
     if user:
-        await client.set("data",data, ex=30) # expire in 30 seconds
+        await client.set(f"data:{data}",data, ex=30) # expire in 30 seconds
         return data
     return None
 
@@ -58,9 +59,9 @@ async def signup(request: Request):
             if field not in dict_data:
                 raise HTTPException(status_code=400, detail="All fields are required")
 
-        email = conn.auth.User.find_one({"email": dict_data["email"]})
-        user = conn.auth.User.find_one({"user_name": dict_data["user_name"]})
-        phone_number = conn.auth.User.find_one({"phone_number": dict_data["phone_number"]})
+        email = await mongo_client.auth.User.find_one({"email": dict_data["email"]})
+        user = await mongo_client.auth.User.find_one({"user_name": dict_data["user_name"]})
+        phone_number = await mongo_client.auth.User.find_one({"phone_number": dict_data["phone_number"]})
         
         # data validation
         if email:
@@ -94,9 +95,7 @@ async def signup(request: Request):
         
         # Generate a cache during signup with email as key
         cache_key = dict_data["email"]
-        count_doc = conn.auth.User.count_documents({})
-        cached_data = await client.set(f"data:{count_doc}",cache_key)
-        await client.expire(f"data:{count_doc}",3600) # expire in 30 seconds
+        cached_data = await client.set(f"data:{cache_key}",cache_key,ex=3600) 
         access_token = token.create_access_token(data={"sub": cache_key})
         response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
@@ -135,9 +134,9 @@ async def login(request: Request):
                 cached_data = await cache(cache_key)
                 if cached_data:
                     access_token = token.create_access_token(data={"sub": cache_key})
-                    response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                    response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return {"access_token": access_token, "token_type": "bearer"}
+                    return response
                 
                 user = conn.auth.User.find_one({"email": form_data["email"]})
                 if not user:
@@ -148,7 +147,7 @@ async def login(request: Request):
                 access_token = token.create_access_token(data={"sub": user["email"]})
                 response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
                 response.set_cookie(key="access_token", value=access_token, max_age=3600)
-            
+                return response            
             # login using user_name and password
             elif user_name_provided:
                 # Generate a cache key based on login identifier
@@ -158,7 +157,7 @@ async def login(request: Request):
                     access_token = token.create_access_token(data={"sub": cache_key})
                     response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return {"access_token": access_token, "token_type": "bearer"}
+                    return response
                 
                 user = conn.auth.User.find_one({"user_name": form_data["user_name"]})
                 if not user:
@@ -169,6 +168,7 @@ async def login(request: Request):
                 access_token = token.create_access_token(data={"sub": user["user_name"]})
                 response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
                 response.set_cookie(key="access_token", value=access_token, max_age=3600)
+                return response
 
             # login using phone_number and password
             elif phone_number_provided:
@@ -179,7 +179,7 @@ async def login(request: Request):
                     access_token = token.create_access_token(data={"sub": cache_key})
                     response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return {"access_token": access_token, "token_type": "bearer"}
+                    return response
 
                 user = conn.auth.User.find_one({"phone_number": form_data["phone_number"]})
                 if not user:
@@ -190,6 +190,7 @@ async def login(request: Request):
                 access_token = token.create_access_token(data={"sub": user["phone_number"]})
                 response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
                 response.set_cookie(key="access_token", value=access_token, max_age=3600)
+                return response
 
             return {"access_token": access_token, "token_type": "bearer"}
     except Exception as e:
