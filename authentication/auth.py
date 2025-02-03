@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Request, status, HTTPException, Depends
-from .database import conn,mongo_client
+from fastapi import APIRouter, Request, status, HTTPException
+from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 import aioredis
 from .hashing import Hash
 from datetime import datetime
-from . import models,token
+from . import auth_token, models
 
 auth = APIRouter()
 templates = Jinja2Templates(directory="authemtication/templates")
@@ -24,14 +24,14 @@ async def cache(data: str):
             print("Data is cached") # debug
             print(CachedData) # debug
             return CachedData
-    if user:
+    elif user:
         await client.set(f"data:{data}",data, ex=30) # expire in 30 seconds
         return data
     return None
 
 @auth.get("/", response_class=HTMLResponse)
 async def read(request: Request):
-    user = conn.authenticator.user.find()
+    user = await mongo_client.authenticator.user.find()
     new_user = []
     for i in user:
         new_user.append({
@@ -91,13 +91,14 @@ async def signup(request: Request):
         # removing the password2 field from db
         dict_data.pop("password2")
 
-        conn.auth.User.insert_one(dict_data)
+        await mongo_client.auth.User.insert_one(dict_data)
         
         # Generate a cache during signup with email as key
         cache_key = dict_data["email"]
         cached_data = await client.set(f"data:{cache_key}",cache_key,ex=3600) 
-        access_token = token.create_access_token(data={"sub": cache_key})
-        response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+        access_token = auth_token.create_access_token(data={"sub": cache_key})
+        response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+        response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
         return response
     
@@ -133,19 +134,21 @@ async def login(request: Request):
                 cache_key = email_provided
                 cached_data = await cache(cache_key)
                 if cached_data:
-                    access_token = token.create_access_token(data={"sub": cache_key})
+                    access_token = auth_token.create_access_token(data={"sub": cache_key})
                     response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+                    response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
                     return response
                 
-                user = conn.auth.User.find_one({"email": form_data["email"]})
+                user = await mongo_client.auth.User.find_one({"email": form_data["email"]})
                 if not user:
                     raise HTTPException(status_code=400, detail="Invalid Email")
                 if not Hash.verify(user["password"], form_data["password"]):
                     raise HTTPException(status_code=400, detail="Invalid password")
                 
-                access_token = token.create_access_token(data={"sub": user["email"]})
+                access_token = auth_token.create_access_token(data={"sub": user["email"]})
                 response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                response.delete_cookie("access_token")  # Remove old token
                 response.set_cookie(key="access_token", value=access_token, max_age=3600)
                 return response            
             # login using user_name and password
@@ -154,19 +157,21 @@ async def login(request: Request):
                 cache_key = user_name_provided
                 cached_data = await cache(cache_key)
                 if cached_data:
-                    access_token = token.create_access_token(data={"sub": cache_key})
+                    access_token = auth_token.create_access_token(data={"sub": cache_key})
                     response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                    response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
                     return response
                 
-                user = conn.auth.User.find_one({"user_name": form_data["user_name"]})
+                user = await mongo_client.auth.User.find_one({"user_name": form_data["user_name"]})
                 if not user:
                     raise HTTPException(status_code=400, detail="Invalid User Name")
                 if not Hash.verify(user["password"], form_data["password"]):
                     raise HTTPException(status_code=400, detail="Invalid password")
 
-                access_token = token.create_access_token(data={"sub": user["user_name"]})
+                access_token = auth_token.create_access_token(data={"sub": user["user_name"]})
                 response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                response.delete_cookie("access_token")  # Remove old token
                 response.set_cookie(key="access_token", value=access_token, max_age=3600)
                 return response
 
@@ -176,19 +181,21 @@ async def login(request: Request):
                 cache_key = phone_number_provided
                 cached_data = await cache(cache_key)
                 if cached_data:
-                    access_token = token.create_access_token(data={"sub": cache_key})
+                    access_token = auth_token.create_access_token(data={"sub": cache_key})
                     response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                    response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
                     return response
 
-                user = conn.auth.User.find_one({"phone_number": form_data["phone_number"]})
+                user = await mongo_client.auth.User.find_one({"phone_number": form_data["phone_number"]})
                 if not user:
                     raise HTTPException(status_code=400, detail="Invalid Phone Number")
                 if not Hash.verify(user["password"], form_data["password"]):
                     raise HTTPException(status_code=400, detail="Invalid password")
                 
-                access_token = token.create_access_token(data={"sub": user["phone_number"]})
+                access_token = auth_token.create_access_token(data={"sub": user["phone_number"]})
                 response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                response.delete_cookie("access_token")  # Remove old token
                 response.set_cookie(key="access_token", value=access_token, max_age=3600)
                 return response
 
