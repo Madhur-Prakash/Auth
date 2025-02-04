@@ -3,6 +3,8 @@ from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 import aioredis
+import logging
+from logging.handlers import RotatingFileHandler
 from .hashing import Hash
 from datetime import datetime
 from . import auth_token, models
@@ -13,20 +15,59 @@ templates = Jinja2Templates(directory="authemtication/templates")
 # redis connection
 client =  aioredis.from_url('redis://localhost', decode_responses=True)
 
+def setup_logging():
+    logger = logging.getLogger("auth_log") # create logger
+    logger.setLevel(logging.INFO) # set log level
+
+    # create a file handler
+    file_handler = RotatingFileHandler(
+        "auth.log", 
+        maxBytes=10000, # 10KB 
+        backupCount=500
+    )
+    file_handler.setLevel(logging.INFO) 
+
+    #  create a console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+
+    # create a formatter
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                                  datefmt="%Y-%m-%d %H:%M:%S")
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+
+    #  add the handlers to the logger
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    return logger
+
+logger = setup_logging() # initialize logger
+
+
 # implemeting cahing using redis
-async def cache(data: str):
+async def cache(data: str, plain_password):
     user = await mongo_client.auth.User.find_one({"$or": [{
         "email": data}, 
         {"user_name": data}, 
         {"phone_number": data}]})
     CachedData = await client.get(f'data:{data}')
     if CachedData and user:
-            print("Data is cached") # debug
-            print(CachedData) # debug
-            return CachedData
+            hashed_password = await Hash.verify(user["password"], plain_password)
+            if hashed_password:
+                print("Data is cached") # debug
+                print(CachedData) # debug
+                logger.info(f"User logged in successfully using: {data}")
+                return CachedData
+            logger.warning(f"login attempt with invalid password: {data}")
+            raise HTTPException(status_code=400, detail="Invalid credentials")
     elif user:
-        await client.set(f"data:{data}",data, ex=30) # expire in 30 seconds
-        return data
+        hashed_password = await Hash.verify(user["password"], plain_password)
+        if hashed_password:
+            print("searching inside db") # debug
+            await client.set(f"data:{data}",data, ex=30) # expire in 30 seconds
+            logger.info(f"User logged in successfully using: {data}")
+            return data
     return None
 
 @auth.get("/", response_class=HTMLResponse)
@@ -65,13 +106,19 @@ async def signup(request: Request):
         
         # data validation
         if email:
+            logger.warning(f"Signup attempt with existing email: {dict_data['email']}")
             raise HTTPException(status_code=400, detail = "Email already exists")
         if user:
+            logger.warning(f"Signup attempt with existing username: {dict_data['user_name']}")
             raise HTTPException(status_code=400, detail = "Username already exists")
         if(form_data["phone_number"].__len__() < 10 or form_data["phone_number"].__len__() > 10):
             raise HTTPException(status_code=400, detail = "Phone number must be 10 digits long")
         if phone_number:
+            logger.warning(f"Signup attempt with existing phone number: {dict_data['phone_number']}")
             raise HTTPException(status_code=400, detail = "Phone number already in use")
+        
+        if not(form_data["phone_number"].isdigit()):
+            raise HTTPException(status_code=400, detail = "Phone number must be digits only")
         if dict_data["password"] != dict_data["password2"]:
             raise HTTPException(status_code=400, detail = "Password do not match")
         if(form_data["password"].__len__() < 6):
@@ -92,6 +139,7 @@ async def signup(request: Request):
         dict_data.pop("password2")
 
         await mongo_client.auth.User.insert_one(dict_data)
+        logger.info(f"User created successfully: {dict_data['email']}")
         
         # Generate a cache during signup with email as key
         cache_key = dict_data["email"]
@@ -132,7 +180,7 @@ async def login(request: Request):
             if email_provided:
                 # Generate a cache key based on login identifier
                 cache_key = email_provided
-                cached_data = await cache(cache_key)
+                cached_data = await cache(cache_key, form_data["password"])
                 if cached_data:
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
@@ -141,21 +189,25 @@ async def login(request: Request):
                     return response
                 
                 user = await mongo_client.auth.User.find_one({"email": form_data["email"]})
+                print("cache data returned none") # debug
                 if not user:
-                    raise HTTPException(status_code=400, detail="Invalid Email")
-                if not Hash.verify(user["password"], form_data["password"]):
-                    raise HTTPException(status_code=400, detail="Invalid password")
+                    logger.warning(f"login attempt with invalid email: {form_data['email']}")
+                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                if not await Hash.verify(user["password"], form_data["password"]):
+                    logger.warning(f"login attempt with invalid password: {form_data['email']}")
+                    raise HTTPException(status_code=400, detail="Invalid credentials")
                 
                 access_token = auth_token.create_access_token(data={"sub": user["email"]})
                 response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
                 response.delete_cookie("access_token")  # Remove old token
                 response.set_cookie(key="access_token", value=access_token, max_age=3600)
+                logger.info(f"User logged in successfully using: {user['email']}")
                 return response            
             # login using user_name and password
             elif user_name_provided:
                 # Generate a cache key based on login identifier
                 cache_key = user_name_provided
-                cached_data = await cache(cache_key)
+                cached_data = await cache(cache_key, form_data["password"])
                 if cached_data:
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
@@ -164,22 +216,26 @@ async def login(request: Request):
                     return response
                 
                 user = await mongo_client.auth.User.find_one({"user_name": form_data["user_name"]})
+                print("cache data returned none") # debug
                 if not user:
-                    raise HTTPException(status_code=400, detail="Invalid User Name")
-                if not Hash.verify(user["password"], form_data["password"]):
-                    raise HTTPException(status_code=400, detail="Invalid password")
+                    logger.warning(f"login attempt with invalid user name: {form_data['user_name']}")
+                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                if not await Hash.verify(user["password"], form_data["password"]):
+                    logger.warning(f"login attempt with invalid password: {form_data['user_name']}")
+                    raise HTTPException(status_code=400, detail="Invalid credentials")
 
                 access_token = auth_token.create_access_token(data={"sub": user["user_name"]})
                 response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
                 response.delete_cookie("access_token")  # Remove old token
                 response.set_cookie(key="access_token", value=access_token, max_age=3600)
+                logger.info(f"User logged in successfully using: {user['user_name']}")
                 return response
 
             # login using phone_number and password
             elif phone_number_provided:
                 # Generate a cache key based on login identifier
                 cache_key = phone_number_provided
-                cached_data = await cache(cache_key)
+                cached_data = await cache(cache_key, form_data["password"])
                 if cached_data:
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
@@ -188,15 +244,19 @@ async def login(request: Request):
                     return response
 
                 user = await mongo_client.auth.User.find_one({"phone_number": form_data["phone_number"]})
+                print("cache data returned none") # debug
                 if not user:
-                    raise HTTPException(status_code=400, detail="Invalid Phone Number")
-                if not Hash.verify(user["password"], form_data["password"]):
-                    raise HTTPException(status_code=400, detail="Invalid password")
+                    logger.warning(f"login attempt with invalid phone number: {form_data['phone_number']}")
+                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                if not await Hash.verify(user["password"], form_data["password"]):
+                    logger.warning(f"login attempt with invalid password: {form_data['phone_number']}")
+                    raise HTTPException(status_code=400, detail="Invalid credentials")
                 
                 access_token = auth_token.create_access_token(data={"sub": user["phone_number"]})
                 response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
                 response.delete_cookie("access_token")  # Remove old token
                 response.set_cookie(key="access_token", value=access_token, max_age=3600)
+                logger.info(f"User logged in successfully using: {user['phone_number']}")
                 return response
 
             return {"access_token": access_token, "token_type": "bearer"}
