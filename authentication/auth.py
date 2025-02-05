@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request, status, HTTPException
+import re
 from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -99,6 +100,10 @@ async def signup(request: Request):
         for field in required_fields:
             if field not in dict_data:
                 raise HTTPException(status_code=400, detail="All fields are required")
+            
+            #  define a regex pattern for allowed username characters
+            regex_username_pattern = r"^[a-zA-Z0-9_.-]{3,}$"  # Allows letters, numbers, _ . - with at least 3 characters
+            regex_restricted_words = {"admin", "superuser", "root", "moderator", "administrator", "null", "test", "system"}
 
         email = await mongo_client.auth.User.find_one({"email": dict_data["email"]})
         user = await mongo_client.auth.User.find_one({"user_name": dict_data["user_name"]})
@@ -125,8 +130,14 @@ async def signup(request: Request):
             raise HTTPException(status_code=400, detail = "Password must be at least 6 characters long")
         if(form_data["email"].__contains__("@") == False):
             raise HTTPException(status_code=400, detail = "Invalid email address")
+        if(form_data["user_name"].__len__() < 3):
+            raise HTTPException(status_code=400, detail = "Username must be greater than 3 characters")
+        if not re.fullmatch(regex_username_pattern, form_data["user_name"]):
+            raise HTTPException(status_code=400, detail="Invalid username. Allowed: letters, numbers, '_', '.', '-'. Min length: 3")
         if(form_data["full_name"].__len__() < 2):
             raise HTTPException(status_code=400, detail = "Full name must be greater than 1 character")
+        if any(word in form_data["user_name"].lower() for word in regex_restricted_words):
+            raise HTTPException(status_code=400, detail="Username contains restricted words.")
         if(form_data["email"].__len__() < 4):
             raise HTTPException("Email must be greater than 3 characters") 
 
@@ -182,6 +193,7 @@ async def login(request: Request):
                 cache_key = email_provided
                 cached_data = await cache(cache_key, form_data["password"])
                 if cached_data:
+                    print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
                     response.delete_cookie("access_token")  # Remove old token
@@ -196,19 +208,14 @@ async def login(request: Request):
                 if not await Hash.verify(user["password"], form_data["password"]):
                     logger.warning(f"login attempt with invalid password: {form_data['email']}")
                     raise HTTPException(status_code=400, detail="Invalid credentials")
-                
-                access_token = auth_token.create_access_token(data={"sub": user["email"]})
-                response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
-                response.delete_cookie("access_token")  # Remove old token
-                response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                logger.info(f"User logged in successfully using: {user['email']}")
-                return response            
+                         
             # login using user_name and password
             elif user_name_provided:
                 # Generate a cache key based on login identifier
                 cache_key = user_name_provided
                 cached_data = await cache(cache_key, form_data["password"])
                 if cached_data:
+                    print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
                     response.delete_cookie("access_token")  # Remove old token
@@ -224,19 +231,13 @@ async def login(request: Request):
                     logger.warning(f"login attempt with invalid password: {form_data['user_name']}")
                     raise HTTPException(status_code=400, detail="Invalid credentials")
 
-                access_token = auth_token.create_access_token(data={"sub": user["user_name"]})
-                response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
-                response.delete_cookie("access_token")  # Remove old token
-                response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                logger.info(f"User logged in successfully using: {user['user_name']}")
-                return response
-
             # login using phone_number and password
             elif phone_number_provided:
                 # Generate a cache key based on login identifier
                 cache_key = phone_number_provided
                 cached_data = await cache(cache_key, form_data["password"])
                 if cached_data:
+                    print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
                     response.delete_cookie("access_token")  # Remove old token
@@ -251,16 +252,18 @@ async def login(request: Request):
                 if not await Hash.verify(user["password"], form_data["password"]):
                     logger.warning(f"login attempt with invalid password: {form_data['phone_number']}")
                     raise HTTPException(status_code=400, detail="Invalid credentials")
-                
-                access_token = auth_token.create_access_token(data={"sub": user["phone_number"]})
-                response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
-                response.delete_cookie("access_token")  # Remove old token
-                response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                logger.info(f"User logged in successfully using: {user['phone_number']}")
-                return response
-
             return {"access_token": access_token, "token_type": "bearer"}
     except Exception as e:
         return {"error": str(e)}
 
     
+@auth.get("/logout", status_code=status.HTTP_200_OK)
+async def logout():
+    response = RedirectResponse(
+        "http://127.0.0.1:8000/login",
+        status_code=status.HTTP_200_OK
+    )
+    response.delete_cookie("access_token")
+    logger.info("User logged out successfully")
+    print("User logged out successfully") # debug
+    return response
