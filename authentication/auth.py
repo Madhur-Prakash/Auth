@@ -163,6 +163,7 @@ async def signup(request: Request):
     
     except Exception as e:
         print(f"Error creating new user: {str(e)}")
+        logger.error(f"Error creating new user: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
     
@@ -254,7 +255,9 @@ async def login(request: Request):
                     raise HTTPException(status_code=400, detail="Invalid credentials")
             return {"access_token": access_token, "token_type": "bearer"}
     except Exception as e:
-        return {"error": str(e)}
+        print(f"login attempt failed: {str(e)}")
+        logger.error(f"login attempt failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
     
 @auth.get("/logout", status_code=status.HTTP_200_OK)
