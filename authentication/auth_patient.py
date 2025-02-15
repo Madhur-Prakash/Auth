@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 import aioredis
 import logging
-from logging.handlers import RotatingFileHandler
+from concurrent_log_handler import ConcurrentRotatingFileHandler
 from .hashing import Hash
 from datetime import datetime
 from . import auth_token, models
@@ -18,29 +18,30 @@ client =  aioredis.from_url('redis://localhost', decode_responses=True)
 
 def setup_logging():
     logger = logging.getLogger("auth_log") # create logger
-    logger.setLevel(logging.INFO) # set log level
+    if not logger.hasHandlers(): # check if handlers already exist
+        logger.setLevel(logging.INFO) # set log level
 
-    # create a file handler
-    file_handler = RotatingFileHandler(
-        "auth.log", 
-        maxBytes=10000, # 10KB 
-        backupCount=500
-    )
-    file_handler.setLevel(logging.INFO) 
+        # create a file handler
+        file_handler = ConcurrentRotatingFileHandler(
+            "auth.log", 
+            maxBytes=10000, # 10KB 
+            backupCount=500
+        )
+        file_handler.setLevel(logging.INFO) # The lock file .__auth.lock is created here by ConcurrentRotatingFileHandler
 
-    #  create a console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
+        #  create a console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
 
-    # create a formatter
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-                                  datefmt="%Y-%m-%d %H:%M:%S")
-    file_handler.setFormatter(formatter)
-    console_handler.setFormatter(formatter)
+        # create a formatter
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                                      datefmt="%Y-%m-%d %H:%M:%S")
+        file_handler.setFormatter(formatter)
+        console_handler.setFormatter(formatter)
 
-    #  add the handlers to the logger
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+        #  add the handlers to the logger
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
     return logger
 
 logger = setup_logging() # initialize logger
@@ -52,7 +53,7 @@ async def cache(data: str, plain_password):
         "email": data}, 
         {"patient_user_name": data}, 
         {"phone_number": data}]})
-    CachedData = await client.get(f'data:{data}')
+    CachedData = await client.get(f'patient:{data}')
     if CachedData and user:
             hashed_password = await Hash.verify(user["password"], plain_password)
             if hashed_password:
@@ -66,7 +67,7 @@ async def cache(data: str, plain_password):
         hashed_password = await Hash.verify(user["password"], plain_password)
         if hashed_password:
             print("searching inside db") # debug
-            await client.set(f"data:{data}",data, ex=30) # expire in 30 seconds
+            await client.set(f"patient:{data}",data, ex=30) # expire in 30 seconds
             logger.info(f"User logged in successfully using: {data}")
             return data
     return None
@@ -154,7 +155,7 @@ async def signup(request: Request):
         
         # Generate a cache during signup with email as key
         cache_key = dict_data["email"]
-        cached_data = await client.set(f"data:{cache_key}",cache_key,ex=3600) 
+        cached_data = await client.set(f"patient:{cache_key}",cache_key,ex=3600) 
         access_token = auth_token.create_access_token(data={"sub": cache_key})
         response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
         response.delete_cookie("access_token")  # Remove old token
