@@ -6,7 +6,7 @@ url = "http://127.0.0.1:8000/login"
 
 # Login data
 data = {
-    "user_name": "mpm",
+    "patient_user_name": "mpm",
     "password": "123456"
 }
 

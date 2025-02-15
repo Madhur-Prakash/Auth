@@ -2,10 +2,19 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field
 
-class User(BaseModel):
+class Patient(BaseModel):
     full_name: str = Field(None, title="Full Name of the User")
     email: EmailStr = Field(..., title="Email Address")
-    user_name: str = Field(..., title="Username")
+    patient_user_name: str = Field(..., title="Username")
+    password: str = Field(..., title="Password")
+    password2: str = Field(..., title="Confirm Password")
+    phone_number: int = Field(..., min_length=10, title="Phone Number")
+    disabled: bool = Field(default=False, title="User Account Status")
+
+class Doctor(BaseModel):
+    full_name: str = Field(None, title="Full Name of the User")
+    email: EmailStr = Field(..., title="Email Address")
+    doctor_user_name: str = Field(..., title="Username")
     password: str = Field(..., title="Password")
     password2: str = Field(..., title="Confirm Password")
     phone_number: int = Field(..., min_length=10, title="Phone Number")
@@ -30,5 +39,8 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-class UserInDB(User):
+class UserInDB(Patient):
+    hashed_password: str
+
+class UserInDB(Doctor):
     hashed_password: str

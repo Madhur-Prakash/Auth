@@ -10,7 +10,7 @@ from .hashing import Hash
 from datetime import datetime
 from . import auth_token, models
 
-auth_patient = APIRouter()
+auth_doctor = APIRouter()
 templates = Jinja2Templates(directory="authemtication/templates")
 
 # redis connection
@@ -45,12 +45,11 @@ def setup_logging():
 
 logger = setup_logging() # initialize logger
 
-
 # implemeting cahing using redis
 async def cache(data: str, plain_password):
-    user = await mongo_client.auth.patient.find_one({"$or": [{
+    user = await mongo_client.auth.doctor.find_one({"$or": [{
         "email": data}, 
-        {"patient_user_name": data}, 
+        {"doctor_user_name": data}, 
         {"phone_number": data}]})
     CachedData = await client.get(f'data:{data}')
     if CachedData and user:
@@ -71,7 +70,7 @@ async def cache(data: str, plain_password):
             return data
     return None
 
-@auth_patient.get("/", response_class=HTMLResponse)
+@auth_doctor.get("/", response_class=HTMLResponse)
 async def read(request: Request):
     user = await mongo_client.authenticator.user.find()
     new_user = []
@@ -79,7 +78,7 @@ async def read(request: Request):
         new_user.append({
             "id": i["_id"],
             "full_name": i["full_name"],
-            "patient_user_name": i["patient_user_name"],
+            "doctor_user_name": i["doctor_user_name"],
             "email": i["email"],
             "password": i["password"],
             "password2": i["password2"],
@@ -87,16 +86,15 @@ async def read(request: Request):
             "disabled": i["disabled"]
         })
     return templates.TemplateResponse("signup.html", {"request": request, "user": new_user}) 
-    
 
-@auth_patient.post("/patient/signup", status_code=status.HTTP_201_CREATED, response_model=models.Patient)
+@auth_doctor.post("/doctor/signup", status_code=status.HTTP_201_CREATED, response_model=models.Doctor)
 async def signup(request: Request):
     try:
         form_data = await request.form()
         dict_data = dict(form_data)
         dict_data["created_at"] = datetime.now()
 
-        required_fields = ["full_name", "email", "patient_user_name", "password", "password2", "phone_number"]
+        required_fields = ["full_name", "email", "doctor_user_name", "password", "password2", "phone_number"]
         for field in required_fields:
             if field not in dict_data:
                 raise HTTPException(status_code=400, detail="All fields are required")
@@ -105,16 +103,16 @@ async def signup(request: Request):
             regex_username_pattern = r"^[a-zA-Z0-9_.-]{3,}$"  # Allows letters, numbers, _ . - with at least 3 characters
             regex_restricted_words = {"admin", "superuser", "root", "moderator", "administrator", "null", "test", "system"}
 
-        email = await mongo_client.auth.patient.find_one({"email": dict_data["email"]})
-        user = await mongo_client.auth.patient.find_one({"patient_user_name": dict_data["patient_user_name"]})
-        phone_number = await mongo_client.auth.patient.find_one({"phone_number": dict_data["phone_number"]})
+        email = await mongo_client.auth.doctor.find_one({"email": dict_data["email"]})
+        user = await mongo_client.auth.doctor.find_one({"doctor_user_name": dict_data["doctor_user_name"]})
+        phone_number = await mongo_client.auth.doctor.find_one({"phone_number": dict_data["phone_number"]})
         
         # data validation
         if email:
             logger.warning(f"Signup attempt with existing email: {dict_data['email']}")
             raise HTTPException(status_code=400, detail = "Email already exists")
         if user:
-            logger.warning(f"Signup attempt with existing username: {dict_data['patient_user_name']}")
+            logger.warning(f"Signup attempt with existing username: {dict_data['doctor_user_name']}")
             raise HTTPException(status_code=400, detail = "Username already exists")
         if(form_data["phone_number"].__len__() < 10 or form_data["phone_number"].__len__() > 10):
             raise HTTPException(status_code=400, detail = "Phone number must be 10 digits long")
@@ -130,13 +128,13 @@ async def signup(request: Request):
             raise HTTPException(status_code=400, detail = "Password must be at least 6 characters long")
         if(form_data["email"].__contains__("@") == False):
             raise HTTPException(status_code=400, detail = "Invalid email address")
-        if(form_data["patient_user_name"].__len__() < 3):
+        if(form_data["doctor_user_name"].__len__() < 3):
             raise HTTPException(status_code=400, detail = "Username must be greater than 3 characters")
-        if not re.fullmatch(regex_username_pattern, form_data["patient_user_name"]):
+        if not re.fullmatch(regex_username_pattern, form_data["doctor_user_name"]):
             raise HTTPException(status_code=400, detail="Invalid username. Allowed: letters, numbers, '_', '.', '-'. Min length: 3")
         if(form_data["full_name"].__len__() < 2):
             raise HTTPException(status_code=400, detail = "Full name must be greater than 1 character")
-        if any(word in form_data["patient_user_name"].lower() for word in regex_restricted_words):
+        if any(word in form_data["doctor_user_name"].lower() for word in regex_restricted_words):
             raise HTTPException(status_code=400, detail="Username contains restricted words.")
         if(form_data["email"].__len__() < 4):
             raise HTTPException("Email must be greater than 3 characters") 
@@ -149,7 +147,7 @@ async def signup(request: Request):
         # removing the password2 field from db
         dict_data.pop("password2")
 
-        await mongo_client.auth.patient.insert_one(dict_data)
+        await mongo_client.auth.doctor.insert_one(dict_data)
         logger.info(f"User created successfully: {dict_data['email']}")
         
         # Generate a cache during signup with email as key
@@ -165,20 +163,18 @@ async def signup(request: Request):
         print(f"Error creating new user: {str(e)}")
         logger.error(f"Error creating new user: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
     
-
-@auth_patient.post("/patient/login", status_code=status.HTTP_202_ACCEPTED) # login using email and password
+@auth_doctor.post("/doctor/login", status_code=status.HTTP_202_ACCEPTED) # login using email and password
 async def login(request: Request):
     try:
         form_data = await request.form()
 
         email_provided = form_data.get("email", None)
-        user_name_provided = form_data.get("patient_user_name", None)
+        user_name_provided = form_data.get("doctor_user_name", None)
         password_provided = form_data.get("password", None)
         phone_number_provided = form_data.get("phone_number", None)
 
-        # check if email or patient_user_name or password is provided
+        # check if email or doctor_user_name or password is provided
         if not password_provided:
             raise HTTPException(status_code=400, detail="Password is required")
         
@@ -201,7 +197,7 @@ async def login(request: Request):
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
                     return response
                 
-                user = await mongo_client.auth.patient.find_one({"email": form_data["email"]})
+                user = await mongo_client.auth.doctor.find_one({"email": form_data["email"]})
                 print("cache data returned none") # debug
                 if not user:
                     logger.warning(f"login attempt with invalid email: {form_data['email']}")
@@ -210,7 +206,7 @@ async def login(request: Request):
                     logger.warning(f"login attempt with invalid password: {form_data['email']}")
                     raise HTTPException(status_code=400, detail="Invalid credentials")
                          
-            # login using patient_user_name and password
+            # login using doctor_user_name and password
             elif user_name_provided:
                 # Generate a cache key based on login identifier
                 cache_key = user_name_provided
@@ -223,13 +219,13 @@ async def login(request: Request):
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
                     return response
                 
-                user = await mongo_client.auth.patient.find_one({"patient_user_name": form_data["patient_user_name"]})
+                user = await mongo_client.auth.doctor.find_one({"doctor_user_name": form_data["doctor_user_name"]})
                 print("cache data returned none") # debug
                 if not user:
-                    logger.warning(f"login attempt with invalid user name: {form_data['patient_user_name']}")
+                    logger.warning(f"login attempt with invalid user name: {form_data['doctor_user_name']}")
                     raise HTTPException(status_code=400, detail="Invalid credentials")
                 if not await Hash.verify(user["password"], form_data["password"]):
-                    logger.warning(f"login attempt with invalid password: {form_data['patient_user_name']}")
+                    logger.warning(f"login attempt with invalid password: {form_data['doctor_user_name']}")
                     raise HTTPException(status_code=400, detail="Invalid credentials")
 
             # login using phone_number and password
@@ -245,7 +241,7 @@ async def login(request: Request):
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
                     return response
 
-                user = await mongo_client.auth.patient.find_one({"phone_number": form_data["phone_number"]})
+                user = await mongo_client.auth.doctor.find_one({"phone_number": form_data["phone_number"]})
                 print("cache data returned none") # debug
                 if not user:
                     logger.warning(f"login attempt with invalid phone number: {form_data['phone_number']}")
@@ -258,9 +254,8 @@ async def login(request: Request):
         print(f"login attempt failed: {str(e)}")
         logger.error(f"login attempt failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
     
-@auth_patient.get("/patient/logout", status_code=status.HTTP_200_OK)
+@auth_doctor.get("/doctor/logout", status_code=status.HTTP_200_OK)
 async def logout():
     response = RedirectResponse("http://127.0.0.1:8000/login",status_code=status.HTTP_200_OK)
     response.delete_cookie("access_token")
