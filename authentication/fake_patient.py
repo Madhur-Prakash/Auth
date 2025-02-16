@@ -7,7 +7,7 @@ import random
 fake = Faker()
 
 # Connect to MongoDB
-client = MongoClient("mongodb://localhost:27017/auth")  # Change this if your MongoDB is hosted elsewhere
+client = MongoClient("mongodb://ec2-3-84-251-0.compute-1.amazonaws.com:27017/auth")  # Change this if your MongoDB is hosted elsewhere
 
 # Function to generate a fake user
 def generate_fake_user():
@@ -15,7 +15,7 @@ def generate_fake_user():
     email = fake.email()
     patient_user_name = fake.user_name()  # Use a valid Faker method for generating usernames
     phone_number = fake.numerify("98########")  # Generates a 10-digit phone number
-    password = "Test@123"  # Default password for testing
+    password = "123456"  # Default password for testing
     hashed_password = bcrypt.hash(password)
     
     return {
@@ -28,7 +28,7 @@ def generate_fake_user():
     }
 
 # Number of users to insert
-num_users = 182  # Change this as needed
+num_users = 10000  # Change this as needed
 
 # Generate and insert users
 fake_users = [generate_fake_user() for _ in range(num_users)]
