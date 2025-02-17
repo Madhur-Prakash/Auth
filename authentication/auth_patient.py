@@ -14,7 +14,7 @@ auth_patient = APIRouter()
 templates = Jinja2Templates(directory="authemtication/templates")
 
 # redis connection
-client =  aioredis.from_url('redis://localhost', decode_responses=True)
+client = aioredis.from_url('redis://default@54.198.65.205:6379', decode_responses=True)
 
 def setup_logging():
     logger = logging.getLogger("auth_log") # create logger
