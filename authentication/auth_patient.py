@@ -261,7 +261,7 @@ async def login(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
     
-@auth_patient.get("/patient/logout", status_code=status.HTTP_200_OK)
+@auth_patient.post("/patient/logout", status_code=status.HTTP_200_OK)
 async def logout():
     response = RedirectResponse("http://127.0.0.1:8000/login",status_code=status.HTTP_200_OK)
     response.delete_cookie("access_token")
