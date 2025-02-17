@@ -4,8 +4,7 @@ from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 import aioredis
-import logging
-from logging.handlers import RotatingFileHandler
+from . import auth_patient
 from .hashing import Hash
 from datetime import datetime
 from . import auth_token, models
@@ -16,35 +15,8 @@ templates = Jinja2Templates(directory="authemtication/templates")
 # redis connection
 client = aioredis.from_url('redis://default@54.198.65.205:6379', decode_responses=True)
 
-def setup_logging():
-    logger = logging.getLogger("auth_log") # create logger
-    if not logger.hasHandlers(): # check if handlers already exist
-        logger.setLevel(logging.INFO) # set log level
 
-        # create a file handler
-        file_handler = RotatingFileHandler(
-            "auth.log", 
-            maxBytes=10000, # 10KB 
-            backupCount=500
-        )
-        file_handler.setLevel(logging.INFO)  # The lock file .__auth.lock is created here by ConcurrentRotatingFileHandler
-
-        #  create a console handler
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-
-        # create a formatter
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-                                      datefmt="%Y-%m-%d %H:%M:%S")
-        file_handler.setFormatter(formatter)
-        console_handler.setFormatter(formatter)
-
-        #  add the handlers to the logger
-        logger.addHandler(file_handler)
-        logger.addHandler(console_handler)
-    return logger
-
-logger = setup_logging() # initialize logger
+logger = auth_patient.setup_logging() # initialize logger
 
 # implemeting cahing using redis
 async def cache(data: str, plain_password):
