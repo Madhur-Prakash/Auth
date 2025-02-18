@@ -30,7 +30,7 @@ async def cache(data: str, plain_password):
             if hashed_password:
                 print("Data is cached") # debug
                 print(CachedData) # debug
-                logger.info(f"User logged in successfully using: {data}")
+                logger.info(f"Doctor logged in successfully using: {data}")
                 return CachedData
             logger.warning(f"login attempt with invalid password: {data}")
             raise HTTPException(status_code=400, detail="Invalid credentials")
@@ -39,7 +39,7 @@ async def cache(data: str, plain_password):
         if hashed_password:
             print("searching inside db") # debug
             await client.set(f"doctor:{data}",data, ex=30) # expire in 30 seconds
-            logger.info(f"User logged in successfully using: {data}")
+            logger.info(f"Doctor logged in successfully using: {data}")
             return data
     return None
 
@@ -54,7 +54,7 @@ async def read(request: Request):
             "doctor_user_name": i["doctor_user_name"],
             "email": i["email"],
             "password": i["password"],
-            "password2": i["password2"],
+            "confirm_password": i["confirm_password"],
             "phone_number": i["phone_number"],
             "disabled": i["disabled"]
         })
@@ -67,7 +67,7 @@ async def signup(request: Request):
         dict_data = dict(form_data)
         dict_data["created_at"] = datetime.now()
 
-        required_fields = ["full_name", "email", "doctor_user_name", "password", "password2", "phone_number"]
+        required_fields = ["full_name", "email", "doctor_user_name", "password", "confirm_password", "phone_number"]
         for field in required_fields:
             if field not in dict_data:
                 raise HTTPException(status_code=400, detail="All fields are required")
@@ -95,7 +95,7 @@ async def signup(request: Request):
         
         if not(form_data["phone_number"].isdigit()):
             raise HTTPException(status_code=400, detail = "Phone number must be digits only")
-        if dict_data["password"] != dict_data["password2"]:
+        if dict_data["password"] != dict_data["confirm_password"]:
             raise HTTPException(status_code=400, detail = "Password do not match")
         if(form_data["password"].__len__() < 6):
             raise HTTPException(status_code=400, detail = "Password must be at least 6 characters long")
@@ -117,11 +117,11 @@ async def signup(request: Request):
         hashed_password = Hash.bcrypt(dict_data["password"])
         dict_data["password"] = hashed_password
 
-        # removing the password2 field from db
-        dict_data.pop("password2")
+        # removing the confirm_password field from db
+        dict_data.pop("confirm_password")
 
         await mongo_client.auth.doctor.insert_one(dict_data)
-        logger.info(f"User created successfully: {dict_data['email']}")
+        logger.info(f"Account for doctor  created successfully: {dict_data['email']}")
         
         # Generate a cache during signup with email as key
         cache_key = dict_data["email"]
@@ -228,10 +228,10 @@ async def login(request: Request):
         logger.error(f"login attempt failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
     
-@auth_doctor.post("/doctor/logout", status_code=status.HTTP_200_OK)
-async def logout():
+@auth_doctor.post("/doctor/{doctor_user_name}/logout", status_code=status.HTTP_200_OK)
+async def logout(doctor_user_name: str):
     response = RedirectResponse("http://127.0.0.1:8000/login",status_code=status.HTTP_200_OK)
     response.delete_cookie("access_token")
-    logger.info("User logged out successfully")
-    print("User logged out successfully") # debug
+    logger.info(f"{doctor_user_name} logged out successfully")
+    print(f"{doctor_user_name} logged out successfully") # debug
     return response

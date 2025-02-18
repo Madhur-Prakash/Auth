@@ -7,7 +7,7 @@ class Patient(BaseModel):
     email: EmailStr = Field(..., title="Email Address")
     patient_user_name: str = Field(..., title="Username")
     password: str = Field(..., title="Password")
-    password2: str = Field(..., title="Confirm Password")
+    confirm_password: str = Field(..., title="Confirm Password")
     phone_number: int = Field(..., min_length=10, title="Phone Number")
     disabled: bool = Field(default=False, title="User Account Status")
 
@@ -16,7 +16,7 @@ class Doctor(BaseModel):
     email: EmailStr = Field(..., title="Email Address")
     doctor_user_name: str = Field(..., title="Username")
     password: str = Field(..., title="Password")
-    password2: str = Field(..., title="Confirm Password")
+    confirm_password: str = Field(..., title="Confirm Password")
     phone_number: int = Field(..., min_length=10, title="Phone Number")
     disabled: bool = Field(default=False, title="User Account Status")
 

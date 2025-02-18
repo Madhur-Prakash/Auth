@@ -5,7 +5,7 @@ def user(item) -> dict:
         "patient_user_name": item["patient_user_name"],
         "email": item["email"],
         "password": item["password"],
-        "password2": item["password2"],
+        "confirm_password": item["confirm_password"],
         "phone_number": item["phone_number"],
         "disabled": item.get("disabled", False)
     }

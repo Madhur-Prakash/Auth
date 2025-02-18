@@ -59,16 +59,16 @@ async def cache(data: str, plain_password):
             if hashed_password:
                 print("Data is cached") # debug
                 print(CachedData) # debug
-                logger.info(f"User logged in successfully using: {data}")
+                logger.info(f"Patient logged in successfully using: {data}")
                 return CachedData
             logger.warning(f"login attempt with invalid password: {data}")
-            raise HTTPException(status_code=400, detail="Invalid credentials")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     elif user:
         hashed_password = await Hash.verify(user["password"], plain_password)
         if hashed_password:
             print("searching inside db") # debug
             await client.set(f"patient:{data}",data, ex=30) # expire in 30 seconds
-            logger.info(f"User logged in successfully using: {data}")
+            logger.info(f"Patient logged in successfully using: {data}")
             return data
     return None
 
@@ -83,7 +83,7 @@ async def read(request: Request):
             "patient_user_name": i["patient_user_name"],
             "email": i["email"],
             "password": i["password"],
-            "password2": i["password2"],
+            "confirm_password": i["confirm_password"],
             "phone_number": i["phone_number"],
             "disabled": i["disabled"]
         })
@@ -97,10 +97,10 @@ async def signup(request: Request):
         dict_data = dict(form_data)
         dict_data["created_at"] = datetime.now()
 
-        required_fields = ["full_name", "email", "patient_user_name", "password", "password2", "phone_number"]
+        required_fields = ["full_name", "email", "patient_user_name", "password", "confirm_password", "phone_number"]
         for field in required_fields:
             if field not in dict_data:
-                raise HTTPException(status_code=400, detail="All fields are required")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
             
             #  define a regex pattern for allowed username characters
             regex_username_pattern = r"^[a-zA-Z0-9_.-]{3,}$"  # Allows letters, numbers, _ . - with at least 3 characters
@@ -113,32 +113,32 @@ async def signup(request: Request):
         # data validation
         if email:
             logger.warning(f"Signup attempt with existing email: {dict_data['email']}")
-            raise HTTPException(status_code=400, detail = "Email already exists")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
         if user:
             logger.warning(f"Signup attempt with existing username: {dict_data['patient_user_name']}")
-            raise HTTPException(status_code=400, detail = "Username already exists")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Username already exists")
         if(form_data["phone_number"].__len__() < 10 or form_data["phone_number"].__len__() > 10):
-            raise HTTPException(status_code=400, detail = "Phone number must be 10 digits long")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be 10 digits long")
         if phone_number:
             logger.warning(f"Signup attempt with existing phone number: {dict_data['phone_number']}")
-            raise HTTPException(status_code=400, detail = "Phone number already in use")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
         
         if not(form_data["phone_number"].isdigit()):
-            raise HTTPException(status_code=400, detail = "Phone number must be digits only")
-        if dict_data["password"] != dict_data["password2"]:
-            raise HTTPException(status_code=400, detail = "Password do not match")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be digits only")
+        if dict_data["password"] != dict_data["confirm_password"]:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Password do not match")
         if(form_data["password"].__len__() < 6):
-            raise HTTPException(status_code=400, detail = "Password must be at least 6 characters long")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Password must be at least 6 characters long")
         if(form_data["email"].__contains__("@") == False):
-            raise HTTPException(status_code=400, detail = "Invalid email address")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Invalid email address")
         if(form_data["patient_user_name"].__len__() < 3):
-            raise HTTPException(status_code=400, detail = "Username must be greater than 3 characters")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Username must be greater than 3 characters")
         if not re.fullmatch(regex_username_pattern, form_data["patient_user_name"]):
-            raise HTTPException(status_code=400, detail="Invalid username. Allowed: letters, numbers, '_', '.', '-'. Min length: 3")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid username. Allowed: letters, numbers, '_', '.', '-'. Min length: 3")
         if(form_data["full_name"].__len__() < 2):
-            raise HTTPException(status_code=400, detail = "Full name must be greater than 1 character")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Full name must be greater than 1 character")
         if any(word in form_data["patient_user_name"].lower() for word in regex_restricted_words):
-            raise HTTPException(status_code=400, detail="Username contains restricted words.")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username contains restricted words.")
         if(form_data["email"].__len__() < 4):
             raise HTTPException("Email must be greater than 3 characters") 
 
@@ -147,17 +147,17 @@ async def signup(request: Request):
         hashed_password = Hash.bcrypt(dict_data["password"])
         dict_data["password"] = hashed_password
 
-        # removing the password2 field from db
-        dict_data.pop("password2")
+        # removing the confirm_password field from db
+        dict_data.pop("confirm_password")
 
         await mongo_client.auth.patient.insert_one(dict_data)
-        logger.info(f"User created successfully: {dict_data['email']}")
+        logger.info(f"Account for patient created successfully: {dict_data['email']}")
         
         # Generate a cache during signup with email as key
         cache_key = dict_data["email"]
         cached_data = await client.set(f"patient:{cache_key}",cache_key,ex=3600) 
         access_token = auth_token.create_access_token(data={"sub": cache_key})
-        response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+        response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
         return response
@@ -165,11 +165,11 @@ async def signup(request: Request):
     except Exception as e:
         print(f"Error creating new user: {str(e)}")
         logger.error(f"Error creating new user: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     
 
-@auth_patient.post("/patient/login", status_code=status.HTTP_202_ACCEPTED) # login using email and password
+@auth_patient.post("/patient/login", status_code=status.HTTP_200_OK) # login using email and password
 async def login(request: Request):
     try:
         form_data = await request.form()
@@ -181,10 +181,10 @@ async def login(request: Request):
 
         # check if email or patient_user_name or password is provided
         if not password_provided:
-            raise HTTPException(status_code=400, detail="Password is required")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password is required")
         
         if not email_provided and not user_name_provided and not phone_number_provided:
-                raise HTTPException(status_code=400, detail="User Name or Email or phone number is required")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User Name or Email or phone number is required")
         
         else:
             user = None # initialize user to None
@@ -261,10 +261,10 @@ async def login(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
     
-@auth_patient.post("/patient/logout", status_code=status.HTTP_200_OK)
-async def logout():
+@auth_patient.post("/patient/{patient_user_name}/logout", status_code=status.HTTP_200_OK)
+async def logout(patient_user_name: str):
     response = RedirectResponse("http://127.0.0.1:8000/login",status_code=status.HTTP_200_OK)
     response.delete_cookie("access_token")
-    logger.info("User logged out successfully")
-    print("User logged out successfully") # debug
+    logger.info(f"{patient_user_name} logged out successfully")
+    print(f"{patient_user_name} logged out successfully") # debug
     return response
