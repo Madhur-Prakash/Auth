@@ -44,7 +44,6 @@ pymongo==4.9.2
 python-dateutil==2.9.0.post0
 python-jose==3.3.0
 python-multipart==0.0.20
-pywin32==308
 pyzmq==26.2.1
 redis==5.2.1
 requests==2.32.3

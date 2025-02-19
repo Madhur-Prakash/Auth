@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, status, HTTPException
+from fastapi import APIRouter, Request, status, HTTPException, Response
 import re
 from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -53,15 +53,13 @@ async def read(request: Request):
             "full_name": i["full_name"],
             "doctor_user_name": i["doctor_user_name"],
             "email": i["email"],
-            "password": i["password"],
-            "confirm_password": i["confirm_password"],
             "phone_number": i["phone_number"],
             "disabled": i["disabled"]
         })
     return templates.TemplateResponse("signup.html", {"request": request, "user": new_user}) 
 
 @auth_doctor.post("/doctor/signup", status_code=status.HTTP_201_CREATED, response_model=models.Doctor)
-async def signup(request: Request):
+async def signup(request: Request, response: Response):
     try:
         form_data = await request.form()
         dict_data = dict(form_data)
@@ -127,18 +125,18 @@ async def signup(request: Request):
         cache_key = dict_data["email"]
         cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
         access_token = auth_token.create_access_token(data={"sub": cache_key})
-        response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+        RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
-        return response
+        return ("Account for doctor created successfully")  # Return success message
     
     except Exception as e:
         print(f"Error creating new user: {str(e)}")
         logger.error(f"Error creating new user: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
     
-@auth_doctor.post("/doctor/login", status_code=status.HTTP_202_ACCEPTED) # login using email and password
-async def login(request: Request):
+@auth_doctor.post("/doctor/login", status_code=status.HTTP_200_OK) # login using email and password
+async def login(request: Request, response : Response):
     try:
         form_data = await request.form()
 
@@ -165,10 +163,11 @@ async def login(request: Request):
                 if cached_data:
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
-                    response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return response
+                    return (f"Dr.{form_data["doctor_user_name"]} logged in succesful")  # Return success message
+
                 
                 user = await mongo_client.auth.doctor.find_one({"email": form_data["email"]})
                 print("cache data returned none") # debug
@@ -187,10 +186,11 @@ async def login(request: Request):
                 if cached_data:
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
-                    response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return response
+                    return (f"Dr.{form_data["doctor_user_name"]} logged in succesful")  # Return success message
+
                 
                 user = await mongo_client.auth.doctor.find_one({"doctor_user_name": form_data["doctor_user_name"]})
                 print("cache data returned none") # debug
@@ -209,10 +209,10 @@ async def login(request: Request):
                 if cached_data:
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
-                    response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return response
+                    return (f"Dr.{form_data["doctor_user_name"]} logged in succesful")  # Return success message
 
                 user = await mongo_client.auth.doctor.find_one({"phone_number": form_data["phone_number"]})
                 print("cache data returned none") # debug
@@ -229,9 +229,11 @@ async def login(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
     
 @auth_doctor.post("/doctor/{doctor_user_name}/logout", status_code=status.HTTP_200_OK)
-async def logout(doctor_user_name: str):
+async def logout(doctor_user_name: str, response: Response):
     response = RedirectResponse("http://127.0.0.1:8000/login",status_code=status.HTTP_200_OK)
+    if not response.set_cookie("access_token"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
     response.delete_cookie("access_token")
     logger.info(f"{doctor_user_name} logged out successfully")
     print(f"{doctor_user_name} logged out successfully") # debug
-    return response
+    return (f"{doctor_user_name} logged out successfully")  # Return success message

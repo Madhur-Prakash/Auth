@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, status, HTTPException
+from fastapi import APIRouter, Request, status, HTTPException, Depends
 import re
 from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -8,7 +8,7 @@ import logging
 from concurrent_log_handler import ConcurrentRotatingFileHandler
 from .hashing import Hash
 from datetime import datetime
-from . import auth_token, models
+from . import auth_token, models, oauth2
 
 auth_patient = APIRouter()
 templates = Jinja2Templates(directory="authemtication/templates")
@@ -82,8 +82,6 @@ async def read(request: Request):
             "full_name": i["full_name"],
             "patient_user_name": i["patient_user_name"],
             "email": i["email"],
-            "password": i["password"],
-            "confirm_password": i["confirm_password"],
             "phone_number": i["phone_number"],
             "disabled": i["disabled"]
         })
@@ -262,7 +260,7 @@ async def login(request: Request):
 
     
 @auth_patient.post("/patient/{patient_user_name}/logout", status_code=status.HTTP_200_OK)
-async def logout(patient_user_name: str):
+async def logout(patient_user_name: str, current_user: models.Patient = Depends(oauth2.get_current_user)):
     response = RedirectResponse("http://127.0.0.1:8000/login",status_code=status.HTTP_200_OK)
     response.delete_cookie("access_token")
     logger.info(f"{patient_user_name} logged out successfully")
