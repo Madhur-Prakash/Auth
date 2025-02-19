@@ -3,15 +3,16 @@ import re
 from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 import aioredis
+from .oauth2 import OAuth2PatientRequestForm
 import logging
 from concurrent_log_handler import ConcurrentRotatingFileHandler
 from .hashing import Hash
 from datetime import datetime
 from . import auth_token, models, oauth2
 
-auth_patient = APIRouter()
+auth_patient = APIRouter(tags=["Patient Authentication"]) # create a router for patient
 templates = Jinja2Templates(directory="authemtication/templates")
 
 # redis connection
@@ -75,7 +76,7 @@ async def cache(data: str, plain_password):
 
 @auth_patient.get("/", response_class=HTMLResponse)
 async def read(request: Request):
-    user = await mongo_client.authenticator.user.find()
+    user = await mongo_client.auth.patient.find()
     new_user = []
     for i in user:
         new_user.append({
@@ -169,7 +170,7 @@ async def signup(request: Request, response: Response):
     
 
 @auth_patient.post("/patient/login", status_code=status.HTTP_200_OK) # login using email and password
-async def login(response: Response, request: Request):
+async def login(response: Response, request: Request, form_data: OAuth2PatientRequestForm = Depends(), auth_token: OAuth2PasswordBearer = Depends(oauth2.oauth2_scheme)):
     try:
         form_data = await request.form()
 
@@ -227,7 +228,7 @@ async def login(response: Response, request: Request):
                 user = await mongo_client.auth.patient.find_one({"patient_user_name": form_data["patient_user_name"]})
                 print("cache data returned none") # debug
                 if not user:
-                    logger.warning(f"login attempt with invalid email: {form_data['patient_user_name']}")
+                    logger.warning(f"login attempt with invalid user name: {form_data['patient_user_name']}")
                     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
                 if not await Hash.verify(user["password"], form_data["password"]):
                     logger.warning(f"login attempt with invalid password: {form_data['patient_user_name']}")

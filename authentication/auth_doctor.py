@@ -9,7 +9,7 @@ from .hashing import Hash
 from datetime import datetime
 from . import auth_token, models
 
-auth_doctor = APIRouter()
+auth_doctor = APIRouter(tags=["Doctor Authentication"])  # Create a FastAPI APIRouter instance
 templates = Jinja2Templates(directory="authemtication/templates")
 
 # redis connection
@@ -45,7 +45,7 @@ async def cache(data: str, plain_password):
 
 @auth_doctor.get("/", response_class=HTMLResponse)
 async def read(request: Request):
-    user = await mongo_client.authenticator.user.find()
+    user = await mongo_client.auth.doctor.find()
     new_user = []
     for i in user:
         new_user.append({
