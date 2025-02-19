@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Request, status, HTTPException, Depends
 import re
 from .database import mongo_client
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from fastapi.security import OAuth2PasswordRequestForm
 import aioredis
 import logging
 from concurrent_log_handler import ConcurrentRotatingFileHandler
@@ -88,8 +89,8 @@ async def read(request: Request):
     return templates.TemplateResponse("signup.html", {"request": request, "user": new_user}) 
     
 
-@auth_patient.post("/patient/signup", status_code=status.HTTP_201_CREATED, response_model=models.Patient)
-async def signup(request: Request):
+@auth_patient.post("/patient/signup", status_code=status.HTTP_201_CREATED, response_model=models.res)
+async def signup(request: Request, response: Response):
     try:
         form_data = await request.form()
         dict_data = dict(form_data)
@@ -138,7 +139,7 @@ async def signup(request: Request):
         if any(word in form_data["patient_user_name"].lower() for word in regex_restricted_words):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username contains restricted words.")
         if(form_data["email"].__len__() < 4):
-            raise HTTPException("Email must be greater than 3 characters") 
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email must be greater than 3 characters") 
 
 
         # hashing the password
@@ -155,10 +156,10 @@ async def signup(request: Request):
         cache_key = dict_data["email"]
         cached_data = await client.set(f"patient:{cache_key}",cache_key,ex=3600) 
         access_token = auth_token.create_access_token(data={"sub": cache_key})
-        response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+        RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
-        return response
+        return {"message":"Account for patient created successfully"} # Return success message
     
     except Exception as e:
         print(f"Error creating new user: {str(e)}")
@@ -168,7 +169,7 @@ async def signup(request: Request):
     
 
 @auth_patient.post("/patient/login", status_code=status.HTTP_200_OK) # login using email and password
-async def login(request: Request):
+async def login(response: Response, request: Request):
     try:
         form_data = await request.form()
 
@@ -195,19 +196,20 @@ async def login(request: Request):
                 if cached_data:
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
-                    response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return response
+                    return ("Patient logged in succesful")  # Return success message
+
                 
                 user = await mongo_client.auth.patient.find_one({"email": form_data["email"]})
                 print("cache data returned none") # debug
                 if not user:
                     logger.warning(f"login attempt with invalid email: {form_data['email']}")
-                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
                 if not await Hash.verify(user["password"], form_data["password"]):
                     logger.warning(f"login attempt with invalid password: {form_data['email']}")
-                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
                          
             # login using patient_user_name and password
             elif user_name_provided:
@@ -217,19 +219,19 @@ async def login(request: Request):
                 if cached_data:
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
-                    response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return response
+                    return ("Patient logged in succesful")  # Return success message
                 
                 user = await mongo_client.auth.patient.find_one({"patient_user_name": form_data["patient_user_name"]})
                 print("cache data returned none") # debug
                 if not user:
-                    logger.warning(f"login attempt with invalid user name: {form_data['patient_user_name']}")
-                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                    logger.warning(f"login attempt with invalid email: {form_data['patient_user_name']}")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
                 if not await Hash.verify(user["password"], form_data["password"]):
                     logger.warning(f"login attempt with invalid password: {form_data['patient_user_name']}")
-                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
             # login using phone_number and password
             elif phone_number_provided:
@@ -239,30 +241,30 @@ async def login(request: Request):
                 if cached_data:
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
-                    response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return response
+                    return ("Patient logged in succesful")  # Return success message
 
                 user = await mongo_client.auth.patient.find_one({"phone_number": form_data["phone_number"]})
                 print("cache data returned none") # debug
                 if not user:
                     logger.warning(f"login attempt with invalid phone number: {form_data['phone_number']}")
-                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
                 if not await Hash.verify(user["password"], form_data["password"]):
                     logger.warning(f"login attempt with invalid password: {form_data['phone_number']}")
-                    raise HTTPException(status_code=400, detail="Invalid credentials")
-            return {"access_token": access_token, "token_type": "bearer"}
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+            
     except Exception as e:
         print(f"login attempt failed: {str(e)}")
         logger.error(f"login attempt failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     
 @auth_patient.post("/patient/{patient_user_name}/logout", status_code=status.HTTP_200_OK)
-async def logout(patient_user_name: str, current_user: models.Patient = Depends(oauth2.get_current_user)):
-    response = RedirectResponse("http://127.0.0.1:8000/login",status_code=status.HTTP_200_OK)
+async def logout(patient_user_name: str, response: Response):
+    RedirectResponse("http://127.0.0.1:8000/login", status_code=status.HTTP_200_OK)
     response.delete_cookie("access_token")
     logger.info(f"{patient_user_name} logged out successfully")
     print(f"{patient_user_name} logged out successfully") # debug
-    return response
+    return (f"{patient_user_name} logged out successfully")  # Return success message

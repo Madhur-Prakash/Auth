@@ -28,12 +28,14 @@ class Message(BaseModel):
 
 
 class TokenData(BaseModel):
-    username: Optional[str] = None
+    patient_user_name: Optional[str] = None
 
 class Login(BaseModel):
-    username: str
+    patient_user_name: str
     password:str
 
+class res(BaseModel):
+    message: str
 
 class Token(BaseModel):
     access_token: str

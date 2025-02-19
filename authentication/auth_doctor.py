@@ -33,7 +33,7 @@ async def cache(data: str, plain_password):
                 logger.info(f"Doctor logged in successfully using: {data}")
                 return CachedData
             logger.warning(f"login attempt with invalid password: {data}")
-            raise HTTPException(status_code=400, detail="Invalid credentials")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     elif user:
         hashed_password = await Hash.verify(user["password"], plain_password)
         if hashed_password:
@@ -58,7 +58,7 @@ async def read(request: Request):
         })
     return templates.TemplateResponse("signup.html", {"request": request, "user": new_user}) 
 
-@auth_doctor.post("/doctor/signup", status_code=status.HTTP_201_CREATED, response_model=models.Doctor)
+@auth_doctor.post("/doctor/signup", status_code=status.HTTP_201_CREATED, response_model=models.res)
 async def signup(request: Request, response: Response):
     try:
         form_data = await request.form()
@@ -68,7 +68,7 @@ async def signup(request: Request, response: Response):
         required_fields = ["full_name", "email", "doctor_user_name", "password", "confirm_password", "phone_number"]
         for field in required_fields:
             if field not in dict_data:
-                raise HTTPException(status_code=400, detail="All fields are required")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
             
             #  define a regex pattern for allowed username characters
             regex_username_pattern = r"^[a-zA-Z0-9_.-]{3,}$"  # Allows letters, numbers, _ . - with at least 3 characters
@@ -81,35 +81,34 @@ async def signup(request: Request, response: Response):
         # data validation
         if email:
             logger.warning(f"Signup attempt with existing email: {dict_data['email']}")
-            raise HTTPException(status_code=400, detail = "Email already exists")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
         if user:
             logger.warning(f"Signup attempt with existing username: {dict_data['doctor_user_name']}")
-            raise HTTPException(status_code=400, detail = "Username already exists")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Username already exists")
         if(form_data["phone_number"].__len__() < 10 or form_data["phone_number"].__len__() > 10):
-            raise HTTPException(status_code=400, detail = "Phone number must be 10 digits long")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be 10 digits long")
         if phone_number:
             logger.warning(f"Signup attempt with existing phone number: {dict_data['phone_number']}")
-            raise HTTPException(status_code=400, detail = "Phone number already in use")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
         
         if not(form_data["phone_number"].isdigit()):
-            raise HTTPException(status_code=400, detail = "Phone number must be digits only")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be digits only")
         if dict_data["password"] != dict_data["confirm_password"]:
-            raise HTTPException(status_code=400, detail = "Password do not match")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Password do not match")
         if(form_data["password"].__len__() < 6):
-            raise HTTPException(status_code=400, detail = "Password must be at least 6 characters long")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Password must be at least 6 characters long")
         if(form_data["email"].__contains__("@") == False):
-            raise HTTPException(status_code=400, detail = "Invalid email address")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Invalid email address")
         if(form_data["doctor_user_name"].__len__() < 3):
-            raise HTTPException(status_code=400, detail = "Username must be greater than 3 characters")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Username must be greater than 3 characters")
         if not re.fullmatch(regex_username_pattern, form_data["doctor_user_name"]):
-            raise HTTPException(status_code=400, detail="Invalid username. Allowed: letters, numbers, '_', '.', '-'. Min length: 3")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid username. Allowed: letters, numbers, '_', '.', '-'. Min length: 3")
         if(form_data["full_name"].__len__() < 2):
-            raise HTTPException(status_code=400, detail = "Full name must be greater than 1 character")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Full name must be greater than 1 character")
         if any(word in form_data["doctor_user_name"].lower() for word in regex_restricted_words):
-            raise HTTPException(status_code=400, detail="Username contains restricted words.")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username contains restricted words.")
         if(form_data["email"].__len__() < 4):
-            raise HTTPException("Email must be greater than 3 characters") 
-
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email must be greater than 3 characters")
 
         # hashing the password
         hashed_password = Hash.bcrypt(dict_data["password"])
@@ -128,12 +127,12 @@ async def signup(request: Request, response: Response):
         RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
-        return ("Account for doctor created successfully")  # Return success message
+        return {"message": "Account for doctor created successfully"}  # Return success message as a dictionary
     
     except Exception as e:
         print(f"Error creating new user: {str(e)}")
         logger.error(f"Error creating new user: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 @auth_doctor.post("/doctor/login", status_code=status.HTTP_200_OK) # login using email and password
 async def login(request: Request, response : Response):
@@ -147,10 +146,10 @@ async def login(request: Request, response : Response):
 
         # check if email or doctor_user_name or password is provided
         if not password_provided:
-            raise HTTPException(status_code=400, detail="Password is required")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password is required")
         
         if not email_provided and not user_name_provided and not phone_number_provided:
-                raise HTTPException(status_code=400, detail="User Name or Email or phone number is required")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User Name or Email or phone number is required")
         
         else:
             user = None # initialize user to None
@@ -166,17 +165,17 @@ async def login(request: Request, response : Response):
                     RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return (f"Dr.{form_data["doctor_user_name"]} logged in succesful")  # Return success message
+                    return ("Doctor logged in succesful")  # Return success message
 
                 
                 user = await mongo_client.auth.doctor.find_one({"email": form_data["email"]})
                 print("cache data returned none") # debug
                 if not user:
                     logger.warning(f"login attempt with invalid email: {form_data['email']}")
-                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
                 if not await Hash.verify(user["password"], form_data["password"]):
                     logger.warning(f"login attempt with invalid password: {form_data['email']}")
-                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
                          
             # login using doctor_user_name and password
             elif user_name_provided:
@@ -186,20 +185,20 @@ async def login(request: Request, response : Response):
                 if cached_data:
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
-                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return (f"Dr.{form_data["doctor_user_name"]} logged in succesful")  # Return success message
+                    return ("Doctor logged in succesful")  # Return success message
 
                 
                 user = await mongo_client.auth.doctor.find_one({"doctor_user_name": form_data["doctor_user_name"]})
                 print("cache data returned none") # debug
                 if not user:
                     logger.warning(f"login attempt with invalid user name: {form_data['doctor_user_name']}")
-                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
                 if not await Hash.verify(user["password"], form_data["password"]):
                     logger.warning(f"login attempt with invalid password: {form_data['doctor_user_name']}")
-                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
             # login using phone_number and password
             elif phone_number_provided:
@@ -209,30 +208,28 @@ async def login(request: Request, response : Response):
                 if cached_data:
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
-                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return (f"Dr.{form_data["doctor_user_name"]} logged in succesful")  # Return success message
+                    return ("Doctor logged in succesful")  # Return success message
 
                 user = await mongo_client.auth.doctor.find_one({"phone_number": form_data["phone_number"]})
                 print("cache data returned none") # debug
                 if not user:
                     logger.warning(f"login attempt with invalid phone number: {form_data['phone_number']}")
-                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
                 if not await Hash.verify(user["password"], form_data["password"]):
                     logger.warning(f"login attempt with invalid password: {form_data['phone_number']}")
-                    raise HTTPException(status_code=400, detail="Invalid credentials")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
             return {"access_token": access_token, "token_type": "bearer"}
     except Exception as e:
         print(f"login attempt failed: {str(e)}")
         logger.error(f"login attempt failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 @auth_doctor.post("/doctor/{doctor_user_name}/logout", status_code=status.HTTP_200_OK)
 async def logout(doctor_user_name: str, response: Response):
-    response = RedirectResponse("http://127.0.0.1:8000/login",status_code=status.HTTP_200_OK)
-    if not response.set_cookie("access_token"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
+    RedirectResponse("http://127.0.0.1:8000/login",status_code=status.HTTP_200_OK)
     response.delete_cookie("access_token")
     logger.info(f"{doctor_user_name} logged out successfully")
     print(f"{doctor_user_name} logged out successfully") # debug
