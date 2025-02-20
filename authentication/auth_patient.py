@@ -10,7 +10,7 @@ import logging
 from concurrent_log_handler import ConcurrentRotatingFileHandler
 from .hashing import Hash
 from datetime import datetime
-from .send_mail import send_email_async, send_email_background
+from .send_mail import send_email, html_body
 from . import auth_token, models, oauth2
 import os
 
@@ -67,7 +67,7 @@ async def cache(data: str, plain_password):
             if hashed_password:
                 print("Data is cached") # debug
                 print(CachedData) # debug
-                logger.info(f"Patient logged in successfully using: {data}")
+                logger.info(f"{user['patient_user_name']} logged in successfully using: {data}")
                 return CachedData
             logger.warning(f"login attempt with invalid password: {data}")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -76,7 +76,7 @@ async def cache(data: str, plain_password):
         if hashed_password:
             print("searching inside db") # debug
             await client.set(f"patient:{data}",data, ex=30) # expire in 30 seconds
-            logger.info(f"Patient logged in successfully using: {data}")
+            logger.info(f"{user['patient_user_name']} logged in successfully using: {data}")
             return data
     return None
 
@@ -164,6 +164,7 @@ async def signup(request: Request, response: Response):
         cached_data = await client.set(f"patient:{cache_key}",cache_key,ex=3600) 
         access_token = auth_token.create_access_token(data={"sub": cache_key})
         RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+        # send_email(dict_data["email"],  "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
         return {"message":"Account for patient created successfully"} # Return success message
@@ -205,9 +206,10 @@ async def login(response: Response, request: Request):
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+                    # send_email(email_provided,  "Kindly verify your email", html_body, retries=3, delay=5)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return ("Patient logged in succesful")  # Return success message
+                    return (f"{email_provided} logged in succesfully")  # Return success message
 
                 
                 user = await mongo_client.auth.patient.find_one({"email": form_data["email"]})
@@ -228,9 +230,11 @@ async def login(response: Response, request: Request):
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+                    email = await mongo_client.auth.patient.find_one({"patient_user_name": user_name_provided})
+                    # send_email(email['email'],  "Kindly verify your email", html_body, retries=3, delay=5)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return ("Patient logged in succesful")  # Return success message
+                    return (f"{user_name_provided} logged in succesfully")  # Return success message
                 
                 user = await mongo_client.auth.patient.find_one({"patient_user_name": form_data["patient_user_name"]})
                 print("cache data returned none") # debug
@@ -250,9 +254,11 @@ async def login(response: Response, request: Request):
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+                    email = await mongo_client.auth.patient.find_one({"phone_number": phone_number_provided})
+                    # send_email(email['email'],  "Kindly verify your email", html_body, retries=3, delay=5)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return ("Patient logged in succesful")  # Return success message
+                    return (f"{phone_number_provided} logged in succesfully")  # Return success message
 
                 user = await mongo_client.auth.patient.find_one({"phone_number": form_data["phone_number"]})
                 print("cache data returned none") # debug
@@ -267,18 +273,6 @@ async def login(response: Response, request: Request):
         print(f"login attempt failed: {str(e)}")
         logger.error(f"login attempt failed: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-#  *********************************************************************for email************************************************************************
-# @auth_patient.get('/send-email/asynchronous')
-# async def send_email_asynchronous():
-#     await send_email_async('Hello World', 'madhurprakash2005@gmail.com', {'title': 'Hello World', 'name': 'John Doe'})
-#     return 'Success'
-
-# @auth_patient.get('/send-email/backgroundtasks')
-# def send_email_backgroundtasks(background_tasks: BackgroundTasks):
-#     send_email_background(background_tasks, 'Hello World', 'madhurprakash2005@gmail.com', {'title': 'Hello World', 'name': 'John Doe'})
-#     return 'Success'
-# ********************************************************************************************************************************************************
 
 
 @auth_patient.post("/patient/{patient_user_name}/logout", status_code=status.HTTP_200_OK)

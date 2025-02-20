@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request, status, HTTPException, Response
 import re
+from .send_mail import send_email, html_body
 from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -30,7 +31,7 @@ async def cache(data: str, plain_password):
             if hashed_password:
                 print("Data is cached") # debug
                 print(CachedData) # debug
-                logger.info(f"Doctor logged in successfully using: {data}")
+                logger.info(f"{user['doctor_user_name']} logged in successfully using: {data}")
                 return CachedData
             logger.warning(f"login attempt with invalid password: {data}")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -39,7 +40,7 @@ async def cache(data: str, plain_password):
         if hashed_password:
             print("searching inside db") # debug
             await client.set(f"doctor:{data}",data, ex=30) # expire in 30 seconds
-            logger.info(f"Doctor logged in successfully using: {data}")
+            logger.info(f"{user['doctor_user_name']} logged in successfully using: {data}")
             return data
     return None
 
@@ -125,6 +126,7 @@ async def signup(request: Request, response: Response):
         cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
         access_token = auth_token.create_access_token(data={"sub": cache_key})
         RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+        # send_email(dict_data["email"],  "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
         return {"message": "Account for doctor created successfully"}  # Return success message as a dictionary
@@ -163,10 +165,10 @@ async def login(request: Request, response : Response):
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+                    # send_email(email_provided,  "Kindly verify your email", html_body, retries=3, delay=5)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return ("Doctor logged in succesful")  # Return success message
-
+                    return (f"{email_provided} logged in succesfully")  # Return success message
                 
                 user = await mongo_client.auth.doctor.find_one({"email": form_data["email"]})
                 print("cache data returned none") # debug
@@ -186,9 +188,11 @@ async def login(request: Request, response : Response):
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+                    email = await mongo_client.auth.doctor.find_one({"doctor_user_name": user_name_provided})
+                    # send_email(email['email'],  "Kindly verify your email", html_body, retries=3, delay=5)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return ("Doctor logged in succesful")  # Return success message
+                    return (f"{user_name_provided} logged in succesfully")  # Return success message
 
                 
                 user = await mongo_client.auth.doctor.find_one({"doctor_user_name": form_data["doctor_user_name"]})
@@ -209,9 +213,12 @@ async def login(request: Request, response : Response):
                     print("cache data returned", cached_data) # debug
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+                    email = await mongo_client.auth.doctor.find_one({"phone_number": phone_number_provided})
+                    # send_email(email['email'],  "Kindly verify your email", html_body, retries=3, delay=5)
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return ("Doctor logged in succesful")  # Return success message
+                    return (f"{phone_number_provided} logged in succesfully")  # Return success message
+
 
                 user = await mongo_client.auth.doctor.find_one({"phone_number": form_data["phone_number"]})
                 print("cache data returned none") # debug

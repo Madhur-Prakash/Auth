@@ -5,3 +5,5 @@ logs
 python=3.11
 .DS_Store
 .env
+*.pickle
+*.json

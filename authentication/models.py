@@ -47,6 +47,3 @@ class UserInDB(Patient):
 
 class UserInDB(Doctor):
     hashed_password: str
-
-class EmailSchema(BaseModel):
-    email: List[EmailStr]
