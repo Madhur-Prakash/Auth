@@ -1,7 +1,7 @@
 __init__.py
 __pycache__
 auth
-*.log
-*.lock
+logs
 python=3.11
 .DS_Store
+.env

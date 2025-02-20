@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, status, HTTPException, Depends
+from fastapi import APIRouter, Request, status, HTTPException, Depends, BackgroundTasks
 import re
 from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -10,7 +10,9 @@ import logging
 from concurrent_log_handler import ConcurrentRotatingFileHandler
 from .hashing import Hash
 from datetime import datetime
+from .send_mail import send_email_async, send_email_background
 from . import auth_token, models, oauth2
+import os
 
 auth_patient = APIRouter(tags=["Patient Authentication"]) # create a router for patient
 templates = Jinja2Templates(directory="authemtication/templates")
@@ -23,9 +25,13 @@ def setup_logging():
     if not logger.hasHandlers(): # check if handlers already exist
         logger.setLevel(logging.INFO) # set log level
 
+        # create log directory if it doesn't exist
+        log_dir = "logs"
+        os.makedirs(log_dir, exist_ok=True)
+
         # create a file handler
         file_handler = ConcurrentRotatingFileHandler(
-            "auth.log", 
+            os.path.join(log_dir, "auth.log"), 
             maxBytes=10000, # 10KB 
             backupCount=500
         )
@@ -168,9 +174,10 @@ async def signup(request: Request, response: Response):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     
+# async def login(response: Response, request: Request, form_data: OAuth2PatientRequestForm = Depends(), auth_token: OAuth2PasswordBearer = Depends(oauth2.oauth2_scheme)): -> for locking the route use this instead of the below
 
 @auth_patient.post("/patient/login", status_code=status.HTTP_200_OK) # login using email and password
-async def login(response: Response, request: Request, form_data: OAuth2PatientRequestForm = Depends(), auth_token: OAuth2PasswordBearer = Depends(oauth2.oauth2_scheme)):
+async def login(response: Response, request: Request):
     try:
         form_data = await request.form()
 
@@ -261,7 +268,19 @@ async def login(response: Response, request: Request, form_data: OAuth2PatientRe
         logger.error(f"login attempt failed: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-    
+#  *********************************************************************for email************************************************************************
+# @auth_patient.get('/send-email/asynchronous')
+# async def send_email_asynchronous():
+#     await send_email_async('Hello World', 'madhurprakash2005@gmail.com', {'title': 'Hello World', 'name': 'John Doe'})
+#     return 'Success'
+
+# @auth_patient.get('/send-email/backgroundtasks')
+# def send_email_backgroundtasks(background_tasks: BackgroundTasks):
+#     send_email_background(background_tasks, 'Hello World', 'madhurprakash2005@gmail.com', {'title': 'Hello World', 'name': 'John Doe'})
+#     return 'Success'
+# ********************************************************************************************************************************************************
+
+
 @auth_patient.post("/patient/{patient_user_name}/logout", status_code=status.HTTP_200_OK)
 async def logout(patient_user_name: str, response: Response):
     RedirectResponse("http://127.0.0.1:8000/login", status_code=status.HTTP_200_OK)

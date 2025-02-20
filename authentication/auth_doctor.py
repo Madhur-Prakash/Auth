@@ -221,7 +221,7 @@ async def login(request: Request, response : Response):
                 if not await Hash.verify(user["password"], form_data["password"]):
                     logger.warning(f"login attempt with invalid password: {form_data['phone_number']}")
                     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-            return {"access_token": access_token, "token_type": "bearer"}
+           
     except Exception as e:
         print(f"login attempt failed: {str(e)}")
         logger.error(f"login attempt failed: {str(e)}")

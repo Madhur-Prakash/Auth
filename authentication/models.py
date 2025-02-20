@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field
 
 class Patient(BaseModel):
@@ -29,6 +29,7 @@ class Message(BaseModel):
 
 class TokenData(BaseModel):
     patient_user_name: Optional[str] = None
+    email: Optional[str] = None
 
 class Login(BaseModel):
     patient_user_name: str
@@ -46,3 +47,6 @@ class UserInDB(Patient):
 
 class UserInDB(Doctor):
     hashed_password: str
+
+class EmailSchema(BaseModel):
+    email: List[EmailStr]
