@@ -193,7 +193,7 @@ def plot_system_metrics():
 
 if __name__ == "__main__":
     # To run Locust tests:
-    # locust -f authntication/test.py --host=http://localhost:8000
+    # locust -f authntication/test_api/test.py --host=http://localhost:8000
     
     # To run other tests:
     plot_system_metrics()

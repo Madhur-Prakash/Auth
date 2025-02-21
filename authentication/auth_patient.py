@@ -5,12 +5,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 import aioredis
-from .oauth2 import OAuth2PatientRequestForm
-import logging
-from concurrent_log_handler import ConcurrentRotatingFileHandler
+from .oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token
+from .utils import setup_logging  # Import setup_logging from utils
 from .hashing import Hash
 from datetime import datetime
-from .send_mail import send_email, html_body
+from .send_mail import send_email
 from . import auth_token, models, oauth2
 import os
 
@@ -19,38 +18,6 @@ templates = Jinja2Templates(directory="authemtication/templates")
 
 # redis connection
 client = aioredis.from_url('redis://default@54.198.65.205:6379', decode_responses=True)
-
-def setup_logging():
-    logger = logging.getLogger("auth_log") # create logger
-    if not logger.hasHandlers(): # check if handlers already exist
-        logger.setLevel(logging.INFO) # set log level
-
-        # create log directory if it doesn't exist
-        log_dir = "logs"
-        os.makedirs(log_dir, exist_ok=True)
-
-        # create a file handler
-        file_handler = ConcurrentRotatingFileHandler(
-            os.path.join(log_dir, "auth.log"), 
-            maxBytes=10000, # 10KB 
-            backupCount=500
-        )
-        file_handler.setLevel(logging.INFO) # The lock file .__auth.lock is created here by ConcurrentRotatingFileHandler
-
-        #  create a console handler
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-
-        # create a formatter
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-                                      datefmt="%Y-%m-%d %H:%M:%S")
-        file_handler.setFormatter(formatter)
-        console_handler.setFormatter(formatter)
-
-        #  add the handlers to the logger
-        logger.addHandler(file_handler)
-        logger.addHandler(console_handler)
-    return logger
 
 logger = setup_logging() # initialize logger
 
@@ -96,7 +63,7 @@ async def read(request: Request):
     return templates.TemplateResponse("signup.html", {"request": request, "user": new_user}) 
     
 
-@auth_patient.post("/patient/signup", status_code=status.HTTP_201_CREATED, response_model=models.res)
+@auth_patient.post("/patient/signup", status_code=status.HTTP_201_CREATED)
 async def signup(request: Request, response: Response):
     try:
         form_data = await request.form()
@@ -108,9 +75,9 @@ async def signup(request: Request, response: Response):
             if field not in dict_data:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
             
-            #  define a regex pattern for allowed username characters
-            regex_username_pattern = r"^[a-zA-Z0-9_.-]{3,}$"  # Allows letters, numbers, _ . - with at least 3 characters
-            regex_restricted_words = {"admin", "superuser", "root", "moderator", "administrator", "null", "test", "system"}
+        #  define a regex pattern for allowed username characters
+        regex_username_pattern = r"^[a-zA-Z0-9_.-]{3,}$"  # Allows letters, numbers, _ . - with at least 3 characters
+        regex_restricted_words = {"admin", "superuser", "root", "moderator", "administrator", "null", "test", "system"}
 
         email = await mongo_client.auth.patient.find_one({"email": dict_data["email"]})
         user = await mongo_client.auth.patient.find_one({"patient_user_name": dict_data["patient_user_name"]})
@@ -155,19 +122,40 @@ async def signup(request: Request, response: Response):
 
         # removing the confirm_password field from db
         dict_data.pop("confirm_password")
-
-        await mongo_client.auth.patient.insert_one(dict_data)
-        logger.info(f"Account for patient created successfully: {dict_data['email']}")
         
-        # Generate a cache during signup with email as key
-        cache_key = dict_data["email"]
-        cached_data = await client.set(f"patient:{cache_key}",cache_key,ex=3600) 
-        access_token = auth_token.create_access_token(data={"sub": cache_key})
-        RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
-        # send_email(dict_data["email"],  "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
-        response.delete_cookie("access_token")  # Remove old token
-        response.set_cookie(key="access_token", value=access_token, max_age=3600)
-        return {"message":"Account for patient created successfully"} # Return success message
+# ******************************************************email verification*******************************************************************
+        token = create_verification_token({"email":dict_data['email']})
+        link = f"http://127.0.0.1:8000/patient/verify_email/{token}"
+
+        html_body = f"""
+                        <html>
+                        <body style="margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif;">
+                        <div style="width: 100%; background: #efefef; border-radius: 10px; padding: 10px;">
+                        <div style="margin: 0 auto; width: 90%; text-align: center;">
+                            <h1 style="background-color: rgba(0, 53, 102, 1); padding: 5px 10px; border-radius: 5px; color: white;">CuraDocs</h1>
+                            <div style="margin: 30px auto; background: white; width: 40%; border-radius: 10px; padding: 50px; text-align: center;">
+                            <h3 style="margin-bottom: 100px; font-size: 24px;">Hello!</h3>
+                            <p style="margin-bottom: 30px;">Thanks for choosing CuraDocs. Please click the link below to verify your email.</p>
+                            <a style="display: block; margin: 0 auto; border: none; background-color: rgba(255, 214, 10, 1); color: white; width: 200px; line-height: 24px; padding: 10px; font-size: 24px; border-radius: 10px; cursor: pointer; text-decoration: none;"
+                                href={link} 
+                                target="_blank"
+                            >
+                                Let's Go
+                            </a>
+                            </div>
+                        </div>
+                        </div>
+                        </body>
+                        </html>
+                        """
+# ***********************************************************************************************************************************************
+
+        # send email verification link
+        send_email(dict_data["email"],  "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        if not send_email:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+        await mongo_client.auth.temp_patient.insert_one(dict_data) # adding to the temp db
+        return {"message":"Email sent successfully, please verify"} # Return success message
     
     except Exception as e:
         print(f"Error creating new user: {str(e)}")
@@ -175,6 +163,34 @@ async def signup(request: Request, response: Response):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     
+@auth_patient.get("/patient/verify_email/{token}", status_code=status.HTTP_200_OK, response_model=models.res)
+async def verify_email(token: str, response: Response):
+    try:
+        token_data = decode_verification_token(token)
+        email = token_data["email"]
+        temp_user = await mongo_client.auth.temp_patient.find_one({"email": email})
+        if not temp_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found") 
+        temp_user.pop("_id")
+        await mongo_client.auth.patient.insert_one(temp_user) # adding to the main db
+        await mongo_client.auth.temp_patient.delete_one({"email": email}) # deleting from the temp db
+        logger.info(f"Account for patient created successfully: {email}")
+        # Generate a cache during signup with email as key
+        cache_key = email
+        cached_data = await client.set(f"patient:{cache_key}",cache_key,ex=3600) 
+        access_token = auth_token.create_access_token(data={"sub": cache_key})
+        response.delete_cookie("access_token")  # Remove old token
+        response.set_cookie(key="access_token", value=access_token, max_age=3600)
+        RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+        return {"message":"Account for patient created successfully"} # Return success message 
+    
+    except Exception as e:
+        print(f"Error verifying email: {str(e)}")
+        logger.error(f"Error verifying email: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+
 # async def login(response: Response, request: Request, form_data: OAuth2PatientRequestForm = Depends(), auth_token: OAuth2PasswordBearer = Depends(oauth2.oauth2_scheme)): -> for locking the route use this instead of the below
 
 @auth_patient.post("/patient/login", status_code=status.HTTP_200_OK) # login using email and password

@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Request, status, HTTPException, Response
 import re
-from .send_mail import send_email, html_body
+from .send_mail import send_email
 from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 import aioredis
-from . import auth_patient
+from .utils import setup_logging  # Import setup_logging from utils
 from .hashing import Hash
 from datetime import datetime
 from . import auth_token, models
@@ -17,7 +17,7 @@ templates = Jinja2Templates(directory="authemtication/templates")
 client = aioredis.from_url('redis://default@54.198.65.205:6379', decode_responses=True)
 
 
-logger = auth_patient.setup_logging() # initialize logger
+logger = setup_logging() # initialize logger
 
 # implemeting cahing using redis
 async def cache(data: str, plain_password):
@@ -71,9 +71,9 @@ async def signup(request: Request, response: Response):
             if field not in dict_data:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
             
-            #  define a regex pattern for allowed username characters
-            regex_username_pattern = r"^[a-zA-Z0-9_.-]{3,}$"  # Allows letters, numbers, _ . - with at least 3 characters
-            regex_restricted_words = {"admin", "superuser", "root", "moderator", "administrator", "null", "test", "system"}
+        #  define a regex pattern for allowed username characters
+        regex_username_pattern = r"^[a-zA-Z0-9_.-]{3,}$"  # Allows letters, numbers, _ . - with at least 3 characters
+        regex_restricted_words = {"admin", "superuser", "root", "moderator", "administrator", "null", "test", "system"}
 
         email = await mongo_client.auth.doctor.find_one({"email": dict_data["email"]})
         user = await mongo_client.auth.doctor.find_one({"doctor_user_name": dict_data["doctor_user_name"]})

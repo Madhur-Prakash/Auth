@@ -55,28 +55,6 @@ def send_email(to_email, subject, body, retries=3, delay=5):
             time.sleep(delay)
     print("Failed to send email after multiple attempts.")
 
-# Usage Example
-html_body = """
-<html>
-<body style="margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif;">
-<div style="width: 100%; background: #efefef; border-radius: 10px; padding: 10px;">
-  <div style="margin: 0 auto; width: 90%; text-align: center;">
-    <h1 style="background-color: rgba(0, 53, 102, 1); padding: 5px 10px; border-radius: 5px; color: white;">CuraDocs</h1>
-    <div style="margin: 30px auto; background: white; width: 40%; border-radius: 10px; padding: 50px; text-align: center;">
-      <h3 style="margin-bottom: 100px; font-size: 24px;">Hello!</h3>
-      <p style="margin-bottom: 30px;">Thanks for choosing CuraDocs. Please click the link below to verify your email.</p>
-      <a style="display: block; margin: 0 auto; border: none; background-color: rgba(255, 214, 10, 1); color: white; width: 200px; line-height: 24px; padding: 10px; font-size: 24px; border-radius: 10px; cursor: pointer; text-decoration: none;"
-        href="https://www.curadocs.in/"
-        target="_blank"
-      >
-        Let's Go
-      </a>
-    </div>
-  </div>
-</div>
-</body>
-</html>
-"""
 # send_email("madhurprakash2005@gmail.com", "Welcome to CuraDocs. Lets build your health Profile", html_body)
 
 

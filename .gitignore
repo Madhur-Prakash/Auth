@@ -7,3 +7,5 @@ python=3.11
 .env
 *.pickle
 *.json
+auth.log
+.__auth.log
