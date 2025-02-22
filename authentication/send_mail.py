@@ -49,8 +49,8 @@ def send_email(to_email, subject, body, retries=3, delay=5):
             message = {"raw": raw_message}
             sent_message = service.users().messages().send(userId="me", body=message).execute()
             print(f"Email sent! Message ID: {sent_message['id']}")
-            return
-        except TimeoutError as e:
+            return sent_message
+        except Exception as e:
             print(f"Failed to send email due to timeout: {e}. Retrying in {delay} seconds...")
             time.sleep(delay)
     print("Failed to send email after multiple attempts.")

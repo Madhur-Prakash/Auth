@@ -1,14 +1,18 @@
 from fastapi import APIRouter, Request, status, HTTPException, Response
 import re
-from .send_mail import send_email
+from .otp_verify import send_otp
 from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 import aioredis
+from .oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token
 from .utils import setup_logging  # Import setup_logging from utils
 from .hashing import Hash
 from datetime import datetime
-from . import auth_token, models
+from .send_mail import send_email
+from . import auth_token, models, oauth2
+import os
 
 auth_doctor = APIRouter(tags=["Doctor Authentication"])  # Create a FastAPI APIRouter instance
 templates = Jinja2Templates(directory="authemtication/templates")
@@ -41,7 +45,7 @@ async def cache(data: str, plain_password):
             print("searching inside db") # debug
             await client.set(f"doctor:{data}",data, ex=30) # expire in 30 seconds
             logger.info(f"{user['doctor_user_name']} logged in successfully using: {data}")
-            return data
+            return user
     return None
 
 @auth_doctor.get("/", response_class=HTMLResponse)
@@ -117,24 +121,83 @@ async def signup(request: Request, response: Response):
 
         # removing the confirm_password field from db
         dict_data.pop("confirm_password")
+        await mongo_client.auth.temp.insert_one(dict_data)
+# ******************************************************email verification*******************************************************************
+        # token = create_verification_token({"email":dict_data['email']})
+        # link = f"http://127.0.0.1:8000/doctor/verify_email/{token}"
 
-        await mongo_client.auth.doctor.insert_one(dict_data)
-        logger.info(f"Account for doctor  created successfully: {dict_data['email']}")
-        
-        # Generate a cache during signup with email as key
+        # html_body = f"""
+        #                 <html>
+        #                 <body style="margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif;">
+        #                 <div style="width: 100%; background: #efefef; border-radius: 10px; padding: 10px;">
+        #                 <div style="margin: 0 auto; width: 90%; text-align: center;">
+        #                     <h1 style="background-color: rgba(0, 53, 102, 1); padding: 5px 10px; border-radius: 5px; color: white;">CuraDocs</h1>
+        #                     <div style="margin: 30px auto; background: white; width: 40%; border-radius: 10px; padding: 50px; text-align: center;">
+        #                     <h3 style="margin-bottom: 100px; font-size: 24px;">Hello!</h3>
+        #                     <p style="margin-bottom: 30px;">Thanks for choosing CuraDocs. Please click the link below to verify your email.</p>
+        #                     <a style="display: block; margin: 0 auto; border: none; background-color: rgba(255, 214, 10, 1); color: white; width: 200px; line-height: 24px; padding: 10px; font-size: 24px; border-radius: 10px; cursor: pointer; text-decoration: none;"
+        #                         href={link} 
+        #                         target="_blank"
+        #                     >
+        #                         Let's Go
+        #                     </a>
+        #                     </div>
+        #                 </div>
+        #                 </div>
+        #                 </body>
+        #                 </html>
+        #                 """
+        # # send email verification link
+        # email_sent = send_email(dict_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        # if not email_sent:
+        #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+# ***********************************************************************************************************************************************
+
+
+# ******************************************************otp verification*******************************************************************
+
+        dict_data["phone_number"] = "+91" + dict_data["phone_number"] # adding country code
+        otp = send_otp(dict_data["phone_number"])
+        if not otp:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
         cache_key = dict_data["email"]
         cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
-        access_token = auth_token.create_access_token(data={"sub": cache_key})
-        RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
-        # send_email(dict_data["email"],  "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
-        response.delete_cookie("access_token")  # Remove old token
-        response.set_cookie(key="access_token", value=access_token, max_age=3600)
-        return {"message": "Account for doctor created successfully"}  # Return success message as a dictionary
+        
+        return {"message":"OTP send successfully"} # Return success message
+
+# ***********************************************************************************************************************************************
     
     except Exception as e:
         print(f"Error creating new user: {str(e)}")
         logger.error(f"Error creating new user: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    
+@auth_doctor.get("/doctor/verify_email/{token}", status_code=status.HTTP_200_OK, response_model=models.res)
+async def verify_email(token: str, response: Response):
+    try:
+        token_data = decode_verification_token(token)
+        email = token_data["email"]
+        temp_user = await mongo_client.auth.temp.find_one({"email": email})
+        if not temp_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found") 
+        temp_user.pop("_id")
+        await mongo_client.auth.doctor.insert_one(temp_user) # adding to the main db
+        await mongo_client.auth.temp.delete_one({"email": email}) # deleting from the temp db
+        logger.info(f"Account for doctor created successfully: {email}")
+        # Generate a cache during signup with email as key
+        cache_key = email
+        cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
+        access_token = auth_token.create_access_token(data={"sub": cache_key})
+        response.delete_cookie("access_token")  # Remove old token
+        response.set_cookie(key="access_token", value=access_token, max_age=3600)
+        RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_201_CREATED)
+        return {"message":"Account for doctor created successfully"} # Return success message        
+    
+    except Exception as e:
+        print(f"Error verifying email: {str(e)}")
+        logger.error(f"Error verifying email: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    
     
 @auth_doctor.post("/doctor/login", status_code=status.HTTP_200_OK) # login using email and password
 async def login(request: Request, response : Response):
@@ -163,12 +226,11 @@ async def login(request: Request, response : Response):
                 cached_data = await cache(cache_key, form_data["password"])
                 if cached_data:
                     print("cache data returned", cached_data) # debug
-                    access_token = auth_token.create_access_token(data={"sub": cache_key})
-                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
-                    # send_email(email_provided,  "Kindly verify your email", html_body, retries=3, delay=5)
-                    response.delete_cookie("access_token")  # Remove old token
-                    response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return (f"{email_provided} logged in succesfully")  # Return success message
+                    cached_data['phone_number'] = "+91" + cached_data['phone_number'] # adding country code
+                    otp = await send_otp(cached_data['phone_number'])
+                    if not otp:
+                        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
+                    return templates.TemplateResponse("otp.html", {"request": request, "message": "OTP sent successfully"}, status_code=status.HTTP_200_OK)
                 
                 user = await mongo_client.auth.doctor.find_one({"email": form_data["email"]})
                 print("cache data returned none") # debug
@@ -211,14 +273,12 @@ async def login(request: Request, response : Response):
                 cached_data = await cache(cache_key, form_data["password"])
                 if cached_data:
                     print("cache data returned", cached_data) # debug
-                    access_token = auth_token.create_access_token(data={"sub": cache_key})
-                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
-                    email = await mongo_client.auth.doctor.find_one({"phone_number": phone_number_provided})
-                    # send_email(email['email'],  "Kindly verify your email", html_body, retries=3, delay=5)
-                    response.delete_cookie("access_token")  # Remove old token
-                    response.set_cookie(key="access_token", value=access_token, max_age=3600)
-                    return (f"{phone_number_provided} logged in succesfully")  # Return success message
-
+                    #  sending otp
+                    phone_number_provided = "+91" + phone_number_provided # adding country code
+                    otp = await send_otp(phone_number_provided)
+                    if not otp:
+                        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
+                    return templates.TemplateResponse("otp.html", {"request": request, "message": "OTP sent successfully"}, status_code=status.HTTP_200_OK)
 
                 user = await mongo_client.auth.doctor.find_one({"phone_number": form_data["phone_number"]})
                 print("cache data returned none") # debug
@@ -233,6 +293,41 @@ async def login(request: Request, response : Response):
         print(f"login attempt failed: {str(e)}")
         logger.error(f"login attempt failed: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    
+@auth_doctor.post("/doctor/verify_otp", status_code=status.HTTP_200_OK, response_class=HTMLResponse) 
+async def verify_otp(request: Request, response: Response):
+    try:
+        form_data = await request.form()
+        
+        otp_entered = form_data.get("otp")
+        print(otp_entered) # debug
+        if not otp_entered or len(otp_entered) != 6:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OTP format")
+        otp_stored = await mongo_client.auth.temp.find_one({"otp": otp_entered})
+        print(otp_stored) # debug
+        if not otp_stored:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
+        phone_number = str(otp_stored["phone_number"])[3:]  # Remove country code (91)
+        temp_doctor = await mongo_client.auth.temp.find_one({"phone_number": phone_number})
+        if temp_doctor:
+            temp_doctor.pop("_id")
+            print(temp_doctor) # debug
+            await mongo_client.auth.doctor.insert_one(temp_doctor) # adding to the main db
+            await mongo_client.auth.temp.delete_one({"phone_number": phone_number}) # deleting from the temp db
+        print(phone_number) # debug
+        access_token = auth_token.create_access_token(data={"sub": phone_number})
+        print("Access token:", access_token)  # debug
+        response.delete_cookie("access_token")  # Remove old token
+        response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
+        print(f"{phone_number} logged in succesfully")  # Return success message
+        await mongo_client.auth.temp.delete_many({"otp": otp_entered})
+        return ("OTP verified successfully")
+                         
+    except Exception as e:
+        print(f"Error verifying OTP: {str(e)}")
+        logger.error(f"Error verifying OTP: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
     
 @auth_doctor.post("/doctor/{doctor_user_name}/logout", status_code=status.HTTP_200_OK)
 async def logout(doctor_user_name: str, response: Response):
