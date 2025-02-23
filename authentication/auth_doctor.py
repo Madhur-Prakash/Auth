@@ -83,7 +83,7 @@ async def signup(request: Request):
     try:
         form_data = await request.form()
         dict_data = dict(form_data)
-        dict_data["created_at"] = datetime.now()
+        dict_data["created_at"] = datetime.now().isoformat()
         dict_data["CIN"] = generate_random_string()
 
         required_fields = ["full_name", "email", "password", "confirm_password", "phone_number"]
@@ -129,11 +129,12 @@ async def signup(request: Request):
             "full_name": dict_data["full_name"],
             "password": dict_data["password"],
             "phone_number": dict_data["phone_number"],
+            "CIN": dict_data["CIN"],
             "created_at": dict_data["created_at"]})
         
         # token = create_verification_token({"email":dict_data['email']})
         # link = f"http://127.0.0.1:8000/doctor/verify_email/{token}"
-        otp = await generate_otp(dict_data["email"])
+        otp =  await generate_otp(dict_data["email"])
         
         html_body = f"""
                         <html>
@@ -160,14 +161,14 @@ async def signup(request: Request):
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
-        dict_data["phone_number"] = "+91" + dict_data["phone_number"] # adding country code
-        otp = send_otp(dict_data["phone_number"])
-        if not otp:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
-        cache_key = dict_data["email"]
-        cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
+        # dict_data["phone_number"] = "+91" + dict_data["phone_number"] # adding country code
+        # otp = send_otp(dict_data["phone_number"])
+        # if not otp:
+        #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
+        # cache_key = dict_data["email"]
+        # cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
         
-        return {"message":f"OTP sent successfully on {form_data['phone_number'][3:7]+'x'*6+dict_data['phone_number'][13:]} and {dict_data['email']}"} # Return success message
+        return {"message":f"OTP sent successfully on {form_data['phone_number'][:6]+'x'*6+dict_data['phone_number'][13:]} and {dict_data['email']}"} # Return success message
 
 
     except Exception as e:
@@ -199,10 +200,12 @@ async def verify_otp_signup(request: Request, email: str, response: Response):
             "CIN": otp_stored.get("CIN")
         }
         user = await mongo_client.auth.doctor.find_one({"email": otp_stored.get("email")})
-        if user:    # check if user already exists
+        if user:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
         # Insert into MongoDB
-        await mongo_client.auth.doctor.insert_one(mongodb_document) # adding to the main db
+        await mongo_client.auth.doctor.insert_one(mongodb_document)
+
+
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
         print(f"{email} logged in succesfully")  # Return success message
@@ -226,7 +229,6 @@ async def verify_otp_signup(request: Request, phone_number: str, response: Respo
         if not otp_stored:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
         access_token = auth_token.create_access_token(data={"sub": phone_number})
-        print("Access token:", access_token)  # debug
         mongodb_document = {
             "full_name": otp_stored.get("full_name"),
             "email": otp_stored.get("email"),
@@ -240,6 +242,7 @@ async def verify_otp_signup(request: Request, phone_number: str, response: Respo
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
         # Insert into MongoDB
         await mongo_client.auth.doctor.insert_one(mongodb_document)
+        print("Access token:", access_token)  # debug
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
         print(f"{phone_number} logged in succesfully")  # Return success message
