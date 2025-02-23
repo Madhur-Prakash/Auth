@@ -7,7 +7,7 @@ import random
 fake = Faker()
 
 # Connect to MongoDB
-client = MongoClient("mongodb://ec2-3-84-251-0.compute-1.amazonaws.com:27017/auth")  # Change this if your MongoDB is hosted elsewhere
+client = MongoClient("mongodb://ec2-54-86-137-7.compute-1.amazonaws.com:27017/auth")  # Change this if your MongoDB is hosted elsewhere
 
 # Function to generate a fake user
 def generate_fake_user():

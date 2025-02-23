@@ -1,3 +1,5 @@
+import random
+import string
 import logging
 import os
 from concurrent_log_handler import ConcurrentRotatingFileHandler
@@ -33,3 +35,19 @@ def setup_logging():
         logger.addHandler(file_handler)
         logger.addHandler(console_handler)
     return logger
+
+generated_strings = set()
+
+
+def generate_random_string():
+    letters = string.ascii_uppercase  # Uppercase letters
+    digits = string.digits  # Numbers 0-9
+
+    first_part = ''.join(random.choices(letters, k=4))
+    middle_part = ''.join(random.choices(digits, k=4))
+    new_string = first_part + middle_part
+    if new_string not in generated_strings:
+        generated_strings.add(new_string)
+        return new_string
+    else:
+        return generate_random_string()
