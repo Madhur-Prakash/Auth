@@ -486,3 +486,115 @@ async def verify_email(token: str, response: Response):
         print(f"Error verifying email: {str(e)}")
         logger.error(f"Error verifying email: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    
+
+
+
+    
+@auth_patient.post("/patient/reset_password", status_code=status.HTTP_200_OK, response_model=models.res)
+async def reset_password(request: Request):
+    try:
+        form_data = await request.form()
+        email = form_data.get("email")
+        if not email:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is required")
+        user = await mongo_client.auth.patient.find_one({"email": email})
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        reset_link = f"http://127.0.0.1:8000/patient/create_new_password/{email}"
+        
+        html_body = f"""
+                    <html>
+                    <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;">
+    <table width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f4f4f4; padding: 20px;">
+        <tr>
+            <td align="center">
+                <table width="600" cellspacing="0" cellpadding="0" border="0" style="background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); text-align: center;">
+                    <tr>
+                        <td>
+                            <img src="https://your-logo-url.com/logo.png" alt="CuraDocs Logo" style="width: 150px; margin-bottom: 20px;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <h2 style="color: #333; margin: 0;">Password Reset Request</h2>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <p style="color: #666; font-size: 16px;">We received a request to reset your password for your CuraDocs account.</p>
+                            <p style="color: #666; font-size: 16px;">Click the button below to reset your password:</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <a href="{reset_link}" style="display: inline-block; padding: 12px 24px; background-color: #007BFF; color: #ffffff; text-decoration: none; font-size: 16px; border-radius: 5px; margin-top: 20px;">Reset Password</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <p style="color: #666; font-size: 16px;">If you did not request this, please ignore this email.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <p style="font-size: 14px; color: #999; margin-top: 20px;">© 2025 CuraDocs. All rights reserved.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+                    """
+        
+        # send email verification link
+        email_sent = send_email(email, "Password Reset Request", html_body, retries=3, delay=5)
+        if not email_sent:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+        return ({"message": "Password reset link sent successfully"}) # Return success message
+    
+    except Exception as e:
+        print(f"Error resetting password: {str(e)}")
+        logger.error(f"Error resetting password: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        
+
+@auth_patient.get("/patient/reset_password", status_code=status.HTTP_200_OK, response_class=HTMLResponse)
+async def reset_password_form(request: Request):
+    return templates.TemplateResponse("reset_password.html", {"request": request}, status_code=status.HTTP_200_OK)
+
+
+@auth_patient.post("/patient/create_new_password/{email}", status_code=status.HTTP_200_OK, response_model=models.res) 
+async def create_new_password(request: Request, email: str):
+    try:
+        form_data = await request.form()
+        password = form_data.get("password")
+        confirm_password = form_data.get("confirm_password")
+        if not password or not confirm_password:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password and confirm password are required")
+        if password != confirm_password:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match")
+        if len(password) < 6:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 6 characters long")
+        hashed_password = Hash.bcrypt(password)
+        # If bcrypt returns bytes, decode to string for MongoDB storage
+        if isinstance(hashed_password, bytes):
+            hashed_password = hashed_password.decode('utf-8')
+        user = await mongo_client.auth.patient.find_one({"email": email})
+        print(user) # debug
+        result = await mongo_client.auth.patient.update_one({"email": email}, {"$set": {"password": hashed_password}})
+        # Check if user was updated
+        if result.modified_count == 0:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        return ({"message": "Password updated successfully"}) # Return success message
+    
+    except Exception as e:
+        print(f"Error creating new password: {str(e)}")
+        logger.error(f"Error creating new password: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    
+@auth_patient.get("/patient/create_new_password/{email}", status_code=status.HTTP_200_OK, response_class=HTMLResponse)
+async def create_new_password_form(request: Request, email: str):
+        return templates.TemplateResponse("create_new_password.html", {"request": request, "email": email}, status_code=status.HTTP_200_OK)

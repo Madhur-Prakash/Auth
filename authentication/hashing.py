@@ -9,6 +9,14 @@ class Hash():
         hashed_password = bcrypt.hashpw(password=pwd_bytes, salt=salt)
         return hashed_password
 
-    async def verify(hashed_password,plain_password):
-        password_byte_enc = plain_password.encode('utf-8')
-        return bcrypt.checkpw(password = password_byte_enc , hashed_password = hashed_password)
+    async def verify(hashed_password, plain_password):
+        # Ensure plain_password is encoded
+        if isinstance(plain_password, str):
+            plain_password = plain_password.encode('utf-8')
+        
+        # Ensure hashed_password is encoded
+        if isinstance(hashed_password, str):
+            hashed_password = hashed_password.encode('utf-8')
+        
+        # Use positional arguments instead of keyword arguments
+        return bcrypt.checkpw(plain_password, hashed_password)
