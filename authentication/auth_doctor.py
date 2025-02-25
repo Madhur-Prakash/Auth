@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, status, HTTPException, Depends, BackgroundTasks
-import re
+import traceback
 from .otp_verify import send_otp, generate_otp
 from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -17,7 +17,9 @@ auth_doctor = APIRouter(tags=["doctor Authentication"]) # create a router for do
 templates = Jinja2Templates(directory="authentication/templates")
 
 # redis connection
-client = aioredis.from_url('redis://default@54.198.65.205:6379', decode_responses=True)
+# client = aioredis.from_url('redis://default@54.198.65.205:6379', decode_responses=True) in production
+
+client =  aioredis.from_url('redis://localhost', decode_responses=True) # in local testing
 
 logger = setup_logging() # initialize logger
 
@@ -162,7 +164,7 @@ async def signup(request: Request):
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
         # dict_data["phone_number"] = "+91" + dict_data["phone_number"] # adding country code
-        # otp = send_otp(dict_data["phone_number"])
+        # otp = await send_otp(dict_data["phone_number"])
         # if not otp:
         #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
         # cache_key = dict_data["email"]
@@ -174,11 +176,12 @@ async def signup(request: Request):
     except Exception as e:
         print(f"Error creating new user: {str(e)}")
         logger.error(f"Error creating new user: {str(e)}")
+        # print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***********************************************************************************************************************************************
 
 
-@auth_doctor.post("/doctor/{email}/verify_otp_signup", status_code=status.HTTP_200_OK, response_class=HTMLResponse) # verify otp
+@auth_doctor.post("/doctor/{email}/verify_otp_signup_email", status_code=status.HTTP_200_OK, response_class=HTMLResponse) # verify otp
 async def verify_otp_signup(request: Request, email: str, response: Response):
     try:
         form_data = await request.form()
@@ -187,7 +190,7 @@ async def verify_otp_signup(request: Request, email: str, response: Response):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
         otp_stored = await client.hgetall(email)
         print(otp_stored) # debug
-        if not otp_stored:
+        if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
         access_token = auth_token.create_access_token(data={"sub": email})
         print("Access token:", access_token)  # debug
@@ -215,20 +218,29 @@ async def verify_otp_signup(request: Request, email: str, response: Response):
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
         logger.error(f"Error verifying OTP: {str(e)}")
+        print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 
-@auth_doctor.post("/doctor/{phone_number}/verify_otp_signup", status_code=status.HTTP_200_OK, response_class=HTMLResponse) # verify otp
-async def verify_otp_signup(request: Request, phone_number: str, response: Response):
+@auth_doctor.post("/doctor/{phone_number}/verify_otp_signup_phone", status_code=status.HTTP_200_OK, response_class=HTMLResponse) # verify otp
+async def verify_otp_signup_phone(request: Request, phone_number: str, response: Response):
     try:
         form_data = await request.form()
         otp_entered = form_data.get("otp")
         if not otp_entered or len(otp_entered) != 6:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
         otp_stored = await client.hgetall(phone_number)
-        if not otp_stored:
+        # phone_number['phone_number'] = str(phone_number['phone_number'])
+        print("otp_stored:",otp_stored) # debug
+        if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
+
         access_token = auth_token.create_access_token(data={"sub": phone_number})
+        print("phone_number:",phone_number) # debug
+        user = await mongo_client.auth.doctor.find_one({"phone_number":otp_stored.get("phone_number")})
+        print("user:",user) # debug
+        if user:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
         mongodb_document = {
             "full_name": otp_stored.get("full_name"),
             "email": otp_stored.get("email"),
@@ -237,11 +249,7 @@ async def verify_otp_signup(request: Request, phone_number: str, response: Respo
             "created_at": otp_stored.get("created_at"),
             "CIN": otp_stored.get("CIN")
         }
-        user = await mongo_client.auth.doctor.find_one({"phone_number": otp_stored.get("phone_number")})
-        if user:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
-        # Insert into MongoDB
-        await mongo_client.auth.doctor.insert_one(mongodb_document)
+        await mongo_client.auth.doctor.insert_one(mongodb_document)  # Insert into MongoDB
         print("Access token:", access_token)  # debug
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
@@ -252,6 +260,7 @@ async def verify_otp_signup(request: Request, phone_number: str, response: Respo
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
         logger.error(f"Error verifying OTP: {str(e)}")
+        print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 # async def login(response: Response, request: Request, form_data: OAuth2doctorRequestForm = Depends(), auth_token: OAuth2PasswordBearer = Depends(oauth2.oauth2_scheme)): -> for locking the route use this instead of below
@@ -332,6 +341,7 @@ async def login(request: Request):
     except Exception as e:
         print(f"login attempt failed: {str(e)}")
         logger.error(f"login attempt failed: {str(e)}")
+        print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***************************************************************************************************************************************************************
 
@@ -393,10 +403,11 @@ async def login(response: Response, request: Request):
     except Exception as e:
         print(f"login attempt failed: {str(e)}")
         logger.error(f"login attempt failed: {str(e)}")
+        print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***************************************************************************************************************************************************************
 
-@auth_doctor.post("/doctor/{email}/verify_otp_login", status_code=status.HTTP_200_OK, response_class=HTMLResponse) 
+@auth_doctor.post("/doctor/{email}/verify_otp_login_email", status_code=status.HTTP_200_OK, response_class=HTMLResponse) 
 async def verify_otp(request: Request, response: Response, email: str):
     try:
         form_data = await request.form()
@@ -407,7 +418,7 @@ async def verify_otp(request: Request, response: Response, email: str):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
         otp_stored = await client.hgetall(email)
         print(otp_stored) # debug
-        if not otp_stored:
+        if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
         access_token = auth_token.create_access_token(data={"sub": email})
         print("Access token:", access_token)  # debug
@@ -420,9 +431,10 @@ async def verify_otp(request: Request, response: Response, email: str):
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
         logger.error(f"Error verifying OTP: {str(e)}")
+        print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
-@auth_doctor.post("/doctor/{phone_number}/verify_otp_login", status_code=status.HTTP_200_OK, response_class=HTMLResponse)
+@auth_doctor.post("/doctor/{phone_number}/verify_otp_login_phone", status_code=status.HTTP_200_OK, response_class=HTMLResponse)
 async def verify(response: Response, request: Request, phone_number: str):
     try:
         form_data = await request.form()
@@ -433,7 +445,7 @@ async def verify(response: Response, request: Request, phone_number: str):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
         otp_stored = await client.hgetall(phone_number)
         print(otp_stored)
-        if not otp_stored:
+        if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
         access_token = auth_token.create_access_token(data={"sub": phone_number})
         print("Access token:", access_token)  # debug
@@ -446,6 +458,7 @@ async def verify(response: Response, request: Request, phone_number: str):
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
         logger.error(f"Error verifying OTP: {str(e)}")
+        print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @auth_doctor.post("/doctor/{email}/logout", status_code=status.HTTP_200_OK)
@@ -489,6 +502,8 @@ async def verify_email(token: str, response: Response):
     
 
 
+
+    
 @auth_doctor.post("/doctor/reset_password", status_code=status.HTTP_200_OK, response_model=models.res)
 async def reset_password(request: Request):
     try:
@@ -499,8 +514,8 @@ async def reset_password(request: Request):
         user = await mongo_client.auth.doctor.find_one({"email": email})
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        reset_link = f"http://127.0.0.1:8000/doctor/create_new_password/{email}"
-        
+        token = create_verification_token({"email":email})
+        reset_link = f"http://127.0.0.1:8000/doctor/create_new_password/{token}"
         html_body = f"""
                     <html>
                     <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;">
@@ -556,6 +571,7 @@ async def reset_password(request: Request):
     except Exception as e:
         print(f"Error resetting password: {str(e)}")
         logger.error(f"Error resetting password: {str(e)}")
+        print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
         
 
@@ -564,9 +580,11 @@ async def reset_password_form(request: Request):
     return templates.TemplateResponse("reset_password.html", {"request": request}, status_code=status.HTTP_200_OK)
 
 
-@auth_doctor.post("/doctor/create_new_password/{email}", status_code=status.HTTP_200_OK, response_model=models.res) 
-async def create_new_password(request: Request, email: str):
+@auth_doctor.post("/doctor/create_new_password/{token}", status_code=status.HTTP_200_OK, response_model=models.res) 
+async def create_new_password(request: Request, token: str):
     try:
+        token_data = decode_verification_token(token)
+        email = token_data["email"]
         form_data = await request.form()
         password = form_data.get("password")
         confirm_password = form_data.get("confirm_password")
@@ -578,8 +596,7 @@ async def create_new_password(request: Request, email: str):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 6 characters long")
         hashed_password = Hash.bcrypt(password)
         # If bcrypt returns bytes, decode to string for MongoDB storage
-        if isinstance(hashed_password, bytes):
-            hashed_password = hashed_password.decode('utf-8')
+        hashed_password = hashed_password.decode('utf-8')
         user = await mongo_client.auth.doctor.find_one({"email": email})
         print(user) # debug
         result = await mongo_client.auth.doctor.update_one({"email": email}, {"$set": {"password": hashed_password}})
@@ -591,6 +608,7 @@ async def create_new_password(request: Request, email: str):
     except Exception as e:
         print(f"Error creating new password: {str(e)}")
         logger.error(f"Error creating new password: {str(e)}")
+        print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 @auth_doctor.get("/doctor/create_new_password/{email}", status_code=status.HTTP_200_OK, response_class=HTMLResponse)

@@ -1,5 +1,6 @@
 from fastapi import Depends, HTTPException, status, Form
 from . import auth_token, auth_patient
+import traceback
 from itsdangerous import URLSafeTimedSerializer
 from fastapi.security import OAuth2PasswordBearer 
 from typing import Optional
@@ -51,4 +52,5 @@ def decode_verification_token(token: str):
     except Exception as e:
         logger.error("Error validating user")
         print(f"Error validating user {str(e)}")
+        print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")

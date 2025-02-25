@@ -3,6 +3,7 @@ import base64
 import pickle
 import time
 from email.mime.text import MIMEText
+import traceback
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
@@ -52,6 +53,7 @@ def send_email(to_email, subject, body, retries=3, delay=5):
             return sent_message
         except Exception as e:
             print(f"Failed to send email due to timeout: {e}. Retrying in {delay} seconds...")
+            # print(f"Error: {traceback.format_exc()}")
             time.sleep(delay)
     print("Failed to send email after multiple attempts.")
 
