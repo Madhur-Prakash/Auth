@@ -134,6 +134,16 @@ async def signup(request: Request):
             "CIN": dict_data["CIN"],
             "created_at": dict_data["created_at"]})
         
+        await client.hset(dict_data["phone_number"], mapping={
+            "email": dict_data["email"],
+            "full_name": dict_data["full_name"],
+            "password": dict_data["password"],
+            "phone_number": dict_data["phone_number"],
+            "CIN": dict_data["CIN"],
+            "created_at": dict_data["created_at"]})
+        await client.expire(dict_data["email"], 300)  # Expire in 5 minutes
+        await client.expire(dict_data["phone_number"], 300)  # Expire in 5 minutes
+        
         # token = create_verification_token({"email":dict_data['email']})
         # link = f"http://127.0.0.1:8000/doctor/verify_email/{token}"
         otp =  await generate_otp(dict_data["email"])
@@ -163,12 +173,10 @@ async def signup(request: Request):
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
-        # dict_data["phone_number"] = "+91" + dict_data["phone_number"] # adding country code
-        # otp = await send_otp(dict_data["phone_number"])
-        # if not otp:
-        #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
-        # cache_key = dict_data["email"]
-        # cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
+        dict_data["phone_number"] = "+91" + dict_data["phone_number"] # adding country code
+        otp = await send_otp(dict_data["phone_number"])
+        if not otp:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP") 
         
         return {"message":f"OTP sent successfully on {form_data['phone_number'][:6]+'x'*6+dict_data['phone_number'][13:]} and {dict_data['email']}"} # Return success message
 
@@ -211,7 +219,7 @@ async def verify_otp_signup(request: Request, email: str, response: Response):
 
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
-        print(f"{email} logged in succesfully")  # Return success message
+        print(f"{email} signed up succesfully as doctor")  # Return success message
         logger.info(f"Account for doctor created successfully: {email}")
         return (f"Account for doctor created successfully {email}")
         
@@ -235,26 +243,28 @@ async def verify_otp_signup_phone(request: Request, phone_number: str, response:
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
 
+        phone_number = phone_number[3:] # removing country code
+        data = await client.hgetall(phone_number)
         access_token = auth_token.create_access_token(data={"sub": phone_number})
-        print("phone_number:",phone_number) # debug
-        user = await mongo_client.auth.doctor.find_one({"phone_number":otp_stored.get("phone_number")})
+        print("phone_number:",data) # debug
+        user = await mongo_client.auth.doctor.find_one({"phone_number":data.get("phone_number")})
         print("user:",user) # debug
         if user:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
         mongodb_document = {
-            "full_name": otp_stored.get("full_name"),
-            "email": otp_stored.get("email"),
-            "password": otp_stored.get("password"),
-            "phone_number": otp_stored.get("phone_number"),
-            "created_at": otp_stored.get("created_at"),
-            "CIN": otp_stored.get("CIN")
+            "full_name": data.get("full_name"),
+            "email": data.get("email"),
+            "password": data.get("password"),
+            "phone_number": data.get("phone_number"),
+            "created_at": data.get("created_at"),
+            "CIN": data.get("CIN")
         }
         await mongo_client.auth.doctor.insert_one(mongodb_document)  # Insert into MongoDB
         print("Access token:", access_token)  # debug
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
-        print(f"{phone_number} logged in succesfully")  # Return success message
-        logger.info(f"Account for doctor created successfully: {phone_number}")
+        print(f"{phone_number} signed up succesfully as doctor")  # Return success message
+        logger.info(f"Account for doctor created successfully: {data.get('email')}")
         return (f"Account for doctor created successfully {phone_number}")
         
     except Exception as e:
