@@ -81,14 +81,14 @@ async def read(request: Request):
     
 
 @auth_patient.post("/patient/signup", status_code=status.HTTP_201_CREATED, response_model=models.res)
-async def signup(request: Request):
+async def signup(request: Request, response: Response):
     try:
         form_data = await request.form()
         dict_data = dict(form_data)
         dict_data["created_at"] = datetime.now().isoformat()
         dict_data["CIN"] = generate_random_string()
 
-        required_fields = ["full_name", "email", "password", "confirm_password", "phone_number"]
+        required_fields = ["full_name", "email", "password", "phone_number"]
         for field in required_fields:
             if field not in dict_data:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
@@ -108,8 +108,6 @@ async def signup(request: Request):
         
         if not(form_data["phone_number"].isdigit()):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be digits only")
-        if dict_data["password"] != dict_data["confirm_password"]:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Password do not match")
         if(form_data["password"].__len__() < 6):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Password must be at least 6 characters long")
         if(form_data["email"].__contains__("@") == False):
@@ -124,29 +122,89 @@ async def signup(request: Request):
         hashed_password = Hash.bcrypt(dict_data["password"])
         dict_data["password"] = hashed_password
 
-        # removing the confirm_password field from db
-        dict_data.pop("confirm_password")
-        await client.hset(dict_data["email"], mapping={
-            "email": dict_data["email"],
-            "full_name": dict_data["full_name"],
-            "password": dict_data["password"],
-            "phone_number": dict_data["phone_number"],
-            "CIN": dict_data["CIN"],
-            "created_at": dict_data["created_at"]})
+
+        await mongo_client.auth.patient.insert_one(dict_data)  # Insert into MongoDB
+        logger.info(f"Account for patient created successfully: {dict_data['email']}")
+        # Generate a cache during signup with email as key
+        cache_key = dict_data["email"]
+        cached_data = await client.set(f"patient:{cache_key}",cache_key,ex=3600) 
+        access_token = auth_token.create_access_token(data={"sub": cache_key})
+        response = RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+        response.delete_cookie("access_token")  # Remove old token
+        response.set_cookie(key="access_token", value=access_token, max_age=3600)
+
+
+        # await client.hset(dict_data["email"], mapping={
+        #     "email": dict_data["email"],
+        #     "full_name": dict_data["full_name"],
+        #     "password": dict_data["password"],
+        #     "phone_number": dict_data["phone_number"],
+        #     "CIN": dict_data["CIN"],
+        #     "created_at": dict_data["created_at"]})
         
-        await client.hset(dict_data["phone_number"], mapping={
-            "email": dict_data["email"],
-            "full_name": dict_data["full_name"],
-            "password": dict_data["password"],
-            "phone_number": dict_data["phone_number"],
-            "CIN": dict_data["CIN"],
-            "created_at": dict_data["created_at"]})
-        await client.expire(dict_data["email"], 300)  # Expire in 5 minutes
-        await client.expire(dict_data["phone_number"], 300)  # Expire in 5 minutes
+        # await client.hset(dict_data["phone_number"], mapping={
+        #     "email": dict_data["email"],
+        #     "full_name": dict_data["full_name"],
+        #     "password": dict_data["password"],
+        #     "phone_number": dict_data["phone_number"],
+        #     "CIN": dict_data["CIN"],
+        #     "created_at": dict_data["created_at"]})
+        # await client.expire(dict_data["email"], 300)  # Expire in 5 minutes
+        # await client.expire(dict_data["phone_number"], 300)  # Expire in 5 minutes
         
         # token = create_verification_token({"email":dict_data['email']})
         # link = f"http://127.0.0.1:8000/patient/verify_email/{token}"
-        otp =  await generate_otp(dict_data["email"])
+        # otp =  await generate_otp(dict_data["email"])
+        
+        # html_body = f"""
+        #                 <html>
+        #                 <body style="margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif;">
+        #                 <div style="width: 100%; background: #efefef; border-radius: 10px; padding: 10px;">
+        #                 <div style="margin: 0 auto; width: 90%; text-align: center;">
+        #                     <h1 style="background-color: rgba(0, 53, 102, 1); padding: 5px 10px; border-radius: 5px; color: white;">CuraDocs</h1>
+        #                     <div style="margin: 30px auto; background: white; width: 40%; border-radius: 10px; padding: 50px; text-align: center;">
+        #                     <h3 style="margin-bottom: 100px; font-size: 24px;">Hello!</h3>
+        #                     <p style="margin-bottom: 30px;">Thanks for choosing CuraDocs. Please click the link below to verify your email.</p>
+        #                     <a style="display: block; margin: 0 auto; border: none; background-color: rgba(255, 214, 10, 1); color: white; width: 200px; line-height: 24px; padding: 10px; font-size: 24px; border-radius: 10px; cursor: pointer; text-decoration: none;"
+        #                         target="_blank"
+        #                     >
+        #                         {otp}
+        #                     </a>
+        #                     </div>
+        #                 </div>
+        #                 </div>
+        #                 </body>
+        #                 </html>
+        #                 """
+        # # send email verification link
+        # email_sent = send_email(dict_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        # if not email_sent:
+        #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+
+        dict_data["phone_number"] = "+91" + dict_data["phone_number"] # adding country code
+        otp = await send_otp(dict_data["phone_number"])
+        if not otp:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
+        
+        # return {"message":f"OTP sent successfully on {form_data['phone_number'][:6]+'x'*6+dict_data['phone_number'][13:]} and {dict_data['email']}"} # Return success message
+        return (f"Account for patient created successfully: {dict_data['email']}")
+
+
+    except Exception as e:
+        print(f"Error creating new user: {str(e)}")
+        logger.error(f"Error creating new user: {str(e)}")
+        # print(f"Error: {traceback.format_exc()}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+# ***********************************************************************************************************************************************
+
+
+@auth_patient.post("/patient//verify_otp_signup_email", status_code=status.HTTP_200_OK, response_class=HTMLResponse) # verify otp
+async def verify_otp_signup(request: Request):
+    try:
+        form_data = await request.form()
+        email = form_data.get("email")
+
+        otp =  await generate_otp(email)
         
         html_body = f"""
                         <html>
@@ -169,30 +227,10 @@ async def signup(request: Request):
                         </html>
                         """
         # send email verification link
-        email_sent = send_email(dict_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        email_sent = send_email(email, "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
-        dict_data["phone_number"] = "+91" + dict_data["phone_number"] # adding country code
-        otp = await send_otp(dict_data["phone_number"])
-        if not otp:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
-        
-        return {"message":f"OTP sent successfully on {form_data['phone_number'][:6]+'x'*6+dict_data['phone_number'][13:]} and {dict_data['email']}"} # Return success message
-
-
-    except Exception as e:
-        print(f"Error creating new user: {str(e)}")
-        logger.error(f"Error creating new user: {str(e)}")
-        # print(f"Error: {traceback.format_exc()}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-# ***********************************************************************************************************************************************
-
-
-@auth_patient.post("/patient/{email}/verify_otp_signup_email", status_code=status.HTTP_200_OK, response_class=HTMLResponse) # verify otp
-async def verify_otp_signup(request: Request, email: str, response: Response):
-    try:
-        form_data = await request.form()
         otp_entered = form_data.get("otp")
         if not otp_entered or len(otp_entered) != 6:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
@@ -200,28 +238,29 @@ async def verify_otp_signup(request: Request, email: str, response: Response):
         print(otp_stored) # debug
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
-        access_token = auth_token.create_access_token(data={"sub": email})
-        print("Access token:", access_token)  # debug
-        mongodb_document = {
-            "full_name": otp_stored.get("full_name"),
-            "email": otp_stored.get("email"),
-            "password": otp_stored.get("password"),
-            "phone_number": otp_stored.get("phone_number"),
-            "created_at": otp_stored.get("created_at"),
-            "CIN": otp_stored.get("CIN")
-        }
-        user = await mongo_client.auth.patient.find_one({"email": otp_stored.get("email")})
-        if user:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
-        # Insert into MongoDB
-        await mongo_client.auth.patient.insert_one(mongodb_document)
+        # access_token = auth_token.create_access_token(data={"sub": email})
+        # print("Access token:", access_token)  # debug
+        # mongodb_document = {
+        #     "full_name": otp_stored.get("full_name"),
+        #     "email": otp_stored.get("email"),
+        #     "password": otp_stored.get("password"),
+        #     "phone_number": otp_stored.get("phone_number"),
+        #     "created_at": otp_stored.get("created_at"),
+        #     "CIN": otp_stored.get("CIN")
+        # }
+        # user = await mongo_client.auth.patient.find_one({"email": otp_stored.get("email")})
+        # if user:
+        #     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
+        # # Insert into MongoDB
+        # await mongo_client.auth.patient.insert_one(mongodb_document)
 
 
-        response.delete_cookie("access_token")  # Remove old token
-        response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
-        print(f"{email} signed up succesfully as patient")  # Return success message
-        logger.info(f"Account for patient created successfully: {email}")
-        return (f"Account for patient created successfully {email}")
+        # response.delete_cookie("access_token")  # Remove old token
+        # response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
+        # print(f"{email} signed up succesfully as patient")  # Return success message
+        print(f"otp verified successfuly through {email}")
+        logger.info(f"otp verified successfuly through {email}")
+        return (f"otp verified successfuly through {email}")
         
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -230,10 +269,15 @@ async def verify_otp_signup(request: Request, email: str, response: Response):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 
-@auth_patient.post("/patient/{phone_number}/verify_otp_signup_phone", status_code=status.HTTP_200_OK, response_class=HTMLResponse) # verify otp
-async def verify_otp_signup_phone(request: Request, phone_number: str, response: Response):
+@auth_patient.post("/patient/verify_otp_signup_phone", status_code=status.HTTP_200_OK, response_class=HTMLResponse) # verify otp
+async def verify_otp_signup_phone(request: Request):
     try:
         form_data = await request.form()
+        phone_number = form_data.get("phone_number")
+        phone_number = "+91" + phone_number # adding country code
+        otp = await send_otp(phone_number)
+        if not otp:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
         otp_entered = form_data.get("otp")
         if not otp_entered or len(otp_entered) != 6:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
@@ -243,29 +287,31 @@ async def verify_otp_signup_phone(request: Request, phone_number: str, response:
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
         
-        phone_number = phone_number[3:] # removing country code
-        data = await client.hgetall(phone_number)
-        access_token = auth_token.create_access_token(data={"sub": phone_number})
-        print("phone_number:",data) # debug
-        user = await mongo_client.auth.patient.find_one({"phone_number":data.get("phone_number")})
-        print("user:",user) # debug
-        if user:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
-        mongodb_document = {
-            "full_name": data.get("full_name"),
-            "email": data.get("email"),
-            "password": data.get("password"),
-            "phone_number": data.get("phone_number"),
-            "created_at": data.get("created_at"),
-            "CIN": data.get("CIN")
-        }
-        await mongo_client.auth.patient.insert_one(mongodb_document)  # Insert into MongoDB
-        print("Access token:", access_token)  # debug
-        response.delete_cookie("access_token")  # Remove old token
-        response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
-        print(f"{phone_number} signed up succesfully as patient")  # Return success message
-        logger.info(f"Account for patient created successfully: {data.get('email')}")
-        return (f"Account for patient created successfully {phone_number}")
+        # phone_number = phone_number[3:] # removing country code
+        # data = await client.hgetall(phone_number)
+        # access_token = auth_token.create_access_token(data={"sub": phone_number})
+        # print("phone_number:",data) # debug
+        # user = await mongo_client.auth.patient.find_one({"phone_number":data.get("phone_number")})
+        # print("user:",user) # debug
+        # if user:
+        #     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
+        # mongodb_document = {
+        #     "full_name": data.get("full_name"),
+        #     "email": data.get("email"),
+        #     "password": data.get("password"),
+        #     "phone_number": data.get("phone_number"),
+        #     "created_at": data.get("created_at"),
+        #     "CIN": data.get("CIN")
+        # }
+        # await mongo_client.auth.patient.insert_one(mongodb_document)  # Insert into MongoDB
+        # print("Access token:", access_token)  # debug
+        # response.delete_cookie("access_token")  # Remove old token
+        # response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
+        # print(f"{phone_number} signed up succesfully as patient")  # Return success message
+        print(f"otp verified successfuly through {phone_number}")
+        logger.info(f"otp verified successfuly through {phone_number}")
+        return(f"otp verified successfuly through {phone_number}")
+       
         
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")

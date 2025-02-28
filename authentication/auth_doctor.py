@@ -79,6 +79,9 @@ async def read(request: Request):
     #     })
     return templates.TemplateResponse("login.html", {"request": request, "user": new_user}) 
     
+@auth_doctor.get("/doctor/signup")
+async def signup(request: Request, status=status.HTTP_201_CREATED):
+    return ({"message":"signup page"}, status)
 
 @auth_doctor.post("/doctor/signup", status_code=status.HTTP_201_CREATED, response_model=models.res)
 async def signup(request: Request):
@@ -88,7 +91,7 @@ async def signup(request: Request):
         dict_data["created_at"] = datetime.now().isoformat()
         dict_data["CIN"] = generate_random_string()
 
-        required_fields = ["full_name", "email", "password", "confirm_password", "phone_number"]
+        required_fields = ["full_name", "email", "password", "phone_number"]
         for field in required_fields:
             if field not in dict_data:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
@@ -108,8 +111,6 @@ async def signup(request: Request):
         
         if not(form_data["phone_number"].isdigit()):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be digits only")
-        if dict_data["password"] != dict_data["confirm_password"]:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Password do not match")
         if(form_data["password"].__len__() < 6):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Password must be at least 6 characters long")
         if(form_data["email"].__contains__("@") == False):
@@ -124,25 +125,23 @@ async def signup(request: Request):
         hashed_password = Hash.bcrypt(dict_data["password"])
         dict_data["password"] = hashed_password
 
-        # removing the confirm_password field from db
-        dict_data.pop("confirm_password")
-        await client.hset(dict_data["email"], mapping={
-            "email": dict_data["email"],
-            "full_name": dict_data["full_name"],
-            "password": dict_data["password"],
-            "phone_number": dict_data["phone_number"],
-            "CIN": dict_data["CIN"],
-            "created_at": dict_data["created_at"]})
+        # await client.hset(dict_data["email"], mapping={
+        #     "email": dict_data["email"],
+        #     "full_name": dict_data["full_name"],
+        #     "password": dict_data["password"],
+        #     "phone_number": dict_data["phone_number"],
+        #     "CIN": dict_data["CIN"],
+        #     "created_at": dict_data["created_at"]})
         
-        await client.hset(dict_data["phone_number"], mapping={
-            "email": dict_data["email"],
-            "full_name": dict_data["full_name"],
-            "password": dict_data["password"],
-            "phone_number": dict_data["phone_number"],
-            "CIN": dict_data["CIN"],
-            "created_at": dict_data["created_at"]})
-        await client.expire(dict_data["email"], 300)  # Expire in 5 minutes
-        await client.expire(dict_data["phone_number"], 300)  # Expire in 5 minutes
+        # await client.hset(dict_data["phone_number"], mapping={
+        #     "email": dict_data["email"],
+        #     "full_name": dict_data["full_name"],
+        #     "password": dict_data["password"],
+        #     "phone_number": dict_data["phone_number"],
+        #     "CIN": dict_data["CIN"],
+        #     "created_at": dict_data["created_at"]})
+        # await client.expire(dict_data["email"], 300)  # Expire in 5 minutes
+        # await client.expire(dict_data["phone_number"], 300)  # Expire in 5 minutes
         
         # token = create_verification_token({"email":dict_data['email']})
         # link = f"http://127.0.0.1:8000/doctor/verify_email/{token}"
