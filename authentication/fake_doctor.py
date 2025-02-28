@@ -1,6 +1,6 @@
 from pymongo import MongoClient
 from faker import Faker
-from passlib.hash import bcrypt
+import bcrypt
 import random
 
 # Initialize Faker
