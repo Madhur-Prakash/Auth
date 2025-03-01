@@ -24,5 +24,6 @@ def verify_token(token:str,credentials_exception):
         if patient_user_name is None:
             raise credentials_exception
         token_data = models.TokenData(patient_user_name=patient_user_name)
+        return token_data
     except JWTError:
         raise credentials_exception
