@@ -5,19 +5,15 @@ from pydantic import BaseModel, EmailStr, Field
 class Patient(BaseModel):
     full_name: str = Field(None, title="Full Name of the User")
     email: EmailStr = Field(..., title="Email Address")
-    patient_user_name: str = Field(..., title="Username")
     password: str = Field(..., title="Password")
-    confirm_password: str = Field(..., title="Confirm Password")
-    phone_number: int = Field(..., min_length=10, title="Phone Number")
+    phone_number: str = Field(..., min_length=10, title="Phone Number")
     disabled: bool = Field(default=False, title="User Account Status")
 
 class Doctor(BaseModel):
     full_name: str = Field(None, title="Full Name of the User")
     email: EmailStr = Field(..., title="Email Address")
-    doctor_user_name: str = Field(..., title="Username")
     password: str = Field(..., title="Password")
-    confirm_password: str = Field(..., title="Confirm Password")
-    phone_number: int = Field(..., min_length=10, title="Phone Number")
+    phone_number: str = Field(..., min_length=10, title="Phone Number")
     disabled: bool = Field(default=False, title="User Account Status")
 
 class Message(BaseModel):

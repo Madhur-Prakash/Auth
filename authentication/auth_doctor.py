@@ -366,7 +366,7 @@ async def login(request: Request):
 
 
 
-@auth_doctor.post("/doctor/{email}/verify_otp_login_email", status_code=status.HTTP_200_OK, response_class=HTMLResponse) 
+@auth_doctor.post("/doctor/{email}/verify_otp_login_email", status_code=status.HTTP_200_OK) 
 async def verify_otp(request: Request, response: Response, email: str):
     try:
         form_data = await request.json()
@@ -393,7 +393,7 @@ async def verify_otp(request: Request, response: Response, email: str):
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
-@auth_doctor.post("/doctor/{phone_number}/verify_otp_login_phone", status_code=status.HTTP_200_OK, response_class=HTMLResponse)
+@auth_doctor.post("/doctor/{phone_number}/verify_otp_login_phone", status_code=status.HTTP_200_OK)
 async def verify(response: Response, request: Request, phone_number: str):
     try:
         form_data = await request.json()
@@ -483,7 +483,7 @@ async def login(response: Response, request: Request):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***************************************************************************************************************************************************************
    
-@auth_doctor.post("/doctor/reset_password", status_code=status.HTTP_200_OK, response_model=models.res)
+@auth_doctor.post("/doctor/reset_password", status_code=status.HTTP_200_OK)
 async def reset_password(request: Request):
     try:
         form_data = await request.json()
@@ -559,7 +559,7 @@ async def reset_password_form(request: Request):
     return templates.TemplateResponse("reset_password.html", {"request": request}, status_code=status.HTTP_200_OK)
 
 
-@auth_doctor.post("/doctor/create_new_password/{token}", status_code=status.HTTP_200_OK, response_model=models.res) 
+@auth_doctor.post("/doctor/create_new_password/{token}", status_code=status.HTTP_200_OK) 
 async def create_new_password(request: Request, token: str):
     try:
         token_data = decode_verification_token(token)
@@ -589,10 +589,6 @@ async def create_new_password(request: Request, token: str):
         logger.error(f"Error creating new password: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
-@auth_doctor.get("/doctor/create_new_password/{email}", status_code=status.HTTP_200_OK, response_class=HTMLResponse)
-async def create_new_password_form(request: Request, email: str):
-        return templates.TemplateResponse("create_new_password.html", {"request": request, "email": email}, status_code=status.HTTP_200_OK)
 
 
 @auth_doctor.post("/doctor/{email}/logout", status_code=status.HTTP_200_OK)
