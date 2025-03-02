@@ -6,21 +6,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 import aioredis
-from starlette.middleware.sessions import SessionMiddleware
-from authlib.integrations.starlette_client import OAuth, OAuthError
 from .oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token
 from .utils import setup_logging, generate_random_string  # Import setup_logging from utils
 from .hashing import Hash
 from datetime import datetime
 from .send_mail import send_email
 from . import auth_token, models, oauth2
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-GOOGLE_CLIENT_SCRET = os.getenv("GOOGLE_CLIENT_SCRET")
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
 auth_patient = APIRouter(tags=["patient Authentication"]) # create a router for patient
 templates = Jinja2Templates(directory="authentication/templates")
@@ -31,15 +22,6 @@ templates = Jinja2Templates(directory="authentication/templates")
 client =  aioredis.from_url('redis://localhost', decode_responses=True) # in local testing
 
 logger = setup_logging() # initialize logger
-oauth = OAuth()
-oauth.register(
-    name='google',
-    client_id=GOOGLE_CLIENT_ID,
-    client_secret=GOOGLE_CLIENT_SCRET,
-    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-    client_kwargs={
-        'scope': 'email openid profile',
-        'redirect_uri': 'http://localhost:8000/patient/google/callback'})
 
 
 # implemeting cahing using redis
@@ -82,93 +64,21 @@ async def cache_without_password(data: str):
             return user
     return None
 
-@auth_patient.get("/", response_class=HTMLResponse)
-async def read(request: Request):
-    user = mongo_client.auth.patient.find()
-    new_user = []
-    # for i in user:
-    #     new_user.append({
-    #         "id": i["_id"],
-    #         "full_name": i["full_name"],
-    #         "patient_user_name": i["patient_user_name"],
-    #         "email": i["email"],
-    #         "phone_number": i["phone_number"],
-    #         "disabled": i["disabled"]
-    #     })
-    return templates.TemplateResponse("login.html", {"request": request, "user": new_user}) 
+# @auth_patient.get("/", response_class=HTMLResponse)
+# async def read(request: Request):
+#     user = mongo_client.auth.patient.find()
+#     new_user = []
+#     # for i in user:
+#     #     new_user.append({
+#     #         "id": i["_id"],
+#     #         "full_name": i["full_name"],
+#     #         "patient_user_name": i["patient_user_name"],
+#     #         "email": i["email"],
+#     #         "phone_number": i["phone_number"],
+#     #         "disabled": i["disabled"]
+#     #     })
+#     return templates.TemplateResponse("login.html", {"request": request, "user": new_user}) 
     
-
-from fastapi import APIRouter, Request, Depends, HTTPException, status
-from authlib.integrations.starlette_client import OAuth
-from starlette.middleware.sessions import SessionMiddleware
-from starlette.responses import RedirectResponse
-import jwt
-import logging
-
-# Set up logging
-logger = logging.getLogger(__name__)
-
-# OAuth Setup
-oauth = OAuth()
-oauth.register(
-    name="google",
-    client_id="YOUR_GOOGLE_CLIENT_ID",
-    client_secret="YOUR_GOOGLE_CLIENT_SECRET",
-    authorize_url="https://accounts.google.com/o/oauth2/auth",
-    access_token_url="https://oauth2.googleapis.com/token",
-    userinfo_endpoint="https://www.googleapis.com/oauth2/v3/userinfo",
-    client_kwargs={"scope": "openid email profile"},
-)
-
-# FastAPI Router
-auth_patient = APIRouter()
-
-# Dummy Database (Replace with MongoDB)
-fake_db = {}
-
-# Redirect User to Google OAuth Login
-@auth_patient.get("/patient/google/callback", status_code=status.HTTP_200_OK)
-async def google_login(request: Request):
-    redirect_uri = request.url_for("google_callback")
-    return await oauth.google.authorize_redirect(request, redirect_uri)
-
-# Handle Google OAuth Callback
-@auth_patient.get("/patient/google/callback", status_code=status.HTTP_200_OK)
-async def google_callback(request: Request):
-    try:
-        # Get token from Google
-        token = await oauth.google.authorize_access_token(request)
-        user_info = token.get("userinfo")
-
-        if not user_info:
-            raise HTTPException(status_code=400, detail="Google login failed")
-
-        # Extract user details
-        user_email = user_info["email"]
-        user_name = user_info["name"]
-        google_id = user_info["sub"]
-
-        # Check if user exists in DB
-        user = fake_db.get(user_email)
-
-        if not user:
-            # Register new user
-            fake_db[user_email] = {
-                "email": user_email,
-                "name": user_name,
-                "google_id": google_id,
-            }
-
-        # Generate JWT token for user
-        jwt_token = jwt.encode(
-            {"email": user_email, "google_id": google_id}, "your_jwt_secret", algorithm="HS256"
-        )
-
-        return {"access_token": jwt_token, "token_type": "bearer", "user_info": user_info}
-
-    except Exception as e:
-        logger.error(f"Google login error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Google authentication failed")
 
 @auth_patient.post("/patient/signup", status_code=status.HTTP_201_CREATED)
 async def signup(request: Request, response: Response):

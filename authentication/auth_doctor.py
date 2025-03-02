@@ -64,20 +64,20 @@ async def cache_without_password(data: str):
             return user
     return None
 
-@auth_doctor.get("/", response_class=HTMLResponse)
-async def read(request: Request):
-    user = mongo_client.auth.doctor.find()
-    new_user = []
-    # for i in user:
-    #     new_user.append({
-    #         "id": i["_id"],
-    #         "full_name": i["full_name"],
-    #         "doctor_user_name": i["doctor_user_name"],
-    #         "email": i["email"],
-    #         "phone_number": i["phone_number"],
-    #         "disabled": i["disabled"]
-    #     })
-    return templates.TemplateResponse("login.html", {"request": request, "user": new_user}) 
+# @auth_doctor.get("/", response_class=HTMLResponse)
+# async def read(request: Request):
+#     user = mongo_client.auth.doctor.find()
+#     new_user = []
+#     # for i in user:
+#     #     new_user.append({
+#     #         "id": i["_id"],
+#     #         "full_name": i["full_name"],
+#     #         "doctor_user_name": i["doctor_user_name"],
+#     #         "email": i["email"],
+#     #         "phone_number": i["phone_number"],
+#     #         "disabled": i["disabled"]
+#     #     })
+#     return templates.TemplateResponse("login.html", {"request": request, "user": new_user}) 
     
 
 @auth_doctor.post("/doctor/signup", status_code=status.HTTP_201_CREATED)
