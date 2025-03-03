@@ -47,7 +47,7 @@ async def send_otp(phone_number: str):
             "phone_number": phone_number
         })
         await redis_client.expire(f"{phone_number}", 300)  # Expire in 5 minutes
-        return store_opt
+        return otp_sent
     except Exception as e:
         logging.error(f"Error sending OTP: {str(e)}")
         print(f"Error sending OTP: {str(e)}")

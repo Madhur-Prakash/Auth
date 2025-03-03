@@ -186,7 +186,7 @@ async def signup(request: Request, response: Response):
         #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
         
         # return {"message":f"OTP sent successfully on {form_data['phone_number'][:6]+'x'*6+dict_data['phone_number'][13:]} and {dict_data['email']}"} # Return success message
-        return (f"Account for doctor created successfully: {dict_data['email']}")
+        return {"message":f"Account for doctor created successfully: {dict_data['email']}"}
 
 
     except Exception as e:
@@ -262,7 +262,7 @@ async def verify_otp_signup(request: Request):
             # print(f"{email} signed up succesfully as doctor")  # Return success message
             print("otp sent successfuly")
             logger.info("otp verified successfuly")
-            return ({"message":"otp sent successfuly", "status": status.HTTP_200_OK, "otp": encrypted_otp})
+            return ({"message":f"otp sent successfuly on {email}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
         elif phone_number:
             phone_number = "91" + phone_number # adding country code
             otp = await send_otp(phone_number)
@@ -332,7 +332,7 @@ async def login(request: Request):
                     email_sent = send_email(form_data["email"], "Login to CuraDocs using the provided otp", html_body, retries=3, delay=5)
                     if not email_sent:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
-                    return templates.TemplateResponse("otp.html", {"request": request, "message": f"OTP sent successfully on {email_provided}"}, status_code=status.HTTP_200_OK)
+                    return {"message": f"OTP sent successfully on {email_provided}", "status":status.HTTP_200_OK}
 
                     
                 print("cache data returned none") # debug
@@ -351,7 +351,7 @@ async def login(request: Request):
                     otp = await send_otp(phone_number_provided)
                     if not otp:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
-                    return templates.TemplateResponse("otp.html", {"request": request, "message": f"OTP sent successfully on {phone_number_provided[3:7]+'x'*6+phone_number_provided[13:]}"}, status_code=status.HTTP_200_OK) # masking the phone number for security
+                    return {"message": f"OTP sent successfully on {phone_number_provided[3:7]+'x'*6+phone_number_provided[13:]}", "status":status.HTTP_200_OK} # masking the phone number for security
 
                 print("cache data returned none") # debug
                 logger.warning(f"login attempt with invalid credentials: {form_data['email']}")
@@ -385,7 +385,7 @@ async def verify_otp(request: Request, response: Response, email: str):
         response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
         print(f"{email} logged in succesfully")  # Return success message
         logger.info(f"{email} logged in successfully")
-        return (f"OTP verified successfully from {email}")
+        return {"message":f"OTP verified successfully from {email}"}
                          
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -412,7 +412,7 @@ async def verify(response: Response, request: Request, phone_number: str):
         response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
         print(f"{phone_number} logged in succesfully")  # Return success message
         logger.info(f"{phone_number} logged in successfully")
-        return (f"OTP verified successfully from {phone_number}")
+        return {"message":f"OTP verified successfully from {phone_number}"}
 
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -451,8 +451,8 @@ async def login(response: Response, request: Request):
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
                     logger.info(f"{email_provided} logged in successfully")
-                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
-                    return (f"{email_provided} logged in succesfully")  # Return success message
+                    # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+                    return {"message":f"{email_provided} logged in succesfully", "status":status.HTTP_200_OK}  # Return success message
 
                 print("cache data returned none") # debug
                 logger.warning(f"login attempt with invalid Invalid credentials: {form_data['email']} ; {form_data['password']}")
@@ -469,8 +469,8 @@ async def login(response: Response, request: Request):
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
                     logger.info(f"{phone_number_provided} logged in successfully")
-                    RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
-                    return (f"{phone_number_provided} logged in succesfully")  # Return success message
+                    # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
+                    return {"message":f"{phone_number_provided} logged in succesfully", "status":status.HTTP_200_OK}  # Return success message
 
                 print("cache data returned none") # debug
                 logger.warning(f"login attempt with invalid Invalid credentials: {form_data['phone_number']} ; {form_data['password']}")
@@ -554,9 +554,9 @@ async def reset_password(request: Request):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
         
 
-@auth_doctor.get("/doctor/reset_password", status_code=status.HTTP_200_OK)
-async def reset_password_form(request: Request):
-    return templates.TemplateResponse("reset_password.html", {"request": request}, status_code=status.HTTP_200_OK)
+# @auth_doctor.get("/doctor/reset_password", status_code=status.HTTP_200_OK)
+# async def reset_password_form(request: Request):
+#     return templates.TemplateResponse("reset_password.html", {"request": request}, status_code=status.HTTP_200_OK)
 
 
 @auth_doctor.post("/doctor/create_new_password/{token}", status_code=status.HTTP_200_OK) 
@@ -593,11 +593,11 @@ async def create_new_password(request: Request, token: str):
 
 @auth_doctor.post("/doctor/{email}/logout", status_code=status.HTTP_200_OK)
 async def logout(email: str, response: Response):
-    RedirectResponse("http://127.0.0.1:8000/login", status_code=status.HTTP_200_OK)
+    # RedirectResponse("http://127.0.0.1:8000/login", status_code=status.HTTP_200_OK)
     response.delete_cookie("access_token")
     logger.info(f"{email} logged out successfully")
     print(f"{email} logged out successfully") # debug
-    return (f"{email} logged out successfully")  # Return success message
+    return {"message":f"{email} logged out successfully", "status":status.HTTP_200_OK}  # Return success message
 
 
 
