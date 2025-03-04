@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 import aioredis
 from .oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token
-from .utils import setup_logging, generate_random_string  # Import setup_logging from utils
+from .utils import cache, cache_without_password, setup_logging, generate_random_string  # Import setup_logging from utils
 from .hashing import Hash
 from datetime import datetime
 from .send_mail import send_email
@@ -17,52 +17,11 @@ auth_patient = APIRouter(tags=["patient Authentication"]) # create a router for 
 templates = Jinja2Templates(directory="authentication/templates")
 
 # redis connection
-# client = aioredis.from_url('redis://default@54.198.65.205:6379', decode_responses=True) in production
+# client = aioredis.from_url('redis://default@54.198.65.205:6379', decode_responses=True) #in production
 
 client =  aioredis.from_url('redis://localhost', decode_responses=True) # in local testing
 
 logger = setup_logging() # initialize logger
-
-
-# implemeting cahing using redis
-async def cache(data: str, plain_password):
-    user = await mongo_client.auth.patient.find_one({"$or": [{
-        "email": data}, 
-        {"phone_number": data}]})
-    CachedData = await client.get(f'patient:{data}')
-    if CachedData and user:
-            hashed_password = await Hash.verify(user["password"], plain_password)
-            if hashed_password:
-                print("Data is cached") # debug
-                print(CachedData) # debug
-                return user
-            logger.warning(f"login attempt with invalid credentials: {data} and {plain_password}")
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    elif user:
-        hashed_password = await Hash.verify(user["password"], plain_password)
-        if hashed_password:
-            print("searching inside db") # debug
-            await client.set(f"patient:{data}",data, ex=30) # expire in 30 seconds
-            return user
-    return None
-
-async def cache_without_password(data: str):
-    user = await mongo_client.auth.patient.find_one({"$or": [{
-        "email": data}, 
-        {"phone_number": data}]})
-    CachedData = await client.get(f'patient:{data}')
-    if CachedData:
-        if user:
-            print("Data is cached") # debug
-            print(CachedData) # debug
-            return user
-        logger.warning(f"login attempt with invalid credentials: {data}")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    elif user:
-            print("searching inside db") # debug
-            await client.set(f"patient:{data}",data, ex=30) # expire in 30 seconds
-            return user
-    return None
 
 # @auth_patient.get("/", response_class=HTMLResponse)
 # async def read(request: Request):

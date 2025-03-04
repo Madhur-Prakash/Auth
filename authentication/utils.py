@@ -1,8 +1,17 @@
 import random
 import string
+from fastapi import HTTPException, status
 import logging
+from .database import mongo_client
+from .hashing import Hash 
 import os
+import aioredis
 from concurrent_log_handler import ConcurrentRotatingFileHandler
+
+# redis connection
+# client = aioredis.from_url('redis://default@54.198.65.205:6379', decode_responses=True) in production
+
+client =  aioredis.from_url('redis://localhost', decode_responses=True) # in local testing
 
 def setup_logging():
     logger = logging.getLogger("auth_log") # create logger
@@ -36,8 +45,8 @@ def setup_logging():
         logger.addHandler(console_handler)
     return logger
 
+logger = setup_logging()
 generated_strings = set()
-
 
 def generate_random_string():
     letters = string.ascii_uppercase  # Uppercase letters
@@ -51,3 +60,43 @@ def generate_random_string():
         return new_string
     else:
         return generate_random_string()
+
+# implemeting cahing using redis
+async def cache(data: str, plain_password):
+    user = await mongo_client.auth.patient.find_one({"$or": [{
+        "email": data}, 
+        {"phone_number": data}]})
+    CachedData = await client.get(f'patient:{data}')
+    if CachedData and user:
+            hashed_password = await Hash.verify(user["password"], plain_password)
+            if hashed_password:
+                print("Data is cached") # debug
+                print(CachedData) # debug
+                return user
+            logger.warning(f"login attempt with invalid credentials: {data} and {plain_password}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    elif user:
+        hashed_password = await Hash.verify(user["password"], plain_password)
+        if hashed_password:
+            print("searching inside db") # debug
+            await client.set(f"patient:{data}",data, ex=30) # expire in 30 seconds
+            return user
+    return None
+
+async def cache_without_password(data: str):
+    user = await mongo_client.auth.patient.find_one({"$or": [{
+        "email": data}, 
+        {"phone_number": data}]})
+    CachedData = await client.get(f'patient:{data}')
+    if CachedData:
+        if user:
+            print("Data is cached") # debug
+            print(CachedData) # debug
+            return user
+        logger.warning(f"login attempt with invalid credentials: {data}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    elif user:
+            print("searching inside db") # debug
+            await client.set(f"patient:{data}",data, ex=30) # expire in 30 seconds
+            return user
+    return None
