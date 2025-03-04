@@ -470,7 +470,7 @@ async def login(response: Response, request: Request):
                     response.set_cookie(key="access_token", value=access_token, max_age=3600)
                     logger.info(f"{phone_number_provided} logged in successfully")
                     # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
-                    return {"message":f"{phone_number_provided} logged in succesfully", "status":status.HTTP_200_OK}  # Return success message
+                    return {"message":f"{phone_number_provided[:4]+'x'*6+phone_number_provided[11:]} logged in succesfully", "status":status.HTTP_200_OK}  # Return success message
 
                 print("cache data returned none") # debug
                 logger.warning(f"login attempt with invalid Invalid credentials: {form_data['phone_number']} ; {form_data['password']}")
