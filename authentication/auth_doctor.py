@@ -192,7 +192,7 @@ async def signup(request: Request, response: Response):
     except Exception as e:
         print(f"Error creating new user: {str(e)}")
         logger.error(f"Error creating new user: {str(e)}")
-        # print(f"Error: {traceback.format_exc()}")
+        print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***********************************************************************************************************************************************
 
