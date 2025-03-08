@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, status, HTTPException, Depends, Backgrou
 import traceback
 from .otp_verify import send_otp, generate_otp
 from .database import mongo_client
+import asyncio
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
@@ -17,7 +18,7 @@ auth_patient = APIRouter(tags=["patient Authentication"]) # create a router for 
 templates = Jinja2Templates(directory="authentication/templates")
 
 # redis connection
-# client = aioredis.from_url('redis://default@54.198.65.205:6379', decode_responses=True) #in production
+# client = aioredis.from_url('redis://default@13.217.2.25:6379', decode_responses=True) #in production
 
 client =  aioredis.from_url('redis://localhost', decode_responses=True) # in local testing
 
@@ -169,26 +170,37 @@ async def verify_otp_signup(request: Request):
         
             html_body = f"""
                             <html>
-                            <body style="margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif;">
-                            <div style="width: 100%; background: #efefef; border-radius: 10px; padding: 10px;">
-                            <div style="margin: 0 auto; width: 90%; text-align: center;">
-                                <h1 style="background-color: rgba(0, 53, 102, 1); padding: 5px 10px; border-radius: 5px; color: white;">CuraDocs</h1>
-                                <div style="margin: 30px auto; background: white; width: 40%; border-radius: 10px; padding: 50px; text-align: center;">
-                                <h3 style="margin-bottom: 100px; font-size: 24px;">Hello!</h3>
-                                <p style="margin-bottom: 30px;">Thanks for choosing CuraDocs. Please click the link below to verify your email.</p>
-                                <a style="display: block; margin: 0 auto; border: none; background-color: rgba(255, 214, 10, 1); color: white; width: 200px; line-height: 24px; padding: 10px; font-size: 24px; border-radius: 10px; cursor: pointer; text-decoration: none;"
-                                    target="_blank"
-                                >
-                                    {otp}
-                                </a>
-                                </div>
-                            </div>
-                            </div>
-                            </body>
+                            <body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif; text-align: center;">
+
+    <div style="max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 10px; padding: 30px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);">
+        
+        <!-- Header -->
+        <h1 style="background-color: #003566; color: white; padding: 15px; border-radius: 5px; margin: 0;">CuraDocs</h1>
+        
+        <!-- Content -->
+        <div style="padding: 20px;">
+            <h2 style="color: #333;">Hello!</h2>
+            <p style="color: #555; font-size: 16px; line-height: 24px;">
+                Thanks for choosing <strong>CuraDocs</strong>. Please use the OTP below to verify your email.
+            </p>
+
+            <!-- OTP Code -->
+            <div style="background-color: #ffda0a; color: #003566; font-size: 24px; font-weight: bold; padding: 15px; margin: 20px auto; border-radius: 5px; width: 200px;">
+                {otp}
+            </div>
+
+            <p style="color: #777; font-size: 14px; margin-top: 20px;">
+                If you did not request this, please ignore this email.
+            </p>
+        </div>
+
+    </div>
+
+</body>
                             </html>
                             """
             # send email verification link
-            email_sent = send_email(email, "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+            email_sent = asyncio.create_task(send_email(email, "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5))
             if not email_sent:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
@@ -220,18 +232,18 @@ async def verify_otp_signup(request: Request):
             # response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
             # print(f"{email} signed up succesfully as patient")  # Return success message
             print("otp sent successfuly")
-            logger.info("otp verified successfuly")
+            logger.info(f"otp sent successfuly on {email}")
             return ({"message":f"otp sent successfuly on {email}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
         elif phone_number:
-            phone_number = "91" + phone_number # adding country code
+            phone_number = "+91" + phone_number # adding country code
             otp = await send_otp(phone_number)
-            otp = str(otp)
-            encrypted_otp = Hash.bcrypt(otp)
             if not otp:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
+            otp = str(otp)
+            encrypted_otp = Hash.bcrypt(otp)
             print("otp sent successfuly")
-            logger.info("otp verified successfuly")
-            return ({"message":"otp sent successfuly", "status": status.HTTP_200_OK, "otp": encrypted_otp})
+            logger.info(f"otp sent successfuly on {phone_number}")
+            return ({"message":f"otp sent successfuly on {phone_number}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
         
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -269,28 +281,31 @@ async def login(request: Request):
 
                     html_body = f"""
                                     <html>
-                                    <body style="margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif;">
-                                    <div style="width: 100%; background: #efefef; border-radius: 10px; padding: 10px;">
-                                    <div style="margin: 0 auto; width: 90%; text-align: center;">
-                                        <h1 style="background-color: rgba(0, 53, 102, 1); padding: 5px 10px; border-radius: 5px; color: white;">CuraDocs</h1>
-                                        <div style="margin: 30px auto; background: white; width: 40%; border-radius: 10px; padding: 50px; text-align: center;">
-                                        <h3 style="margin-bottom: 100px; font-size: 24px;">Hello!</h3>
-                                        <p style="margin-bottom: 30px;">Thanks for choosing CuraDocs.</p>
-                                        <a style="display: block; margin: 0 auto; border: none; background-color: rgba(255, 214, 10, 1); color: white; width: 200px; line-height: 24px; padding: 10px; font-size: 24px; border-radius: 10px; cursor: pointer; text-decoration: none;"
-                                            target="_blank"
-                                        >
-                                             {otp}
-                                        </a>
-                                        </div>
-                                    </div>
-                                    </div>
-                                    </body>
+                                   <body style="margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; background-color: #f4f4f4;">
+    <div style="width: 100%; max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 10px; padding: 20px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);">
+        <h1 style="background-color: #003566; padding: 15px; border-radius: 5px; color: white; text-align: center; font-size: 24px; margin-bottom: 20px;">CuraDocs</h1>
+        
+        <div style="text-align: center; padding: 20px;">
+            <h3 style="color: #333; font-size: 22px; margin-bottom: 10px;">Hello!</h3>
+            <p style="color: #555; font-size: 16px; margin-bottom: 20px;">Thank you for choosing CuraDocs.</p>
+
+            <p style="color: #555; font-size: 16px; margin-bottom: 10px;">Use the OTP below to verify your phone number:</p>
+
+            <a style="display: inline-block; background-color: #FFD60A; color: #003566; font-size: 24px; font-weight: bold; padding: 15px 30px; border-radius: 8px; text-decoration: none; margin-top: 10px;">
+                {otp}
+            </a>
+
+            <p style="color: #777; font-size: 14px; margin-top: 30px;">If you did not request this, please ignore this email.</p>
+        </div>
+    </div>
+</body>
                                     </html>
                                     """
                     # send otp via email
-                    email_sent = send_email(form_data["email"], "Login to CuraDocs using the provided otp", html_body, retries=3, delay=5)
+                    email_sent = asyncio.create_task(send_email(form_data["email"], "Login to CuraDocs using the provided otp", html_body, retries=3, delay=5))
                     if not email_sent:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+                    logger.info(f"otp sent successfuly on {email_provided}")
                     return {"message": f"OTP sent successfully on {email_provided}", "status":status.HTTP_200_OK}
 
                     
@@ -310,10 +325,11 @@ async def login(request: Request):
                     otp = await send_otp(phone_number_provided)
                     if not otp:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
+                    logger.info(f"otp sent successfuly on {phone_number_provided}")
                     return {"message": f"OTP sent successfully on {phone_number_provided[3:7]+'x'*6+phone_number_provided[13:]}", "status":status.HTTP_200_OK} # masking the phone number for security
 
                 print("cache data returned none") # debug
-                logger.warning(f"login attempt with invalid credentials: {form_data['email']}")
+                logger.warning(f"login attempt with invalid credentials: {form_data['phone_number']}")
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
                 
     except Exception as e:
@@ -396,7 +412,7 @@ async def login(response: Response, request: Request):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password is required")
         
         if not email_provided and not phone_number_provided:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User Name or Email or phone number is required")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email or phone number is required")
         
         else:
             # login using email and password
@@ -456,52 +472,54 @@ async def reset_password(request: Request):
         reset_link = f"http://127.0.0.1:8000/patient/create_new_password/{token}"
         html_body = f"""
                     <html>
-                    <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;">
-    <table width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f4f4f4; padding: 20px;">
-        <tr>
-            <td align="center">
-                <table width="600" cellspacing="0" cellpadding="0" border="0" style="background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); text-align: center;">
-                    <tr>
-                        <td>
-                            <img src="https://your-logo-url.com/logo.png" alt="CuraDocs Logo" style="width: 150px; margin-bottom: 20px;">
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <h2 style="color: #333; margin: 0;">Password Reset Request</h2>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <p style="color: #666; font-size: 16px;">We received a request to reset your password for your CuraDocs account.</p>
-                            <p style="color: #666; font-size: 16px;">Click the button below to reset your password:</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <a href="{reset_link}" style="display: inline-block; padding: 12px 24px; background-color: #007BFF; color: #ffffff; text-decoration: none; font-size: 16px; border-radius: 5px; margin-top: 20px;">Reset Password</a>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <p style="color: #666; font-size: 16px;">If you did not request this, please ignore this email.</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <p style="font-size: 14px; color: #999; margin-top: 20px;">© 2025 CuraDocs. All rights reserved.</p>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
-</body>
+    <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;">
+        <table width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f4f4f4; padding: 20px;">
+            <tr>
+                <td align="center">
+                    <table width="100%" max-width="600" cellspacing="0" cellpadding="0" border="0" style="background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); text-align: center;">
+                        <tr>
+                            <td>
+                                <h1 style="background-color: #003566; padding: 15px; border-radius: 5px; color: white; text-align: center; font-size: 24px; margin-bottom: 20px;">CuraDocs</h1>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <h2 style="color: #333; font-size: 22px; margin-bottom: 10px;">Password Reset Request</h2>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <p style="color: #666; font-size: 16px; margin-bottom: 10px;">We received a request to reset your password for your CuraDocs account.</p>
+                                <p style="color: #666; font-size: 16px; margin-bottom: 20px;">Click the button below to reset your password:</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <a href="{reset_link}" style="display: inline-block; padding: 12px 24px; background-color: #007BFF; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: bold; border-radius: 5px; margin-top: 10px;">
+                                    Reset Password
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <p style="color: #666; font-size: 14px; margin-top: 20px;">If you did not request this, please ignore this email.</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <p style="font-size: 12px; color: #999; margin-top: 20px;">© 2025 CuraDocs. All rights reserved.</p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
 </html>
                     """
         
         # send email verification link
-        email_sent = send_email(email, "Password Reset Request", html_body, retries=3, delay=5)
+        email_sent = asyncio.create_task(send_email(email, "Password Reset Request", html_body, retries=3, delay=5))
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
         return ({"message": "Password reset link sent successfully"}) # Return success message
@@ -524,19 +542,26 @@ async def create_new_password(request: Request, token: str):
         token_data = decode_verification_token(token)
         email = token_data["email"]
         form_data = await request.json()
+        
+        user = await mongo_client.auth.patient.find_one({"email": email})
+        print(user) # debug
         password = form_data.get("password")
         confirm_password = form_data.get("confirm_password")
+        
+        last_used_password = Hash.verify(user["password"], password)
+
         if not password or not confirm_password:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password and confirm password are required")
         if password != confirm_password:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match")
         if len(password) < 6:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 6 characters long")
+        if last_used_password:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password cannot be the same as the last one")
+        
         hashed_password = Hash.bcrypt(password)
         # If bcrypt returns bytes, decode to string for MongoDB storage
         hashed_password = hashed_password.decode('utf-8')
-        user = await mongo_client.auth.patient.find_one({"email": email})
-        print(user) # debug
         result = await mongo_client.auth.patient.update_one({"email": email}, {"$set": {"password": hashed_password}})
         # Check if user was updated
         if result.modified_count == 0:

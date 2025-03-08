@@ -1,6 +1,7 @@
 import aioredis
 from twilio.rest import Client
 import random
+import traceback
 from .utils import setup_logging
 from .database import mongo_client
 # Twilio Credentials (Get these from Twilio Console)
@@ -10,7 +11,7 @@ AUTH_TOKEN = '241333cb6cb2b9e0aaa80cdb252576f3'
 TWILIO_PHONE_NUMBER = "+1 386 260 5314"  # Get this from Twilio Console
 
 # redis connection
-# redis_client = aioredis.from_url('redis://default@54.198.65.205:6379', decode_responses=True) in production
+# redis_client = aioredis.from_url('redis://default@13.217.2.25:6379', decode_responses=True) #in production
 
 redis_client =  aioredis.from_url('redis://localhost', decode_responses=True) # in local testing
 
@@ -50,6 +51,7 @@ async def send_otp(phone_number: str):
         return otp_sent
     except Exception as e:
         logging.error(f"Error sending OTP: {str(e)}")
+        print(f"Error: {traceback.format_exc()}")
         print(f"Error sending OTP: {str(e)}")
 
 # Store OTP and phone number in MongoDB

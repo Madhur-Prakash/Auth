@@ -34,7 +34,7 @@ def authenticate_gmail():
 
     return build("gmail", "v1", credentials=creds)
 
-def send_email(to_email, subject, body, retries=3, delay=5):
+async def send_email(to_email, subject, body, retries=3, delay=5):
     """Send an email using Gmail API with retry mechanism."""
     for attempt in range(retries):
         try:
@@ -53,7 +53,7 @@ def send_email(to_email, subject, body, retries=3, delay=5):
             return sent_message
         except Exception as e:
             print(f"Failed to send email due to timeout: {e}. Retrying in {delay} seconds...")
-            # print(f"Error: {traceback.format_exc()}")
+            print(f"Error: {traceback.format_exc()}")
             time.sleep(delay)
     print("Failed to send email after multiple attempts.")
 

@@ -9,7 +9,7 @@ import aioredis
 from concurrent_log_handler import ConcurrentRotatingFileHandler
 
 # redis connection
-# client = aioredis.from_url('redis://default@54.198.65.205:6379', decode_responses=True) in production
+# client = aioredis.from_url('redis://default@13.217.2.25:6379', decode_responses=True) #in production
 
 client =  aioredis.from_url('redis://localhost', decode_responses=True) # in local testing
 
