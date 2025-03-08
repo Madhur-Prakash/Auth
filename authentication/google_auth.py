@@ -106,6 +106,13 @@ async def doctor_google_signup_callback(request: Request, response: Response):
             "created_at" : datetime.now().isoformat()
         }
 
+        existing_email = await mongo_client.auth.doctor.find_one({"email": user_data["email"]})
+        existing_phone = await mongo_client.auth.doctor.find_one({"phone_number": user_data["phone_number"]})
+        if existing_email:
+            raise HTTPException(status_code=400, detail="Email already exists.")
+        if existing_phone:
+            raise HTTPException(status_code=400, detail="Phone number already exists.")
+
         # if phone number was fetched then insert the user into the database and create a JWT token
         await mongo_client.auth.doctor.insert_one(user_data)
         logger.info(f"Account for doctor created successfully: {user_data['email']}")
@@ -124,33 +131,46 @@ async def doctor_google_signup_callback(request: Request, response: Response):
 
 @google_auth.post("/doctor/phone_number/signup")
 async def doctor_phone_number_signup(request: Request, response: Response):
-    data = await request.json()
-    phone_number = data.get("phone_number")
+    try:
+        data = await request.json()
+        phone_number = data.get("phone_number")
 
-    # retrieve  email and name from session
-    email = request.session.get("email")
-    name = request.session.get("name")
-    if not email or not name:
-        raise HTTPException(status_code=400, detail="Session expired. Please Signup again.")
+        # retrieve  email and name from session
+        email = request.session.get("email")
+        name = request.session.get("name")
+        if not email or not name:
+            raise HTTPException(status_code=400, detail="Session expired. Please Signup again.")
+        
+        user_data = {
+            "email": email,
+            "full_name": name,
+            "phone_number": phone_number,
+            "CIN": generate_random_string(),
+            "created_at" : datetime.now().isoformat()
+        }
+
+        existing_email = await mongo_client.auth.doctor.find_one({"email": user_data["email"]})
+        existing_phone = await mongo_client.auth.doctor.find_one({"phone_number": user_data["phone_number"]})
+        if existing_email:
+            raise HTTPException(status_code=400, detail="Email already exists.")
+        if existing_phone:
+            raise HTTPException(status_code=400, detail="Phone number already exists.")
+
+        # Insert user into the database
+        await mongo_client.auth.doctor.insert_one(user_data)
+        logger.info(f"Account for doctor created successfully: {user_data['email']}")
+        # Generate a cache during signup with email as key
+        cache_key = user_data["email"]
+        cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
+        access_token = create_access_token(data={"sub": cache_key})
+        response.delete_cookie("access_token")  # Remove old token
+        response.set_cookie(key="access_token", value=access_token, max_age=3600)
+        return {"message":f"Account for doctor created successfully: {user_data['email']}"}
     
-    user_data = {
-        "email": email,
-        "full_name": name,
-        "phone_number": phone_number,
-        "CIN": generate_random_string(),
-        "created_at" : datetime.now().isoformat()
-    }
-
-    # Insert user into the database
-    await mongo_client.auth.doctor.insert_one(user_data)
-    logger.info(f"Account for doctor created successfully: {user_data['email']}")
-    # Generate a cache during signup with email as key
-    cache_key = user_data["email"]
-    cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
-    access_token = create_access_token(data={"sub": cache_key})
-    response.delete_cookie("access_token")  # Remove old token
-    response.set_cookie(key="access_token", value=access_token, max_age=3600)
-    return {"message":f"Account for doctor created successfully: {user_data['email']}"}
+    except Exception as e:
+        print(f"Error: {traceback.format_exc()}")
+        print(f"Error: {str(e)}")
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 # Phone Number Entry Page (GET)
 @google_auth.get("/doctor/phone_number")
@@ -201,6 +221,13 @@ async def patient_google_signup_callback(request: Request, response: Response):
             "created_at" : datetime.now().isoformat()
         }
 
+        existing_email = await mongo_client.auth.patient.find_one({"email": user_data["email"]})
+        existing_phone = await mongo_client.auth.patient.find_one({"phone_number": user_data["phone_number"]})
+        if existing_email:
+            raise HTTPException(status_code=400, detail="Email already exists.")
+        if existing_phone:
+            raise HTTPException(status_code=400, detail="Phone number already exists.")
+
         # if phone number was fetched then insert the user into the database and create a JWT token
         await mongo_client.auth.patient.insert_one(user_data)
         logger.info(f"Account for patient created successfully: {user_data['email']}")
@@ -219,33 +246,39 @@ async def patient_google_signup_callback(request: Request, response: Response):
 
 @google_auth.post("/patient/phone_number/signup")
 async def patient_phone_number_signup(request: Request, response: Response):
-    data = await request.json()
-    phone_number = data.get("phone_number")
+    try:
+        data = await request.json()
+        phone_number = data.get("phone_number")
 
-    # retrieve  email and name from session
-    email = request.session.get("email")
-    name = request.session.get("name")
-    if not email or not name:
-        raise HTTPException(status_code=400, detail="Session expired. Please Signup again.")
+        # retrieve  email and name from session
+        email = request.session.get("email")
+        name = request.session.get("name")
+        if not email or not name:
+            raise HTTPException(status_code=400, detail="Session expired. Please Signup again.")
+        
+        user_data = {
+            "email": email,
+            "full_name": name,
+            "phone_number": phone_number,
+            "CIN": generate_random_string(),
+            "created_at" : datetime.now().isoformat()
+        }
+
+        # Insert user into the database
+        await mongo_client.auth.patient.insert_one(user_data)
+        logger.info(f"Account for patient created successfully: {user_data['email']}")
+        # Generate a cache during signup with email as key
+        cache_key = user_data["email"]
+        cached_data = await client.set(f"patient:{cache_key}",cache_key,ex=3600) 
+        access_token = create_access_token(data={"sub": cache_key})
+        response.delete_cookie("access_token")  # Remove old token
+        response.set_cookie(key="access_token", value=access_token, max_age=3600)
+        return {"message":f"Account for patient created successfully: {user_data['email']}"}
     
-    user_data = {
-        "email": email,
-        "full_name": name,
-        "phone_number": phone_number,
-        "CIN": generate_random_string(),
-        "created_at" : datetime.now().isoformat()
-    }
-
-    # Insert user into the database
-    await mongo_client.auth.patient.insert_one(user_data)
-    logger.info(f"Account for patient created successfully: {user_data['email']}")
-    # Generate a cache during signup with email as key
-    cache_key = user_data["email"]
-    cached_data = await client.set(f"patient:{cache_key}",cache_key,ex=3600) 
-    access_token = create_access_token(data={"sub": cache_key})
-    response.delete_cookie("access_token")  # Remove old token
-    response.set_cookie(key="access_token", value=access_token, max_age=3600)
-    return {"message":f"Account for patient created successfully: {user_data['email']}"}
+    except Exception as e:
+        print(f"Error: {traceback.format_exc()}")
+        print(f"Error: {str(e)}")
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 # Phone Number Entry Page (GET)
 @google_auth.get("/patient/phone_number")
