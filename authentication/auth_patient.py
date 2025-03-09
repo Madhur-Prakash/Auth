@@ -48,7 +48,7 @@ async def signup(request: Request, response: Response):
         dict_data["created_at"] = datetime.now().isoformat()
         dict_data["CIN"] = generate_random_string()
 
-        required_fields = ["full_name", "email", "password", "phone_number"]
+        required_fields = ["first_name", "last_name", "email", "password", "phone_number"]
         for field in required_fields:
             if field not in dict_data:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
@@ -72,8 +72,10 @@ async def signup(request: Request, response: Response):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Password must be at least 6 characters long")
         if(form_data["email"].__contains__("@") == False):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Invalid email address")
-        if(form_data["full_name"].__len__() < 2):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Full name must be greater than 1 character")
+        if(form_data["first_name"].__len__() < 2):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "First name must be greater than 1 character")
+        if(form_data["last_name"].__len__() < 2):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Last name must be greater than 1 character")
         if(form_data["email"].__len__() < 4):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email must be greater than 3 characters") 
 
@@ -236,7 +238,7 @@ async def verify_otp_signup(request: Request):
             return ({"message":f"otp sent successfuly on {email}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
         elif phone_number:
             phone_number = "+91" + phone_number # adding country code
-            otp = await send_otp(phone_number)
+            otp = asyncio.create_task(send_otp(phone_number))
             if not otp:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
             otp = str(otp)
@@ -322,7 +324,7 @@ async def login(request: Request):
                     print("cache data returned", cached_data) # debug
                     #  sending otp
                     phone_number_provided = "+91" + phone_number_provided # adding country code
-                    otp = await send_otp(phone_number_provided)
+                    otp = asyncio.create_task(send_otp(phone_number_provided))
                     if not otp:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
                     logger.info(f"otp sent successfuly on {phone_number_provided}")
@@ -634,7 +636,7 @@ async def logout(email: str, response: Response):
         
     # except Exception as e:
     #     print(f"Error verifying OTP: {str(e)}")
-    #     logger.error(f"Error verifying OTP: {str(e)}")
+        # logger.error(f"Error verifying OTP: {str(e)}")
     #     print(f"Error: {traceback.format_exc()}")
     #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

@@ -97,7 +97,7 @@ async def doctor_google_signup_callback(request: Request, response: Response):
         # User details
         user_data = {
             "email": user_info.get("email"),
-            "full_name": user_info.get("name"),
+            "first_name": user_info.get("name"),
             # "picture": user_info.get("picture"),
             # "locale": user_info.get("locale"),
             # "verified_email": user_info.get("email_verified"),
@@ -143,7 +143,7 @@ async def doctor_phone_number_signup(request: Request, response: Response):
         
         user_data = {
             "email": email,
-            "full_name": name,
+            "first_name": name,
             "phone_number": phone_number,
             "CIN": generate_random_string(),
             "created_at" : datetime.now().isoformat()
@@ -212,7 +212,7 @@ async def patient_google_signup_callback(request: Request, response: Response):
         # User details
         user_data = {
             "email": user_info.get("email"),
-            "full_name": user_info.get("name"),
+            "first_name": user_info.get("name"),
             # "picture": user_info.get("picture"),
             # "locale": user_info.get("locale"),
             # "verified_email": user_info.get("email_verified"),
@@ -258,11 +258,18 @@ async def patient_phone_number_signup(request: Request, response: Response):
         
         user_data = {
             "email": email,
-            "full_name": name,
+            "first_name": name,
             "phone_number": phone_number,
             "CIN": generate_random_string(),
             "created_at" : datetime.now().isoformat()
         }
+
+        existing_email = await mongo_client.auth.patient.find_one({"email": user_data["email"]})
+        existing_phone = await mongo_client.auth.patient.find_one({"phone_number": user_data["phone_number"]})
+        if existing_email:
+            raise HTTPException(status_code=400, detail="Email already exists.")
+        if existing_phone:
+            raise HTTPException(status_code=400, detail="Phone number already exists.")
 
         # Insert user into the database
         await mongo_client.auth.patient.insert_one(user_data)

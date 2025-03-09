@@ -7,7 +7,7 @@
             const phoneNumber = document.getElementById("phone_number").value;
             // Get the user type from the URL parameter
             const urlParams = new URLSearchParams(window.location.search);
-            const userType = urlParams.get('type') || 'patient'; // Default to patient if not specified
+            const userType = urlParams.get('type'); // Default to patient if not specified
             
             const endpoint = `/${userType}/phone_number/signup`;
             

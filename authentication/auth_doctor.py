@@ -239,10 +239,10 @@ async def verify_otp_signup(request: Request):
         elif phone_number:
             phone_number = "+91" + phone_number # adding country code
             otp = asyncio.create_task(send_otp(phone_number))
-            otp = str(otp)
-            encrypted_otp = Hash.bcrypt(otp)
             if not otp:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
+            otp = str(otp)
+            encrypted_otp = Hash.bcrypt(otp)
             print("otp sent successfuly")
             logger.info(f"otp sent successfuly on {phone_number}")
             return ({"message":f"otp sent successfuly on {phone_number}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
@@ -414,7 +414,7 @@ async def login(response: Response, request: Request):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password is required")
         
         if not email_provided and not phone_number_provided:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User Name or Email or phone number is required")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email or phone number is required")
         
         else:
             # login using email and password
@@ -550,7 +550,7 @@ async def create_new_password(request: Request, token: str):
         password = form_data.get("password")
         confirm_password = form_data.get("confirm_password")
         
-        last_used_password = Hash.verify(password, user["password"])
+        last_used_password = Hash.verify(user["password"], password)
 
         if not password or not confirm_password:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password and confirm password are required")
@@ -636,7 +636,7 @@ async def logout(email: str, response: Response):
         
     # except Exception as e:
     #     print(f"Error verifying OTP: {str(e)}")
-    #     logger.error(f"Error verifying OTP: {str(e)}")
+        # logger.error(f"Error verifying OTP: {str(e)}")
     #     print(f"Error: {traceback.format_exc()}")
     #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
