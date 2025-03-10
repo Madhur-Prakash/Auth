@@ -202,7 +202,7 @@ async def verify_otp_signup(request: Request):
                             </html>
                             """
             # send email verification link
-            email_sent = asyncio.create_task(send_email(email, "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5))
+            email_sent = (send_email(email, "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5))
             if not email_sent:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
@@ -304,7 +304,7 @@ async def login(request: Request):
                                     </html>
                                     """
                     # send otp via email
-                    email_sent = asyncio.create_task(send_email(form_data["email"], "Login to CuraDocs using the provided otp", html_body, retries=3, delay=5))
+                    email_sent = (send_email(form_data["email"], "Login to CuraDocs using the provided otp", html_body, retries=3, delay=5))
                     if not email_sent:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
                     logger.info(f"otp sent successfuly on {email_provided}")
@@ -343,11 +343,11 @@ async def login(request: Request):
 
 
 
-@auth_patient.post("/patient/{email}/verify_otp_login_email", status_code=status.HTTP_200_OK) 
-async def verify_otp(request: Request, response: Response, email: str):
+@auth_patient.post("/patient/verify_otp_login_email", status_code=status.HTTP_200_OK) 
+async def verify_otp(request: Request, response: Response):
     try:
         form_data = await request.json()
-        
+        email = form_data.get("email")
         otp_entered = form_data.get("otp")
         print(otp_entered) # debug
         if not otp_entered or len(otp_entered) != 6:
@@ -370,11 +370,11 @@ async def verify_otp(request: Request, response: Response, email: str):
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
-@auth_patient.post("/patient/{phone_number}/verify_otp_login_phone", status_code=status.HTTP_200_OK)
-async def verify(response: Response, request: Request, phone_number: str):
+@auth_patient.post("/patient/verify_otp_login_phone", status_code=status.HTTP_200_OK)
+async def verify(response: Response, request: Request):
     try:
         form_data = await request.json()
-
+        phone_number = form_data.get("phone_number")
         otp_entered = form_data.get("otp")
         print(otp_entered)
         if not otp_entered or len(otp_entered) != 6:
@@ -521,7 +521,7 @@ async def reset_password(request: Request):
                     """
         
         # send email verification link
-        email_sent = asyncio.create_task(send_email(email, "Password Reset Request", html_body, retries=3, delay=5))
+        email_sent = (send_email(email, "Password Reset Request", html_body, retries=3, delay=5))
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
         return ({"message": "Password reset link sent successfully"}) # Return success message
