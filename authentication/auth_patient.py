@@ -11,7 +11,7 @@ from .oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_
 from .utils import cache, cache_without_password, setup_logging, generate_random_string  # Import setup_logging from utils
 from .hashing import Hash
 from datetime import datetime
-from .send_mail import send_email
+from .send_mail import send_email_ses
 from . import auth_token, models, oauth2
 
 auth_patient = APIRouter(tags=["patient Authentication"]) # create a router for patient
@@ -138,7 +138,7 @@ async def signup(request: Request, response: Response):
         #                 </html>
         #                 """
         # # send email verification link
-        # email_sent = send_email(dict_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        # email_sent = send_email_ses(dict_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
         # if not email_sent:
         #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
@@ -202,7 +202,7 @@ async def verify_otp_signup(request: Request):
                             </html>
                             """
             # send email verification link
-            email_sent = (send_email(email, "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5))
+            email_sent = (send_email_ses(email, "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5))
             if not email_sent:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
@@ -304,7 +304,7 @@ async def login(request: Request):
                                     </html>
                                     """
                     # send otp via email
-                    email_sent = (send_email(form_data["email"], "Login to CuraDocs using the provided otp", html_body, retries=3, delay=5))
+                    email_sent = (send_email_ses(form_data["email"], "Login to CuraDocs using the provided otp", html_body, retries=3, delay=5))
                     if not email_sent:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
                     logger.info(f"otp sent successfuly on {email_provided}")
@@ -521,7 +521,7 @@ async def reset_password(request: Request):
                     """
         
         # send email verification link
-        email_sent = (send_email(email, "Password Reset Request", html_body, retries=3, delay=5))
+        email_sent = (send_email_ses(email, "Password Reset Request", html_body, retries=3, delay=5))
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
         return ({"message": "Password reset link sent successfully"}) # Return success message
