@@ -1,6 +1,7 @@
 import aioredis
 from twilio.rest import Client
 import random
+# from .celery_app import celery
 import traceback
 from .utils import setup_logging
 from .database import mongo_client
@@ -13,7 +14,7 @@ TWILIO_PHONE_NUMBER = "+1 386 260 5314"  # Get this from Twilio Console
 # redis connection
 # redis_client = aioredis.from_url('redis://default@13.217.2.25:6379', decode_responses=True) #in production
 
-redis_client =  aioredis.from_url('redis://localhost', decode_responses=True) # in local testing
+redis_client =  aioredis.from_url('redis://54.196.107.48:6379', decode_responses=True) # in local testing
 
 logging = setup_logging()
 
@@ -32,9 +33,10 @@ async def generate_otp(email: str):
 client = Client(ACCOUNT_SID, AUTH_TOKEN)
 
 # Send OTP via SMS
-async def send_otp(phone_number: str):
+# @celery.task()
+def send_otp(phone_number: str):
     try:
-        otp_sent = await generate_otp(phone_number)
+        otp_sent =  generate_otp(phone_number)
         message = client.messages.create(
             body=f"Your OTP is {otp_sent}. Do not share it with anyone.",
             from_=TWILIO_PHONE_NUMBER,  # Must be your Twilio number
@@ -43,11 +45,11 @@ async def send_otp(phone_number: str):
 
         print(f"OTP Sent Successfully! Message SID: {message.sid}")
 
-        store_opt = await redis_client.hset(f"{phone_number}", mapping={
+        store_opt =  redis_client.hset(f"{phone_number}", mapping={
             "otp": otp_sent,
             "phone_number": phone_number
         })
-        await redis_client.expire(f"{phone_number}", 300)  # Expire in 5 minutes
+        redis_client.expire(f"{phone_number}", 300)  # Expire in 5 minutes
         return otp_sent
     except Exception as e:
         logging.error(f"Error sending OTP: {str(e)}")

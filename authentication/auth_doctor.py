@@ -238,7 +238,7 @@ async def verify_otp_signup(request: Request):
             return ({"message":f"otp sent successfuly on {email}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
         elif phone_number:
             phone_number = "+91" + phone_number # adding country code
-            otp = asyncio.create_task(send_otp(phone_number))
+            otp = (send_otp(phone_number))
             if not otp:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
             otp = str(otp)
@@ -324,7 +324,7 @@ async def login(request: Request):
                     print("cache data returned", cached_data) # debug
                     #  sending otp
                     phone_number_provided = "+91" + phone_number_provided # adding country code
-                    otp = asyncio.create_task(send_otp(phone_number_provided))
+                    otp = (send_otp(phone_number_provided))
                     if not otp:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
                     logger.info(f"otp sent successfuly on {phone_number_provided}")
