@@ -2,6 +2,7 @@ import os
 import base64
 import pickle
 import time
+from .celery_app import celery
 from email.mime.text import MIMEText
 import traceback
 from google.auth.transport.requests import Request
@@ -34,7 +35,8 @@ def authenticate_gmail():
 
     return build("gmail", "v1", credentials=creds)
 
-async def send_email(to_email, subject, body, retries=3, delay=5):
+@celery.tast()
+def send_email(to_email, subject, body, retries=3, delay=5):
     """Send an email using Gmail API with retry mechanism."""
     for attempt in range(retries):
         try:
