@@ -3,24 +3,23 @@ from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field
 
 class Patient(BaseModel):
-    full_name: str = Field(None, title="Full Name of the User")
+    first_name: str = Field(None, title="First Name of the User")
+    last_name: str = Field(None, title="Last Name of the User")
     email: EmailStr = Field(..., title="Email Address")
     password: str = Field(..., title="Password")
     phone_number: str = Field(..., min_length=10, title="Phone Number")
-    disabled: bool = Field(default=False, title="User Account Status")
+    country: str = Field(None, title="Country")
+    country_code: str = Field(None, title="Country Code")
+ 
 
 class Doctor(BaseModel):
-    full_name: str = Field(None, title="Full Name of the User")
+    first_name: str = Field(None, title="First Name of the User")
+    last_name: str = Field(None, title="Last Name of the User")
     email: EmailStr = Field(..., title="Email Address")
     password: str = Field(..., title="Password")
     phone_number: str = Field(..., min_length=10, title="Phone Number")
-    disabled: bool = Field(default=False, title="User Account Status")
-
-class Message(BaseModel):
-    sender: str = Field(None, title="Sender ID or Name")
-    receiver: str = Field(None, title="Receiver ID or Name")
-    message: str = Field(None, title="Message Content")
-    timestamp: str = Field(default_factory=lambda: datetime.now().strftime('%Y-%m-%d %H:%M:%S'), title="Timestamp")
+    country: str = Field(None, title="Country")
+    country_code: str = Field(None, title="Country Code")
 
 
 class TokenData(BaseModel):

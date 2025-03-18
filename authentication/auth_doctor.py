@@ -2,11 +2,10 @@ from fastapi import APIRouter, Request, status, HTTPException, Depends, Backgrou
 import traceback
 from .otp_verify import send_otp, generate_otp
 from .database import mongo_client
-import asyncio
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
-import aioredis
+from .redis import client
 from .oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token
 from .utils import cache, cache_without_password, setup_logging, generate_random_string  # Import setup_logging from utils
 from .hashing import Hash
@@ -16,11 +15,6 @@ from . import auth_token, models, oauth2
 
 auth_doctor = APIRouter(tags=["doctor Authentication"]) # create a router for doctor
 templates = Jinja2Templates(directory="authentication/templates")
-
-# redis connection
-# client = aioredis.from_url('redis://default@13.217.2.25:6379', decode_responses=True) #in production
-
-client =  aioredis.from_url('redis://localhost', decode_responses=True) # in local testing
 
 logger = setup_logging() # initialize logger
 
@@ -47,8 +41,10 @@ async def signup(request: Request, response: Response):
         dict_data = dict(form_data)
         dict_data["created_at"] = datetime.now().isoformat()
         dict_data["CIN"] = generate_random_string()
+        dict_data["full_name"] = dict_data["first_name"] + ' ' + dict_data["last_name"]
+        dict_data["verification_status"] = "false"
 
-        required_fields = ["first_name", "last_name", "email", "password", "phone_number"]
+        required_fields = ["first_name", "last_name", "email", "password", "phone_number", "country", "country_code"]
         for field in required_fields:
             if field not in dict_data:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
@@ -237,7 +233,13 @@ async def verify_otp_signup(request: Request):
             logger.info(f"otp sent successfuly on {email}")
             return ({"message":f"otp sent successfuly on {email}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
         elif phone_number:
-            phone_number = "+91" + phone_number # adding country code
+            user = await mongo_client.auth.doctor.find_one({"phone_number": phone_number})
+
+            if not user: # check if user exists
+                    logger.warning(f"Signup attempt with invalid credentials {phone_number}")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid phone number")
+            
+            phone_number = user["country_code"] + phone_number # adding country code
             otp = (send_otp(phone_number))
             if not otp:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
@@ -317,14 +319,18 @@ async def login(request: Request):
 
             # login using phone_number and password
             elif phone_number_provided:
+                user = await mongo_client.auth.doctor.find_one({"phone_number": phone_number_provided})
+                if not user:
+                    logger.warning(f"Login attempt with invalid credentials {phone_number_provided}")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid phone number")
                 # Generate a cache key based on login identifier
                 cache_key = phone_number_provided
                 cached_data = await cache_without_password(cache_key)
                 if cached_data:
                     print("cache data returned", cached_data) # debug
                     #  sending otp
-                    phone_number_provided = "+91" + phone_number_provided # adding country code
-                    otp = (send_otp(phone_number_provided))
+                    phone_number_provided = user["country_code"] + phone_number_provided # adding country code
+                    otp = await send_otp(phone_number_provided)
                     if not otp:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
                     logger.info(f"otp sent successfuly on {phone_number_provided}")

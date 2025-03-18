@@ -5,7 +5,7 @@ from .database import mongo_client
 from fastapi.responses import RedirectResponse, HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
 from authlib.integrations.starlette_client import OAuth, OAuthError
-import aioredis
+from .redis import client
 from .auth_token import create_access_token
 import os
 from fastapi.templating import Jinja2Templates
@@ -22,11 +22,6 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 templates = Jinja2Templates(directory="authentication/templates")
-
-# redis connection
-# client = aioredis.from_url('redis://default@54.198.65.205:6379', decode_responses=True) #in production
-
-client =  aioredis.from_url('redis://localhost', decode_responses=True) # in local testing
 
 # initialize logger
 logger = setup_logging() 
