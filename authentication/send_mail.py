@@ -27,54 +27,54 @@ client = boto3.client(
 NO_REPLY_EMAIL = os.getenv("NO_REPLY_EMAIL")
 
 # Define the scope for Gmail API
-# SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
+SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
 
-# def authenticate_gmail():
-#     """Authenticate and return Gmail API service."""
-#     creds = None
+def authenticate_gmail():
+    """Authenticate and return Gmail API service."""
+    creds = None
 
-#     # Load credentials from token.pickle if available
-#     if os.path.exists("token.pickle"):
-#         with open("token.pickle", "rb") as token:
-#             creds = pickle.load(token)
+    # Load credentials from token.pickle if available
+    if os.path.exists("token.pickle"):
+        with open("token.pickle", "rb") as token:
+            creds = pickle.load(token)
 
-#     # If credentials are invalid or don't exist, get new ones
-#     if not creds or not creds.valid:
-#         if creds and creds.expired and creds.refresh_token:
-#             creds.refresh(Request())
-#         else:
-#             flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-#             creds = flow.run_local_server(port=0)
+    # If credentials are invalid or don't exist, get new ones
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            creds = flow.run_local_server(port=0)
 
-#         # Save the credentials for future use
-#         with open("token.pickle", "wb") as token:
-#             pickle.dump(creds, token)
+        # Save the credentials for future use
+        with open("token.pickle", "wb") as token:
+            pickle.dump(creds, token)
 
-#     return build("gmail", "v1", credentials=creds)
+    return build("gmail", "v1", credentials=creds)
 
-# # @celery.tast()
-# def send_email(to_email, subject, body, retries=3, delay=5):
-#     """Send an email using Gmail API with retry mechanism."""
-#     for attempt in range(retries):
-#         try:
-#             service = authenticate_gmail()
+# @celery.tast()
+def send_email(to_email, subject, body, retries=3, delay=5):
+    """Send an email using Gmail API with retry mechanism."""
+    for attempt in range(retries):
+        try:
+            service = authenticate_gmail()
 
-#             # Create email message
-#             message = MIMEText(body, "html")  # Specify the MIME type as "html"
-#             message["to"] = to_email
-#             message["subject"] = subject
-#             raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+            # Create email message
+            message = MIMEText(body, "html")  # Specify the MIME type as "html"
+            message["to"] = to_email
+            message["subject"] = subject
+            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
-#             # Send email using Gmail API
-#             message = {"raw": raw_message}
-#             sent_message = service.users().messages().send(userId="me", body=message).execute()
-#             print(f"Email sent! Message ID: {sent_message['id']}")
-#             return sent_message
-#         except Exception as e:
-#             print(f"Failed to send email due to timeout: {e}. Retrying in {delay} seconds...")
-#             print(f"Error: {traceback.format_exc()}")
-#             time.sleep(delay)
-#     print("Failed to send email after multiple attempts.")
+            # Send email using Gmail API
+            message = {"raw": raw_message}
+            sent_message = service.users().messages().send(userId="me", body=message).execute()
+            print(f"Email sent! Message ID: {sent_message['id']}")
+            return sent_message
+        except Exception as e:
+            print(f"Failed to send email due to timeout: {e}. Retrying in {delay} seconds...")
+            print(f"Error: {traceback.format_exc()}")
+            time.sleep(delay)
+    print("Failed to send email after multiple attempts.")
 
 # @celery.task()
 

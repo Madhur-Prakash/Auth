@@ -7,16 +7,57 @@ from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from .redis import client
 from .oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token
-from .utils import cache, cache_without_password, setup_logging, generate_random_string  # Import setup_logging from utils
+from .utils import get_country_code, setup_logging, generate_random_string  # Import setup_logging from utils
 from .hashing import Hash
 from datetime import datetime
-from .send_mail import send_email_ses
+from .send_mail import send_email_ses, send_email
 from . import auth_token, models, oauth2
 
 auth_doctor = APIRouter(tags=["doctor Authentication"]) # create a router for doctor
 templates = Jinja2Templates(directory="authentication/templates")
 
 logger = setup_logging() # initialize logger
+
+
+# implemeting cahing using redis
+async def cache(data: str, plain_password):
+    user = await mongo_client.auth.doctor.find_one({"$or": [{
+        "email": data}, 
+        {"phone_number": data}]})
+    CachedData = await client.get(f'doctor:{data}')
+    if CachedData and user:
+            hashed_password = await Hash.verify(user["password"], plain_password)
+            if hashed_password:
+                print("Data is cached") # debug
+                print(CachedData) # debug
+                return user
+            logger.warning(f"login attempt with invalid credentials: {data} and {plain_password}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    elif user:
+        hashed_password = await Hash.verify(user["password"], plain_password)
+        if hashed_password:
+            print("searching inside db") # debug
+            await client.set(f"doctor:{data}",data, ex=30) # expire in 30 seconds
+            return user
+    return None
+
+async def cache_without_password(data: str):
+    user = await mongo_client.auth.doctor.find_one({"$or": [{
+        "email": data}, 
+        {"phone_number": data}]})
+    CachedData = await client.get(f'doctor:{data}')
+    if CachedData:
+        if user:
+            print("Data is cached") # debug
+            print(CachedData) # debug
+            return user
+        logger.warning(f"login attempt with invalid credentials: {data}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    elif user:
+            print("searching inside db") # debug
+            await client.set(f"doctor:{data}",data, ex=30) # expire in 30 seconds
+            return user
+    return None
 
 # @auth_doctor.get("/", response_class=HTMLResponse)
 # async def read(request: Request):
@@ -35,16 +76,21 @@ logger = setup_logging() # initialize logger
     
 
 @auth_doctor.post("/doctor/signup", status_code=status.HTTP_201_CREATED)
-async def signup(request: Request, response: Response):
+async def signup(data: models.doctor, response: Response):
     try:
-        form_data = await request.json()
+        form_data = dict(data)
         dict_data = dict(form_data)
+        dict_data["full_name"] = dict_data["first_name"] + ' ' + dict_data["last_name"]
         dict_data["created_at"] = datetime.now().isoformat()
         dict_data["CIN"] = generate_random_string()
-        dict_data["full_name"] = dict_data["first_name"] + ' ' + dict_data["last_name"]
         dict_data["verification_status"] = "false"
 
-        required_fields = ["first_name", "last_name", "email", "password", "phone_number", "country", "country_code"]
+        updated_phone_number = dict_data['country_code'] + dict_data['phone_number'] # adding country code to get country name
+        country_name = get_country_code(updated_phone_number)
+        country_name = country_name.lower()
+        dict_data["country_name"] = country_name
+
+        required_fields = ["first_name", "last_name", "email", "password", "phone_number", "country_code"]
         for field in required_fields:
             if field not in dict_data:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
@@ -134,7 +180,7 @@ async def signup(request: Request, response: Response):
         #                 </html>
         #                 """
         # # send email verification link
-        # email_sent = send_email_ses(dict_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        # email_sent = send_email(dict_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
         # if not email_sent:
         #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
@@ -155,105 +201,100 @@ async def signup(request: Request, response: Response):
 # ***********************************************************************************************************************************************
 
 
-@auth_doctor.post("/doctor/verify_otp_signup", status_code=status.HTTP_200_OK) # verify otp
-async def verify_otp_signup(request: Request):
-    try:
-        form_data = await request.json()
-        email = form_data.get("email")
-        phone_number = form_data.get("phone_number")
-        if email:
-            otp =  await generate_otp(email)
-            otp = str(otp)
-            encrypted_otp = Hash.bcrypt(otp)
+# @auth_doctor.post("/verify_otp_signup", status_code=status.HTTP_200_OK) # verify otp
+# async def verify_otp_signup(data: models.verify_otp):
+#     try:
+#         form_data = dict(data)
+#         email = form_data.get("email")
+#         phone_number = form_data.get("phone_number")
+#         country_code = form_data.get("country_code")
+#         if email:
+#             otp =  await generate_otp(email)
+#             otp = str(otp)
+#             encrypted_otp = Hash.bcrypt(otp)
         
-            html_body = f"""
-                            <html>
-                            <body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif; text-align: center;">
+#             html_body = f"""
+#                             <html>
+#                             <body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif; text-align: center;">
 
-    <div style="max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 10px; padding: 30px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);">
+#     <div style="max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 10px; padding: 30px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);">
         
-        <!-- Header -->
-        <h1 style="background-color: #003566; color: white; padding: 15px; border-radius: 5px; margin: 0;">CuraDocs</h1>
+#         <!-- Header -->
+#         <h1 style="background-color: #003566; color: white; padding: 15px; border-radius: 5px; margin: 0;">CuraDocs</h1>
         
-        <!-- Content -->
-        <div style="padding: 20px;">
-            <h2 style="color: #333;">Hello!</h2>
-            <p style="color: #555; font-size: 16px; line-height: 24px;">
-                Thanks for choosing <strong>CuraDocs</strong>. Please use the OTP below to verify your email.
-            </p>
+#         <!-- Content -->
+#         <div style="padding: 20px;">
+#             <h2 style="color: #333;">Hello!</h2>
+#             <p style="color: #555; font-size: 16px; line-height: 24px;">
+#                 Thanks for choosing <strong>CuraDocs</strong>. Please use the OTP below to verify your email.
+#             </p>
 
-            <!-- OTP Code -->
-            <div style="background-color: #ffda0a; color: #003566; font-size: 24px; font-weight: bold; padding: 15px; margin: 20px auto; border-radius: 5px; width: 200px;">
-                {otp}
-            </div>
+#             <!-- OTP Code -->
+#             <div style="background-color: #ffda0a; color: #003566; font-size: 24px; font-weight: bold; padding: 15px; margin: 20px auto; border-radius: 5px; width: 200px;">
+#                 {otp}
+#             </div>
 
-            <p style="color: #777; font-size: 14px; margin-top: 20px;">
-                If you did not request this, please ignore this email.
-            </p>
-        </div>
+#             <p style="color: #777; font-size: 14px; margin-top: 20px;">
+#                 If you did not request this, please ignore this email.
+#             </p>
+#         </div>
 
-    </div>
+#     </div>
 
-</body>
-                            </html>
-                            """
-            # send email verification link
-            email_sent = (send_email_ses(email, "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5))
-            if not email_sent:
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+# </body>
+#                             </html>
+#                             """
+#             # send email verification link
+#             email_sent = (send_email(email, "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5))
+#             if not email_sent:
+#                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
-            # otp_entered = form_data.get("otp")
-            # if not otp_entered or len(otp_entered) != 6:
-            #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
-            # otp_stored = await client.hgetall(email)
-            # print(otp_stored) # debug
-            # if not otp_stored or (otp_stored.get('otp') != otp_entered):
-            #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
-            # access_token = auth_token.create_access_token(data={"sub": email})
-            # print("Access token:", access_token)  # debug
-            # mongodb_document = {
-            #     "full_name": otp_stored.get("full_name"),
-            #     "email": otp_stored.get("email"),
-            #     "password": otp_stored.get("password"),
-            #     "phone_number": otp_stored.get("phone_number"),
-            #     "created_at": otp_stored.get("created_at"),
-            #     "CIN": otp_stored.get("CIN")
-            # }
-            # user = await mongo_client.auth.doctor.find_one({"email": otp_stored.get("email")})
-            # if user:
-            #     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
-            # # Insert into MongoDB
-            # await mongo_client.auth.doctor.insert_one(mongodb_document)
+#             # otp_entered = form_data.get("otp")
+#             # if not otp_entered or len(otp_entered) != 6:
+#             #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
+#             # otp_stored = await client.hgetall(email)
+#             # print(otp_stored) # debug
+#             # if not otp_stored or (otp_stored.get('otp') != otp_entered):
+#             #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
+#             # access_token = auth_token.create_access_token(data={"sub": email})
+#             # print("Access token:", access_token)  # debug
+#             # mongodb_document = {
+#             #     "full_name": otp_stored.get("full_name"),
+#             #     "email": otp_stored.get("email"),
+#             #     "password": otp_stored.get("password"),
+#             #     "phone_number": otp_stored.get("phone_number"),
+#             #     "created_at": otp_stored.get("created_at"),
+#             #     "CIN": otp_stored.get("CIN")
+#             # }
+#             # user = await mongo_client.auth.doctor.find_one({"email": otp_stored.get("email")})
+#             # if user:
+#             #     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
+#             # # Insert into MongoDB
+#             # await mongo_client.auth.doctor.insert_one(mongodb_document)
 
 
-            # response.delete_cookie("access_token")  # Remove old token
-            # response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
-            # print(f"{email} signed up succesfully as doctor")  # Return success message
-            print("otp sent successfuly")
-            logger.info(f"otp sent successfuly on {email}")
-            return ({"message":f"otp sent successfuly on {email}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
-        elif phone_number:
-            user = await mongo_client.auth.doctor.find_one({"phone_number": phone_number})
-
-            if not user: # check if user exists
-                    logger.warning(f"Signup attempt with invalid credentials {phone_number}")
-                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid phone number")
-            
-            phone_number = user["country_code"] + phone_number # adding country code
-            otp = (send_otp(phone_number))
-            if not otp:
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
-            otp = str(otp)
-            encrypted_otp = Hash.bcrypt(otp)
-            print("otp sent successfuly")
-            logger.info(f"otp sent successfuly on {phone_number}")
-            return ({"message":f"otp sent successfuly on {phone_number}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
+#             # response.delete_cookie("access_token")  # Remove old token
+#             # response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
+#             # print(f"{email} signed up succesfully as doctor")  # Return success message
+#             print("otp sent successfuly")
+#             logger.info(f"otp sent successfuly on {email}")
+#             return ({"message":f"otp sent successfuly on {email}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
+#         elif phone_number:
+#             phone_number = country_code + phone_number # adding country code
+#             otp = (send_otp(phone_number))
+#             if not otp:
+#                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
+#             otp = str(otp)
+#             encrypted_otp = Hash.bcrypt(otp)
+#             print("otp sent successfuly")
+#             logger.info(f"otp sent successfuly on {phone_number}")
+#             return ({"message":f"otp sent successfuly on {phone_number}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
         
-    except Exception as e:
-        print(f"Error verifying OTP: {str(e)}")
-        logger.error(f"Error verifying OTP: {str(e)}")
-        print(f"Error: {traceback.format_exc()}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+#     except Exception as e:
+#         print(f"Error verifying OTP: {str(e)}")
+#         logger.error(f"Error verifying OTP: {str(e)}")
+#         print(f"Error: {traceback.format_exc()}")
+#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 
 
@@ -261,9 +302,9 @@ async def verify_otp_signup(request: Request):
 
 # ***************** login through email/phone_number and otp ****************************************************
 @auth_doctor.post("/doctor/login_otp", status_code=status.HTTP_200_OK) # login using email 
-async def login(request: Request):
+async def login(data: models.verify_otp):
     try:
-        form_data = await request.json()
+        form_data = dict(data)
 
         email_provided = form_data.get("email", None)
         phone_number_provided = form_data.get("phone_number", None)
@@ -306,7 +347,7 @@ async def login(request: Request):
                                     </html>
                                     """
                     # send otp via email
-                    email_sent = (send_email_ses(form_data["email"], "Login to CuraDocs using the provided otp", html_body, retries=3, delay=5))
+                    email_sent = (send_email(form_data["email"], "Login to CuraDocs using the provided otp", html_body, retries=3, delay=5))
                     if not email_sent:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
                     logger.info(f"otp sent successfuly on {email_provided}")
@@ -350,9 +391,9 @@ async def login(request: Request):
 
 
 @auth_doctor.post("/doctor/verify_otp_login_email", status_code=status.HTTP_200_OK) 
-async def verify_otp(request: Request, response: Response):
+async def verify_otp(data: models.otp_email, response: Response):
     try:
-        form_data = await request.json()
+        form_data = dict(data)
         email = form_data.get("email")
         otp_entered = form_data.get("otp")
         print(otp_entered) # debug
@@ -377,10 +418,14 @@ async def verify_otp(request: Request, response: Response):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 @auth_doctor.post("/doctor/verify_otp_login_phone", status_code=status.HTTP_200_OK)
-async def verify(response: Response, request: Request):
+async def verify(data: models.otp_phone, response: Response):
     try:
-        form_data = await request.json()
+        form_data = dict(data)
         phone_number = form_data.get("phone_number")
+        user = await mongo_client.auth.doctor.find_one({"phone_number": phone_number})
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        phone_number = user["country_code"] + phone_number # adding country code
         otp_entered = form_data.get("otp")
         print(otp_entered)
         if not otp_entered or len(otp_entered) != 6:
@@ -407,9 +452,9 @@ async def verify(response: Response, request: Request):
 
 # ********************************************************************* login with email/phone_number and password ************************************
 @auth_doctor.post("/doctor/login", status_code=status.HTTP_200_OK) # login using email and password
-async def login(response: Response, request: Request):
+async def login(data: models.login, response: Response):
     try:
-        form_data = await request.json()
+        form_data = dict(data)
 
         email_provided = form_data.get("email", None)
         password_provided = form_data.get("password", None)
@@ -467,9 +512,9 @@ async def login(response: Response, request: Request):
 # ***************************************************************************************************************************************************************
    
 @auth_doctor.post("/doctor/reset_password", status_code=status.HTTP_200_OK)
-async def reset_password(request: Request):
+async def reset_password(data: models.email):
     try:
-        form_data = await request.json()
+        form_data = dict(data)
         email = form_data.get("email")
         if not email:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is required")
@@ -527,7 +572,7 @@ async def reset_password(request: Request):
                     """
         
         # send email verification link
-        email_sent = (send_email_ses(email, "Password Reset Request", html_body, retries=3, delay=5))
+        email_sent = (send_email(email, "Password Reset Request", html_body, retries=3, delay=5))
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
         return ({"message": "Password reset link sent successfully"}) # Return success message
@@ -545,11 +590,11 @@ async def reset_password(request: Request):
 
 
 @auth_doctor.post("/doctor/create_new_password/{token}", status_code=status.HTTP_200_OK) 
-async def create_new_password(request: Request, token: str):
+async def create_new_password(data: models.reset_password, token: str):
     try:
         token_data = decode_verification_token(token)
         email = token_data["email"]
-        form_data = await request.json()
+        form_data = dict(data)
         
         user = await mongo_client.auth.doctor.find_one({"email": email})
         print(user) # debug
@@ -583,9 +628,11 @@ async def create_new_password(request: Request, token: str):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@auth_doctor.post("/doctor/{email}/logout", status_code=status.HTTP_200_OK)
-async def logout(email: str, response: Response):
+@auth_doctor.post("/doctor/logout", status_code=status.HTTP_200_OK)
+async def logout(data: models.email, response: Response):
     # RedirectResponse("http://127.0.0.1:8000/login", status_code=status.HTTP_200_OK)
+    form_data = dict(data)
+    email = form_data.get("email")
     response.delete_cookie("access_token")
     logger.info(f"{email} logged out successfully")
     print(f"{email} logged out successfully") # debug
