@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, EmailStr, Field
+from fastapi.exceptions import HTTPException
+from fastapi import status
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 class patient(BaseModel):
     first_name: str = Field(..., title="First Name of the User")
@@ -19,11 +21,23 @@ class doctor(BaseModel):
     country_code: str = Field(..., title="Country Code")
     password: str = Field(..., title="Password")
 
-class verify_otp(BaseModel):
+class verify_otp_signup(BaseModel):
     email: Optional[EmailStr] = Field(None, title="Email Address")
     phone_number: Optional[str] = Field(None, min_length=10, title="Phone Number")
     country_code: Optional[str] = Field(None, title="Country Code")
 
+    @model_validator(mode='after')
+    def country_code_required_if_phone_number(self):
+        if self.phone_number and not self.country_code:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error": "validation_error",
+                    "message": "Country code is required when phone_number is provided",
+                    "field": "country_code"
+                }
+            )
+        return self
 
 class otp_email(BaseModel):
     otp : str = Field(..., title="OTP")
@@ -38,8 +52,15 @@ class login(BaseModel):
     phone_number: Optional[str] = Field(None, min_length=10, title="Phone Number")
     password: str = Field(..., title="Password")
 
+class refresh_token(BaseModel):
+    refresh_token: str = Field(..., title="Refresh Token")
+
 class email(BaseModel):
     email: EmailStr = Field(None, title="Email Address")
+
+class login_otp(BaseModel):
+    email: Optional[EmailStr] = Field(None, title="Email Address")
+    phone_number: Optional[str] = Field(None, min_length=10, title="Phone Number")
 
 class reset_password(BaseModel):
     password: str = Field(..., title="Password")

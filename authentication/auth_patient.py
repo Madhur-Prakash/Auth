@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, status, HTTPException, Depends, BackgroundTasks
 import traceback
-from .otp_verify import send_otp, generate_otp
+from .otp_verify import send_otp, generate_otp, send_otp_sns
 from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -125,7 +125,9 @@ async def signup(data: models.patient, response: Response):
         # hashing the password
         hashed_password = Hash.bcrypt(dict_data["password"])
         dict_data["password"] = hashed_password
-
+        
+        refresh_token = auth_token.create_refresh_token(data={"sub": dict_data["email"]})
+        dict_data["refresh_token"] = refresh_token
 
         await mongo_client.auth.patient.insert_one(dict_data)  # Insert into MongoDB
         logger.info(f"Account for patient created successfully: {dict_data['email']}")
@@ -185,7 +187,7 @@ async def signup(data: models.patient, response: Response):
         #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
         # dict_data["phone_number"] = "+91" + dict_data["phone_number"] # adding country code
-        # otp = await send_otp(dict_data["phone_number"])
+        # otp = await send_otp_sns(dict_data["phone_number"])
         # if not otp:
         #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
         
@@ -202,7 +204,7 @@ async def signup(data: models.patient, response: Response):
 
 
 @auth_patient.post("/verify_otp_signup", status_code=status.HTTP_200_OK) # verify otp
-async def verify_otp_signup(data: models.verify_otp):
+async def verify_otp_signup(data: models.verify_otp_signup):
     try:
         form_data = dict(data)
         email = form_data.get("email")
@@ -215,31 +217,24 @@ async def verify_otp_signup(data: models.verify_otp):
         
             html_body = f"""
                             <html>
-                            <body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif; text-align: center;">
+                            <body style="font-family: Arial, sans-serif; background-color: #f5f7fa; padding: 20px;">
 
-    <div style="max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 10px; padding: 30px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);">
-        
-        <!-- Header -->
-        <h1 style="background-color: #003566; color: white; padding: 15px; border-radius: 5px; margin: 0;">CuraDocs</h1>
-        
-        <!-- Content -->
-        <div style="padding: 20px;">
-            <h2 style="color: #333;">Hello!</h2>
-            <p style="color: #555; font-size: 16px; line-height: 24px;">
-                Thanks for choosing <strong>CuraDocs</strong>. Please use the OTP below to verify your email.
-            </p>
-
-            <!-- OTP Code -->
-            <div style="background-color: #ffda0a; color: #003566; font-size: 24px; font-weight: bold; padding: 15px; margin: 20px auto; border-radius: 5px; width: 200px;">
-                {otp}
-            </div>
-
-            <p style="color: #777; font-size: 14px; margin-top: 20px;">
-                If you did not request this, please ignore this email.
-            </p>
-        </div>
-
-    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px;">
+        <tr>
+            <td style="padding: 20px; text-align: center;">
+                <h2 style="color: #2c3e50; margin-bottom: 10px;">Verify Your Email</h2>
+                <p style="color: #7f8c8d; font-size: 14px;">Hi there,</p>
+                <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">
+                    Thank you for signing up with <strong>CuraDocs</strong>! To complete your registration, please verify your email address by using the OTP below.
+                </p>
+                <div style="background-color: #ecf0f1; padding: 15px; border-radius: 4px; display: inline-block;">
+                    <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">{otp}</span>
+                </div>
+                <p style="color: #7f8c8d; font-size: 12px; margin-top: 20px;">This OTP is valid for 10 minutes. Please do not share this code with anyone.</p>
+                <p style="color: #bdc3c7; font-size: 12px; margin-top: 40px;">&copy; 2025 CuraDocs. All rights reserved.</p>
+            </td>
+        </tr>
+    </table>
 
 </body>
                             </html>
@@ -280,11 +275,18 @@ async def verify_otp_signup(data: models.verify_otp):
             logger.info(f"otp sent successfuly on {email}")
             return ({"message":f"otp sent successfuly on {email}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
         elif phone_number:
+            message_during_signup = (f"Your OTP for phone number verification is {otp}." 
+                        "Please use this code to complete your signup process."
+                        "Do not share this OTP with anyone."
+                        "This code is valid for 10 minutes only.")
             phone_number = country_code + phone_number # adding country code
-            otp = (send_otp(phone_number))
-            if not otp:
+            otp = await generate_otp(phone_number)
+            res = (send_otp_sns(phone_number, message_during_signup))
+            if not res:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
             otp = str(otp)
+
+
             encrypted_otp = Hash.bcrypt(otp)
             print("otp sent successfuly")
             logger.info(f"otp sent successfuly on {phone_number}")
@@ -302,7 +304,7 @@ async def verify_otp_signup(data: models.verify_otp):
 
 # ***************** login through email/phone_number and otp ****************************************************
 @auth_patient.post("/patient/login_otp", status_code=status.HTTP_200_OK) # login using email 
-async def login(data: models.verify_otp):
+async def login(data: models.login_otp):
     try:
         form_data = dict(data)
 
@@ -326,23 +328,25 @@ async def login(data: models.verify_otp):
 
                     html_body = f"""
                                     <html>
-                                   <body style="margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; background-color: #f4f4f4;">
-    <div style="width: 100%; max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 10px; padding: 20px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);">
-        <h1 style="background-color: #003566; padding: 15px; border-radius: 5px; color: white; text-align: center; font-size: 24px; margin-bottom: 20px;">CuraDocs</h1>
-        
-        <div style="text-align: center; padding: 20px;">
-            <h3 style="color: #333; font-size: 22px; margin-bottom: 10px;">Hello!</h3>
-            <p style="color: #555; font-size: 16px; margin-bottom: 20px;">Thank you for choosing CuraDocs.</p>
+<body style="font-family: Arial, sans-serif; background-color: #f5f7fa; padding: 20px;">
 
-            <p style="color: #555; font-size: 16px; margin-bottom: 10px;">Use the OTP below to verify your phone number:</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px;">
+        <tr>
+            <td style="padding: 20px; text-align: center;">
+                <h2 style="color: #2c3e50; margin-bottom: 10px;">Login to CuraDocs</h2>
+                <p style="color: #7f8c8d; font-size: 14px;">Hello,</p>
+                <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">
+                    You requested an OTP to log in to your <strong>CuraDocs</strong> account. Please use the code below to proceed.
+                </p>
+                <div style="background-color: #ecf0f1; padding: 15px; border-radius: 4px; display: inline-block;">
+                    <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">548923</span>
+                </div>
+                <p style="color: #7f8c8d; font-size: 12px; margin-top: 20px;">This OTP will expire in 10 minutes. For your safety, do not share this code with anyone.</p>
+                <p style="color: #bdc3c7; font-size: 12px; margin-top: 40px;">&copy; 2025 CuraDocs. All rights reserved.</p>
+            </td>
+        </tr>
+    </table>
 
-            <a style="display: inline-block; background-color: #FFD60A; color: #003566; font-size: 24px; font-weight: bold; padding: 15px 30px; border-radius: 8px; text-decoration: none; margin-top: 10px;">
-                {otp}
-            </a>
-
-            <p style="color: #777; font-size: 14px; margin-top: 30px;">If you did not request this, please ignore this email.</p>
-        </div>
-    </div>
 </body>
                                     </html>
                                     """
@@ -371,8 +375,13 @@ async def login(data: models.verify_otp):
                     print("cache data returned", cached_data) # debug
                     #  sending otp
                     phone_number_provided = user["country_code"] + phone_number_provided # adding country code
-                    otp = await send_otp(phone_number_provided)
-                    if not otp:
+                    otp = await generate_otp(phone_number_provided)
+                    message_during_login = (f"Your OTP for login is {otp}." 
+                                            " Enter this code to access your CuraDocs account."  
+                                            " Do not share this OTP with anyone."
+                                            " The code will expire in 10 minutes.")
+                    res = await send_otp_sns(phone_number_provided, message_during_login)
+                    if not res:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
                     logger.info(f"otp sent successfuly on {phone_number_provided}")
                     return {"message": f"OTP sent successfully on {phone_number_provided[3:7]+'x'*6+phone_number_provided[13:]}", "status":status.HTTP_200_OK} # masking the phone number for security
@@ -403,10 +412,19 @@ async def verify_otp(data: models.otp_email, response: Response):
         print(otp_stored) # debug
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
+        
+        # access_token
         access_token = auth_token.create_access_token(data={"sub": email})
         print("Access token:", access_token)  # debug
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
+
+        # refresh token
+        refresh_token = auth_token.create_refresh_token(data={"sub": email})
+        response.delete_cookie("refresh_token")  # Remove old token
+        response.set_cookie(key="refresh_token", value=refresh_token, max_age=604800, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
+        await mongo_client.auth.patient.update_one({"email": email}, {"$set": {"refresh_token": refresh_token}})
+
         print(f"{email} logged in succesfully")  # Return success message
         logger.info(f"{email} logged in successfully")
         return {"message":f"OTP verified successfully from {email}"}
@@ -434,10 +452,19 @@ async def verify(data: models.otp_phone, response: Response):
         print(otp_stored)
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
+        
+        # access_token
         access_token = auth_token.create_access_token(data={"sub": phone_number})
         print("Access token:", access_token)  # debug
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
+
+        # refresh token
+        refresh_token = auth_token.create_refresh_token(data={"sub": phone_number})
+        response.delete_cookie("refresh_token")  # Remove old token
+        response.set_cookie(key="refresh_token", value=refresh_token, max_age=604800, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
+        await mongo_client.auth.patient.update_one({"phone_number": phone_number}, {"$set": {"refresh_token": refresh_token}})
+
         print(f"{phone_number} logged in succesfully")  # Return success message
         logger.info(f"{phone_number} logged in successfully")
         return {"message":f"OTP verified successfully from {phone_number}"}
@@ -475,9 +502,18 @@ async def login(data: models.login, response: Response):
                 cached_data = await cache(cache_key, form_data["password"])
                 if cached_data:
                     print("cache data returned", cached_data) # debug
+
+                    # access token
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     response.delete_cookie("access_token")  # Remove old token
-                    response.set_cookie(key="access_token", value=access_token, max_age=3600)
+                    response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
+
+                    # refresh token
+                    refresh_token = auth_token.create_refresh_token(data={"sub": cache_key})
+                    response.delete_cookie("refresh_token")  # Remove old token
+                    response.set_cookie(key="refresh_token", value=refresh_token, max_age=604800, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
+                    await mongo_client.auth.patient.update_one({"email": email_provided}, {"$set": {"refresh_token": refresh_token}})
+
                     logger.info(f"{email_provided} logged in successfully")
                     # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
                     return {"message":f"{email_provided} logged in succesfully", "status":status.HTTP_200_OK}  # Return success message
@@ -493,9 +529,18 @@ async def login(data: models.login, response: Response):
                 cached_data = await cache(cache_key, form_data["password"])
                 if cached_data:
                     print("cache data returned", cached_data) # debug
+
+                    # access token
                     access_token = auth_token.create_access_token(data={"sub": cache_key})
                     response.delete_cookie("access_token")  # Remove old token
-                    response.set_cookie(key="access_token", value=access_token, max_age=3600)
+                    response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
+
+                    # refresh token
+                    refresh_token = auth_token.create_refresh_token(data={"sub": cache_key})
+                    response.delete_cookie("refresh_token")  # Remove old token
+                    response.set_cookie(key="refresh_token", value=refresh_token, max_age=604800, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
+                    await mongo_client.auth.patient.update_one({"phone_number": phone_number_provided}, {"$set": {"refresh_token": refresh_token}})
+
                     logger.info(f"{phone_number_provided} logged in successfully")
                     # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
                     return {"message":f"{phone_number_provided[:4]+'x'*6+phone_number_provided[11:]} logged in succesfully", "status":status.HTTP_200_OK}  # Return success message
@@ -511,6 +556,32 @@ async def login(data: models.login, response: Response):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***************************************************************************************************************************************************************
    
+# ************ this still needs to be done ********************************************************************************************************************
+
+@auth_patient.post("/patient/refreshtoken", status_code=status.HTTP_200_OK)
+async def refresh_token(data: models.refresh_token, request: Request):
+    try:
+        credentials_exception = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"})
+        
+        refresh_token = request.cookies.get("refresh_token")
+        if not refresh_token:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token has expired")
+        
+        refresh_token = auth_token.verify_refresh_token(refresh_token, credentials_exception)
+
+    except Exception as e:
+        print(f"Error refreshing token: {str(e)}")
+        logger.error(f"Error refreshing token: {str(e)}")
+        print(f"Error: {traceback.format_exc()}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    
+
+
+
+
 @auth_patient.post("/patient/reset_password", status_code=status.HTTP_200_OK)
 async def reset_password(data: models.email):
     try:
@@ -525,49 +596,29 @@ async def reset_password(data: models.email):
         reset_link = f"http://127.0.0.1:8000/patient/create_new_password/{token}"
         html_body = f"""
                     <html>
-    <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;">
-        <table width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f4f4f4; padding: 20px;">
-            <tr>
-                <td align="center">
-                    <table width="100%" max-width="600" cellspacing="0" cellpadding="0" border="0" style="background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); text-align: center;">
-                        <tr>
-                            <td>
-                                <h1 style="background-color: #003566; padding: 15px; border-radius: 5px; color: white; text-align: center; font-size: 24px; margin-bottom: 20px;">CuraDocs</h1>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <h2 style="color: #333; font-size: 22px; margin-bottom: 10px;">Password Reset Request</h2>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <p style="color: #666; font-size: 16px; margin-bottom: 10px;">We received a request to reset your password for your CuraDocs account.</p>
-                                <p style="color: #666; font-size: 16px; margin-bottom: 20px;">Click the button below to reset your password:</p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <a href="{reset_link}" style="display: inline-block; padding: 12px 24px; background-color: #007BFF; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: bold; border-radius: 5px; margin-top: 10px;">
-                                    Reset Password
-                                </a>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <p style="color: #666; font-size: 14px; margin-top: 20px;">If you did not request this, please ignore this email.</p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <p style="font-size: 12px; color: #999; margin-top: 20px;">© 2025 CuraDocs. All rights reserved.</p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
+<body style="font-family: Arial, sans-serif; background-color: #f0f2f5; padding: 30px;">
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #dcdfe6; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+        <tr>
+            <td style="padding: 30px; text-align: center;">
+                <h1 style="color: #2c3e50; font-size: 24px; margin-bottom: 10px;">Reset Your Password</h1>
+                <p style="color: #606f7b; font-size: 15px; margin-bottom: 25px;">
+                    Hello,
+                </p>
+                <p style="color: #606f7b; font-size: 15px; margin-bottom: 20px;">
+                    We received a request to reset the password for your <strong>CuraDocs</strong> account. Please click the button below to create a new password.
+                </p>
+                <a href="{reset_link}" style="background-color: #1d72b8; color: #ffffff; padding: 12px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-bottom: 20px; font-size: 16px;">Reset Password</a>
+                <p style="color: #606f7b; font-size: 13px; margin-bottom: 30px;">
+                    If you did not request this, you can safely ignore this email.
+                </p>
+                <p style="color: #606f7b; font-size: 12px;">Need help? Contact our support team at <p>support@curadocs.com"</p> style="color: #1d72b8; text-decoration: none;">support@curadocs.com</a></p>
+                <p style="color: #a0aec0; font-size: 12px;">&copy; 2025 CuraDocs | All rights reserved.</p>
+            </td>
+        </tr>
+    </table>
+</body>
+
 </html>
                     """
         
@@ -601,7 +652,7 @@ async def create_new_password(data: models.reset_password, token: str):
         password = form_data.get("password")
         confirm_password = form_data.get("confirm_password")
         
-        last_used_password = Hash.verify(user["password"], password)
+        last_used_password = await Hash.verify(user["password"], password)
 
         if not password or not confirm_password:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password and confirm password are required")
@@ -649,7 +700,7 @@ async def logout(data: models.email, response: Response):
 #         form_data = await request.json()
 #         phone_number = form_data.get("phone_number")
 #         phone_number = "+91" + phone_number # adding country code
-#         otp = await send_otp(phone_number)
+#         otp = await send_otp_sns(phone_number)
 #         if not otp:
 #             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
 #         otp_entered = form_data.get("otp")

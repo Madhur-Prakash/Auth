@@ -1,6 +1,6 @@
-import asyncio
+import boto3
 from twilio.rest import Client
-import random
+import random,os
 # from .celery_app import celery
 from .redis import client as redis_client
 import traceback
@@ -13,6 +13,20 @@ AUTH_TOKEN = '241333cb6cb2b9e0aaa80cdb252576f3'
 TWILIO_PHONE_NUMBER = "+1 386 260 5314"  # Get this from Twilio Console
 
 logging = setup_logging()
+
+
+#  AWS credentials
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = os.getenv("AWS_REGION")
+
+# aws client
+sns_client = boto3.client(
+    'sns',
+    region_name=AWS_REGION,
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+)
 
 # Generate a 6-digit OTP
 async def generate_otp(email: str):
@@ -50,6 +64,19 @@ async def send_otp(phone_number: str):
         logging.error(f"Error sending OTP: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         print(f"Error sending OTP: {str(e)}")
+
+
+async def send_otp_sns(phone_number: str, message: str):
+    response = sns_client.publish(
+        PhoneNumber = phone_number,
+        Message = message,
+        MessageAttributes={
+        'AWS.SNS.SMS.SenderID': {'DataType': 'String', 'StringValue': 'CuraDocs'},
+        'AWS.SNS.SMS.SMSType': {'DataType': 'String', 'StringValue': 'Transactional'}
+    }
+    )
+    print(f"OTP Sent Successfully! Message ID: {response['MessageId']}")
+    return response
 
 # Store OTP and phone number in MongoDB
 async def store_otp_in_mongo(email: str, phone_number: str, otp: int):
