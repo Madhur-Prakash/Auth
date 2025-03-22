@@ -36,7 +36,7 @@ async def generate_otp(email: str):
         "otp": otp_str,
         "email": email
     })
-    await redis_client.expire(f"{email}", 300)  # Expire in 5 minutes
+    await redis_client.expire(f"{email}", 600)  # Expire in 5 minutes
     return otp
 
 # Initialize Twilio Client
@@ -58,7 +58,7 @@ async def send_otp(phone_number: str):
             "otp": otp_sent,
             "phone_number": phone_number
         })
-        await redis_client.expire(f"{phone_number}", 300)  # Expire in 5 minutes
+        await redis_client.expire(f"{phone_number}", 600)  # Expire in 5 minutes
         return otp_sent
     except Exception as e:
         logging.error(f"Error sending OTP: {str(e)}")
@@ -66,17 +66,62 @@ async def send_otp(phone_number: str):
         print(f"Error sending OTP: {str(e)}")
 
 
-async def send_otp_sns(phone_number: str, message: str):
-    response = sns_client.publish(
-        PhoneNumber = phone_number,
-        Message = message,
-        MessageAttributes={
-        'AWS.SNS.SMS.SenderID': {'DataType': 'String', 'StringValue': 'CuraDocs'},
-        'AWS.SNS.SMS.SMSType': {'DataType': 'String', 'StringValue': 'Transactional'}
-    }
-    )
-    print(f"OTP Sent Successfully! Message ID: {response['MessageId']}")
-    return response
+async def send_otp_sns_during_login(phone_number: str):
+    try:
+        otp_sent =  await generate_otp(phone_number)
+        response = sns_client.publish(
+            PhoneNumber = phone_number,
+            Message = (f"Your OTP for login is {otp_sent}." 
+                        " Enter this code to access your CuraDocs account."  
+                        " Do not share this OTP with anyone."
+                        " The code will expire in 10 minutes."),
+            MessageAttributes={
+            'AWS.SNS.SMS.SenderID': {'DataType': 'String', 'StringValue': 'CuraDocs'},
+            'AWS.SNS.SMS.SMSType': {'DataType': 'String', 'StringValue': 'Transactional'}
+        }
+        )
+        print(f"OTP Sent Successfully! Message ID: {response['MessageId']}")
+        store_opt =  await redis_client.hset(f"{phone_number}", mapping={
+                "otp": otp_sent,
+                "phone_number": phone_number
+        })
+        await redis_client.expire(f"{phone_number}", 600)  # Expire in 5 minutes
+        return otp_sent
+    except Exception as e:
+        logging.error(f"Error sending OTP: {str(e)}")
+        print(f"Error: {traceback.format_exc()}")
+        print(f"Error sending OTP: {str(e)}")
+
+
+
+async def send_otp_sns_during_signup(phone_number: str):
+    try:
+        otp_sent =  await generate_otp(phone_number)
+        response = sns_client.publish(
+            PhoneNumber = phone_number,
+            Message = (f"Your OTP for phone number verification is {otp_sent}." 
+                        "Please use this code to complete your signup process."
+                        "Do not share this OTP with anyone."
+                        "This code is valid for 10 minutes only.")
+        #     MessageAttributes={
+        #     'AWS.SNS.SMS.SenderID': {'DataType': 'String', 'StringValue': 'CuraDocs'},
+        #     'AWS.SNS.SMS.SMSType': {'DataType': 'String', 'StringValue': 'Transactional'}
+        # }
+        )
+        print(f"OTP Sent Successfully! Message ID: {response['MessageId']}")
+        store_opt =  await redis_client.hset(f"{phone_number}", mapping={
+                "otp": otp_sent,
+                "phone_number": phone_number
+        })
+        await redis_client.expire(f"{phone_number}", 600)  # Expire in 5 minutes
+        return otp_sent
+    except Exception as e:
+        logging.error(f"Error sending OTP: {str(e)}")
+        print(f"Error: {traceback.format_exc()}")
+        print(f"Error sending OTP: {str(e)}")
+
+
+
 
 # Store OTP and phone number in MongoDB
 async def store_otp_in_mongo(email: str, phone_number: str, otp: int):

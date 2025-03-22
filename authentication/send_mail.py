@@ -76,8 +76,8 @@ def send_email(to_email, subject, body, retries=3, delay=5):
             time.sleep(delay)
     print("Failed to send email after multiple attempts.")
 
-# @celery.task()
 
+# @celery.task()
 def send_email_ses(to_email, subject, body, retries=3, delay=5):
     """Send an email using AWS SES with retry mechanism."""
     for attempt in range(retries):

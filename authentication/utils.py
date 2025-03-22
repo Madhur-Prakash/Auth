@@ -1,8 +1,10 @@
 import random
 import string
-from fastapi import HTTPException, status
+from fastapi import Request, status
+from fastapi.responses import Response
 import logging
-from .database import mongo_client
+import uuid
+from fastapi.exceptions import HTTPException
 from .hashing import Hash 
 import os
 import pycountry, phonenumbers
@@ -49,6 +51,7 @@ def setup_logging():
 
 logger = setup_logging()
 generated_strings = set()
+generated_session_id = set()
 
 def generate_random_string():
     letters = string.ascii_uppercase  # Uppercase letters
@@ -63,8 +66,25 @@ def generate_random_string():
     else:
         return generate_random_string()
 
-def get_country_code(phone_number: str):
+def get_country_name(phone_number: str):
     pn = phonenumbers.parse(phone_number)
 
     country = pycountry.countries.get(alpha_2 = region_code_for_number(pn))
     return country.name
+
+def create_session_id():
+    new_session_id = str(uuid.uuid4())
+    if new_session_id not in generated_session_id:
+        generated_session_id.add(new_session_id)
+        return new_session_id
+    else:
+        return create_session_id()
+
+
+def generate_fingerprint_hash(request: Request):
+    user_agaent = request.headers.get('user-agent')
+    print("user_agent coming from generate_fingerprint_hash function:",user_agaent) # debug
+    ip = request.client.host
+    raw_fingerprint = f"{ip}:{user_agaent}"
+    fingreprint_hash = Hash.bcrypt(raw_fingerprint)
+    return str(fingreprint_hash)

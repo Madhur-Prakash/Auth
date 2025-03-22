@@ -36,10 +36,21 @@ def verify_token(token:str,credentials_exception):
     except JWTError:
         raise credentials_exception
     
-def verify_refresh_token(refresh_token:str, credentials_exception):
+def decode_token(token:str, credentials_exception):
     try:
-        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         data: str = payload.get("sub")
+        if data is None:
+            raise credentials_exception
+        return data
+    
+    except JWTError:
+        raise credentials_exception
+
+def decode_token_data(token:str, credentials_exception):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        data: str = payload.get("data")
         if data is None:
             raise credentials_exception
         return data

@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Request, status, HTTPException, Depends, BackgroundTasks
-import traceback
-from .otp_verify import send_otp, generate_otp, send_otp_sns
+import traceback, jwt
+from .otp_verify import send_otp, generate_otp, send_otp_sns_during_login, send_otp_sns_during_signup
 from .database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from .redis import client
-from .oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token
-from .utils import get_country_code, setup_logging, generate_random_string  # Import setup_logging from utils
+from .oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token, serializer
+from .utils import create_session_id, generate_fingerprint_hash, get_country_name, setup_logging, generate_random_string  # Import setup_logging from utils
 from .hashing import Hash
 from datetime import datetime
 from .send_mail import send_email_ses, send_email
@@ -76,7 +76,7 @@ async def cache_without_password(data: str):
     
 
 @auth_patient.post("/patient/signup", status_code=status.HTTP_201_CREATED)
-async def signup(data: models.patient, response: Response):
+async def signup(data: models.patient, response: Response, request: Request):
     try:
         form_data = dict(data)
         dict_data = dict(form_data)
@@ -86,7 +86,7 @@ async def signup(data: models.patient, response: Response):
         dict_data["verification_status"] = "false"
 
         updated_phone_number = dict_data['country_code'] + dict_data['phone_number'] # adding country code to get country name
-        country_name = get_country_code(updated_phone_number)
+        country_name = get_country_name(updated_phone_number)
         country_name = country_name.lower()
         dict_data["country_name"] = country_name
 
@@ -125,16 +125,31 @@ async def signup(data: models.patient, response: Response):
         # hashing the password
         hashed_password = Hash.bcrypt(dict_data["password"])
         dict_data["password"] = hashed_password
-        
-        refresh_token = auth_token.create_refresh_token(data={"sub": dict_data["email"]})
-        dict_data["refresh_token"] = refresh_token
+        device_fingerprint = generate_fingerprint_hash(request)
+        session_id = create_session_id()
+        refresh_token = auth_token.create_refresh_token(data={
+                                                                "sub": session_id,
+                                                                "data": device_fingerprint})
+        response.delete_cookie("refresh_token")  # Remove old token
+        response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
+        encrypted_refresh_token = Hash.bcrypt(refresh_token)
+        encrypyted_session_id = Hash.bcrypt(session_id)
+        encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint)
+        print(encrypted_refresh_token) # debug
+
+        await client.hset(f"patient:refresh_token:{refresh_token[:106]}",mapping={
+                                                            "refresh_token": encrypted_refresh_token,
+                                                            "device_fingerprint":encrypyted_device_fingerprint,
+                                                            "data":dict_data['email'],
+                                                            "session_id":encrypyted_session_id})
+        await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         await mongo_client.auth.patient.insert_one(dict_data)  # Insert into MongoDB
         logger.info(f"Account for patient created successfully: {dict_data['email']}")
         # Generate a cache during signup with email as key
         cache_key = dict_data["email"]
         cached_data = await client.set(f"patient:{cache_key}",cache_key,ex=3600) 
-        access_token = auth_token.create_access_token(data={"sub": cache_key})
+        access_token = auth_token.create_access_token(data={"sub": dict_data['email']})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
 
@@ -275,13 +290,9 @@ async def verify_otp_signup(data: models.verify_otp_signup):
             logger.info(f"otp sent successfuly on {email}")
             return ({"message":f"otp sent successfuly on {email}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
         elif phone_number:
-            message_during_signup = (f"Your OTP for phone number verification is {otp}." 
-                        "Please use this code to complete your signup process."
-                        "Do not share this OTP with anyone."
-                        "This code is valid for 10 minutes only.")
             phone_number = country_code + phone_number # adding country code
-            otp = await generate_otp(phone_number)
-            res = (send_otp_sns(phone_number, message_during_signup))
+
+            res = await send_otp(phone_number)
             if not res:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
             otp = str(otp)
@@ -310,6 +321,7 @@ async def login(data: models.login_otp):
 
         email_provided = form_data.get("email", None)
         phone_number_provided = form_data.get("phone_number", None)
+        country_code = form_data.get("country_code", None)
 
         # check if email or phone number is provided
         if not email_provided and not phone_number_provided:
@@ -364,27 +376,18 @@ async def login(data: models.login_otp):
 
             # login using phone_number and password
             elif phone_number_provided:
-                user = await mongo_client.auth.patient.find_one({"phone_number": phone_number_provided})
-                if not user:
-                    logger.warning(f"Login attempt with invalid credentials {phone_number_provided}")
-                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid phone number")
                 # Generate a cache key based on login identifier
                 cache_key = phone_number_provided
                 cached_data = await cache_without_password(cache_key)
                 if cached_data:
                     print("cache data returned", cached_data) # debug
                     #  sending otp
-                    phone_number_provided = user["country_code"] + phone_number_provided # adding country code
-                    otp = await generate_otp(phone_number_provided)
-                    message_during_login = (f"Your OTP for login is {otp}." 
-                                            " Enter this code to access your CuraDocs account."  
-                                            " Do not share this OTP with anyone."
-                                            " The code will expire in 10 minutes.")
-                    res = await send_otp_sns(phone_number_provided, message_during_login)
+                    phone_number_provided = country_code + phone_number_provided # adding country code
+                    res = await send_otp(phone_number_provided)
                     if not res:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
                     logger.info(f"otp sent successfuly on {phone_number_provided}")
-                    return {"message": f"OTP sent successfully on {phone_number_provided[3:7]+'x'*6+phone_number_provided[13:]}", "status":status.HTTP_200_OK} # masking the phone number for security
+                    return {"message": f"OTP sent successfully on {phone_number_provided[3:106]+'x'*6+phone_number_provided[13:]}", "status":status.HTTP_200_OK} # masking the phone number for security
 
                 print("cache data returned none") # debug
                 logger.warning(f"login attempt with invalid credentials: {form_data['phone_number']}")
@@ -400,11 +403,12 @@ async def login(data: models.login_otp):
 
 
 @auth_patient.post("/patient/verify_otp_login_email", status_code=status.HTTP_200_OK) 
-async def verify_otp(data: models.otp_email, response: Response):
+async def verify_otp(data: models.otp_email, response: Response, request: Request):
     try:
         form_data = dict(data)
         email = form_data.get("email")
         otp_entered = form_data.get("otp")
+        incoming_refresh_token = request.cookies.get("refresh_token") or request.headers.get("refresh_token") or request.query_params.get("refresh_token") 
         print(otp_entered) # debug
         if not otp_entered or len(otp_entered) != 6:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
@@ -413,6 +417,10 @@ async def verify_otp(data: models.otp_email, response: Response):
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
         
+        device_fingerprint = generate_fingerprint_hash(request)
+        encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint) # encrypting device fingerprint
+        session_id = create_session_id()
+        encrypyted_session_id = Hash.bcrypt(session_id) # encrypting session id
         # access_token
         access_token = auth_token.create_access_token(data={"sub": email})
         print("Access token:", access_token)  # debug
@@ -420,10 +428,20 @@ async def verify_otp(data: models.otp_email, response: Response):
         response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
 
         # refresh token
-        refresh_token = auth_token.create_refresh_token(data={"sub": email})
+        refresh_token = auth_token.create_refresh_token(data={
+                                                                "sub": session_id,
+                                                                "data": device_fingerprint})
         response.delete_cookie("refresh_token")  # Remove old token
-        response.set_cookie(key="refresh_token", value=refresh_token, max_age=604800, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
-        await mongo_client.auth.patient.update_one({"email": email}, {"$set": {"refresh_token": refresh_token}})
+        response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
+        encrypted_refresh_token = Hash.bcrypt(refresh_token)
+        if incoming_refresh_token:
+            await client.delete(f"patient:refresh_token:{incoming_refresh_token[:106]}")
+        await client.hset(f"patient:refresh_token:{refresh_token[:106]}",mapping={
+                                                            "refresh_token": encrypted_refresh_token,
+                                                            "device_fingerprint":encrypyted_device_fingerprint,
+                                                            "data":email,
+                                                            "session_id":encrypyted_session_id})
+        await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         print(f"{email} logged in succesfully")  # Return success message
         logger.info(f"{email} logged in successfully")
@@ -436,14 +454,14 @@ async def verify_otp(data: models.otp_email, response: Response):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 @auth_patient.post("/patient/verify_otp_login_phone", status_code=status.HTTP_200_OK)
-async def verify(data: models.otp_phone, response: Response):
+async def verify(data: models.otp_phone, response: Response, request: Request):
     try:
         form_data = dict(data)
         phone_number = form_data.get("phone_number")
-        user = await mongo_client.auth.patient.find_one({"phone_number": phone_number})
-        if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        phone_number = user["country_code"] + phone_number # adding country code
+        country_code = form_data.get("country_code")
+        incoming_refresh_token = request.cookies.get("refresh_token") or request.headers.get("refresh_token") or request.query_params.get("refresh_token") 
+
+        phone_number = country_code + phone_number # adding country code
         otp_entered = form_data.get("otp")
         print(otp_entered)
         if not otp_entered or len(otp_entered) != 6:
@@ -453,6 +471,11 @@ async def verify(data: models.otp_phone, response: Response):
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
         
+        device_fingerprint = generate_fingerprint_hash(request)
+        encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint) # encrypting device fingerprint
+        session_id = create_session_id()
+        encrypyted_session_id = Hash.bcrypt(session_id) # encrypting session id
+
         # access_token
         access_token = auth_token.create_access_token(data={"sub": phone_number})
         print("Access token:", access_token)  # debug
@@ -460,10 +483,20 @@ async def verify(data: models.otp_phone, response: Response):
         response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
 
         # refresh token
-        refresh_token = auth_token.create_refresh_token(data={"sub": phone_number})
+        refresh_token = auth_token.create_refresh_token(data={
+                                                                "sub": session_id,
+                                                                "data": device_fingerprint})
         response.delete_cookie("refresh_token")  # Remove old token
-        response.set_cookie(key="refresh_token", value=refresh_token, max_age=604800, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
-        await mongo_client.auth.patient.update_one({"phone_number": phone_number}, {"$set": {"refresh_token": refresh_token}})
+        response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
+        encrypted_refresh_token = Hash.bcrypt(refresh_token)
+        if incoming_refresh_token:
+            await client.delete(f"patient:refresh_token:{incoming_refresh_token[:106]}") # delete old refresh token from redis -> email
+        await client.hset(f"patient:refresh_token:{refresh_token[:106]}",mapping={
+                                                            "refresh_token": encrypted_refresh_token,
+                                                            "device_fingerprint":encrypyted_device_fingerprint,
+                                                            "data":phone_number,
+                                                            "session_id":encrypyted_session_id})
+        await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         print(f"{phone_number} logged in succesfully")  # Return success message
         logger.info(f"{phone_number} logged in successfully")
@@ -479,13 +512,14 @@ async def verify(data: models.otp_phone, response: Response):
 
 # ********************************************************************* login with email/phone_number and password ************************************
 @auth_patient.post("/patient/login", status_code=status.HTTP_200_OK) # login using email and password
-async def login(data: models.login, response: Response):
+async def login(data: models.login, response: Response, request: Request):
     try:
         form_data = dict(data)
 
         email_provided = form_data.get("email", None)
         password_provided = form_data.get("password", None)
         phone_number_provided = form_data.get("phone_number", None)
+        incoming_refresh_token = request.cookies.get("refresh_token") or request.headers.get("refresh_token") or request.query_params.get("refresh_token") 
 
         # check if email or patient_user_name or password is provided
         if not password_provided:
@@ -499,20 +533,34 @@ async def login(data: models.login, response: Response):
             if email_provided:
                 # Generate a cache key based on login identifier
                 cache_key = email_provided
-                cached_data = await cache(cache_key, form_data["password"])
+                cached_data = await cache(cache_key, password_provided)
                 if cached_data:
                     print("cache data returned", cached_data) # debug
 
+                    device_fingerprint = generate_fingerprint_hash(request)
+                    encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint) # encrypting device fingerprint
+                    session_id = create_session_id()
+                    encrypyted_session_id = Hash.bcrypt(session_id) # encrypting session id
                     # access token
-                    access_token = auth_token.create_access_token(data={"sub": cache_key})
+                    access_token = auth_token.create_access_token(data={"sub": email_provided})
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
 
                     # refresh token
-                    refresh_token = auth_token.create_refresh_token(data={"sub": cache_key})
+                    refresh_token = auth_token.create_refresh_token(data={
+                                                                            "sub": session_id,
+                                                                            "data": device_fingerprint})
+                    encrypted_refresh_token = Hash.bcrypt(refresh_token)
+                    if incoming_refresh_token:
+                        await client.delete(f"patient:refresh_token:{incoming_refresh_token[:106]}") # delete old refresh token from redis
                     response.delete_cookie("refresh_token")  # Remove old token
-                    response.set_cookie(key="refresh_token", value=refresh_token, max_age=604800, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
-                    await mongo_client.auth.patient.update_one({"email": email_provided}, {"$set": {"refresh_token": refresh_token}})
+                    response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
+                    await client.hset(f"patient:refresh_token:{refresh_token[:106]}",mapping={
+                                                            "refresh_token": encrypted_refresh_token,
+                                                            "device_fingerprint":encrypyted_device_fingerprint,
+                                                            "data":email_provided,
+                                                            "session_id":encrypyted_session_id})
+                    await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
                     logger.info(f"{email_provided} logged in successfully")
                     # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
@@ -526,20 +574,34 @@ async def login(data: models.login, response: Response):
             elif phone_number_provided:
                 # Generate a cache key based on login identifier
                 cache_key = phone_number_provided
-                cached_data = await cache(cache_key, form_data["password"])
+                cached_data = await cache(cache_key, password_provided)
                 if cached_data:
                     print("cache data returned", cached_data) # debug
 
+                    device_fingerprint = generate_fingerprint_hash(request)
+                    encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint) # encrypting device fingerprint
+                    session_id = create_session_id()
+                    encrypyted_session_id = Hash.bcrypt(session_id) # encrypting session id
                     # access token
-                    access_token = auth_token.create_access_token(data={"sub": cache_key})
+                    access_token = auth_token.create_access_token(data={"sub": phone_number_provided})
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
 
                     # refresh token
-                    refresh_token = auth_token.create_refresh_token(data={"sub": cache_key})
+                    refresh_token = auth_token.create_refresh_token(data={
+                                                                            "sub": session_id,
+                                                                            "data": device_fingerprint})
+                    encrypted_refresh_token = Hash.bcrypt(refresh_token)
+                    if incoming_refresh_token:
+                        await client.delete(f"patient:refresh_token:{incoming_refresh_token[:106]}") # delete old refresh token from redis
                     response.delete_cookie("refresh_token")  # Remove old token
-                    response.set_cookie(key="refresh_token", value=refresh_token, max_age=604800, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
-                    await mongo_client.auth.patient.update_one({"phone_number": phone_number_provided}, {"$set": {"refresh_token": refresh_token}})
+                    response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
+                    await client.hset(f"patient:refresh_token:{refresh_token[:106]}",mapping={
+                                                            "refresh_token": encrypted_refresh_token,
+                                                            "device_fingerprint":encrypyted_device_fingerprint,
+                                                            "data":phone_number_provided,
+                                                            "session_id":encrypyted_session_id})
+                    await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
                     logger.info(f"{phone_number_provided} logged in successfully")
                     # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
@@ -558,30 +620,84 @@ async def login(data: models.login, response: Response):
    
 # ************ this still needs to be done ********************************************************************************************************************
 
-@auth_patient.post("/patient/refreshtoken", status_code=status.HTTP_200_OK)
-async def refresh_token(data: models.refresh_token, request: Request):
+@auth_patient.post("/patient/refresh_token", status_code=status.HTTP_200_OK)
+async def refresh_token(request: Request, response: Response):
     try:
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"})
         
-        refresh_token = request.cookies.get("refresh_token")
-        if not refresh_token:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token has expired")
-        
-        refresh_token = auth_token.verify_refresh_token(refresh_token, credentials_exception)
+        #  handling incoming refresh token
+        incoming_refresh_token = request.cookies.get("refresh_token") or request.headers.get("refresh_token") or request.query_params.get("refresh_token") 
+        if not incoming_refresh_token:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token required")
+        incoming_session_id = auth_token.decode_token(incoming_refresh_token, credentials_exception) # verify access token and getting the session_id from it
+        incoming_device_fingireprint = auth_token.decode_token_data(incoming_refresh_token, credentials_exception) # verify access token and getting the device_fingerprint from it
+        # incoming_session_id = request.cookies.get("session_id") or request.headers.get("session_id") or request.query_params.get("session_id")
 
+        print("incoming refresh token:",incoming_refresh_token) # debug
+        print("incoming session id:",incoming_session_id) # debug
+        
+        #  handling stored refresh token
+        stored_refresh_token_in_redis = await client.hgetall(f"patient:refresh_token:{incoming_refresh_token[:106]}")  # get refresh token from redis
+        print("stored refresh token from redis:",stored_refresh_token_in_redis) # debug
+
+        extra_data = stored_refresh_token_in_redis.get("data") # extract data from redis data
+        stored_refresh_token = stored_refresh_token_in_redis.get("refresh_token") # extract refresh_token from redis data
+        stored_session_id = stored_refresh_token_in_redis.get("session_id") # extract session_id from redis data
+        stored_device_fingerprint = stored_refresh_token_in_redis.get("device_fingerprint") # extract device_fingerprint from redis data
+
+        print("stored refresh token:",stored_refresh_token) # debug
+        print("stored session id:",stored_session_id) # debug
+        print("stored device fingerprint:",stored_device_fingerprint) # debug
+
+        if not stored_refresh_token:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
+        if not stored_device_fingerprint:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid device fingerprint")
+        if not stored_session_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session id")
+        
+        verify_refresh_token = await Hash.verify(stored_refresh_token, incoming_refresh_token)
+        verify_device_fingerprint = await Hash.verify(stored_device_fingerprint, incoming_device_fingireprint)
+        verify_session_id = await Hash.verify(stored_session_id, incoming_session_id)
+
+        if verify_refresh_token and verify_device_fingerprint and verify_session_id:  # if refresh token is valid, give access token
+            print({"refresh_token":"valid", "device_fingerprint":"valid", "session_id":"valid"}) # debug
+            await client.delete(f"patient:refresh_token:{incoming_refresh_token[:106]}")
+
+            device_fingerprint = generate_fingerprint_hash(request)
+            encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint) # encrypting device fingerprint
+            session_id = create_session_id()
+            encrypyted_session_id = Hash.bcrypt(session_id) # encrypting session id
+            # access token
+            new_access_token = auth_token.create_access_token(data={"sub": extra_data})
+            response.delete_cookie("access_token")  # Remove old token
+            response.set_cookie(key="access_token", value=new_access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False) # access token expires in 1 hour
+
+            # refresh token
+            new_refresh_token = auth_token.create_refresh_token(data={
+                                                                        "sub": session_id,
+                                                                        "data":device_fingerprint})
+            response.delete_cookie("refresh_token")  # Remove old token
+            response.set_cookie(key="refresh_token", value=new_refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
+            new_enctrpted_refresh_token = Hash.bcrypt(new_refresh_token)
+            await client.hset(f"patient:refresh_token:{new_refresh_token[:106]}",mapping={
+                                                            "refresh_token": new_enctrpted_refresh_token,
+                                                            "device_fingerprint":encrypyted_device_fingerprint,
+                                                            "session_id":encrypyted_session_id})
+            await client.expire(f"patient:refresh_token:{new_refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
+            logger.info(f"Refresh token verified for {device_fingerprint} -> device_fingerprint")
+            return({"status":status.HTTP_200_OK, "message":"Refresh token verified,patient logged in"})
+        
+      
     except Exception as e:
         print(f"Error refreshing token: {str(e)}")
         logger.error(f"Error refreshing token: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
-
-
-
-
 @auth_patient.post("/patient/reset_password", status_code=status.HTTP_200_OK)
 async def reset_password(data: models.email):
     try:
@@ -680,11 +796,14 @@ async def create_new_password(data: models.reset_password, token: str):
 
 
 @auth_patient.post("/patient/logout", status_code=status.HTTP_200_OK)
-async def logout(data: models.email, response: Response):
-    # RedirectResponse("http://127.0.0.1:8000/login", status_code=status.HTTP_200_OK)
+async def logout(data: models.email, response: Response, request: Request):
+    incoming_refresh_token = request.cookies.get("refresh_token") or request.headers.get("refresh_token") or request.query_params.get("refresh_token")
     form_data = dict(data)
     email = form_data.get("email")
+    if incoming_refresh_token:
+        await client.delete(f"patient:refresh_token:{incoming_refresh_token[:106]}")
     response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
     logger.info(f"{email} logged out successfully")
     print(f"{email} logged out successfully") # debug
     return {"message":f"{email} logged out successfully", "status":status.HTTP_200_OK}  # Return success message
