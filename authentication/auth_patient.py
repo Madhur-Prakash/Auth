@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from .redis import client
+import os
 from .oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token, serializer
 from .utils import create_session_id, generate_fingerprint_hash, get_country_name, setup_logging, generate_random_string  # Import setup_logging from utils
 from .hashing import Hash
@@ -176,30 +177,14 @@ async def signup(data: models.patient, response: Response, request: Request):
         # link = f"http://127.0.0.1:8000/patient/verify_email/{token}"
         # otp =  await generate_otp(dict_data["email"])
         
-        # html_body = f"""
-        #                 <html>
-        #                 <body style="margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif;">
-        #                 <div style="width: 100%; background: #efefef; border-radius: 10px; padding: 10px;">
-        #                 <div style="margin: 0 auto; width: 90%; text-align: center;">
-        #                     <h1 style="background-color: rgba(0, 53, 102, 1); padding: 5px 10px; border-radius: 5px; color: white;">CuraDocs</h1>
-        #                     <div style="margin: 30px auto; background: white; width: 40%; border-radius: 10px; padding: 50px; text-align: center;">
-        #                     <h3 style="margin-bottom: 100px; font-size: 24px;">Hello!</h3>
-        #                     <p style="margin-bottom: 30px;">Thanks for choosing CuraDocs. Please click the link below to verify your email.</p>
-        #                     <a style="display: block; margin: 0 auto; border: none; background-color: rgba(255, 214, 10, 1); color: white; width: 200px; line-height: 24px; padding: 10px; font-size: 24px; border-radius: 10px; cursor: pointer; text-decoration: none;"
-        #                         target="_blank"
-        #                     >
-        #                         {otp}
-        #                     </a>
-        #                     </div>
-        #                 </div>
-        #                 </div>
-        #                 </body>
-        #                 </html>
-        #                 """
-        # # send email verification link
-        # email_sent = send_email(dict_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
-        # if not email_sent:
-        #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+        # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+        html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        with open(html_path,'r') as file:
+            html_body = file.read()
+        # send email verification link
+        email_sent = send_email(dict_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        if not email_sent:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
         # dict_data["phone_number"] = "+91" + dict_data["phone_number"] # adding country code
         # otp = await send_otp_sns(dict_data["phone_number"])

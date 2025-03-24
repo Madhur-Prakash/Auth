@@ -52,7 +52,7 @@ def authenticate_gmail():
 
     return build("gmail", "v1", credentials=creds)
 
-# @celery.tast()
+# @celery.task()
 def send_email(to_email, subject, body, retries=3, delay=5):
     """Send an email using Gmail API with retry mechanism."""
     for attempt in range(retries):
