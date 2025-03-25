@@ -63,7 +63,7 @@ class refresh_token(BaseModel):
     device_fingerprint: str = Field(None, title="Device Fingerprint")
 
 class email(BaseModel):
-    email: EmailStr = Field(None, title="Email Address")
+    email: EmailStr = Field(..., title="Email Address")
 
 class login_otp(BaseModel):
     email: Optional[EmailStr] = Field(None, title="Email Address")
