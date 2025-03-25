@@ -749,6 +749,8 @@ async def create_new_password(data: models.reset_password, token: str):
         form_data = dict(data)
         
         user = await mongo_client.auth.patient.find_one({"email": email})
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         print(user) # debug
         password = form_data.get("password")
         confirm_password = form_data.get("confirm_password")
