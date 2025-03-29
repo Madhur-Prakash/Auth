@@ -84,8 +84,9 @@ def create_session_id():
 def generate_fingerprint_hash(request: Request):
     user_agaent = request.headers.get('user-agent')
     print("user_agent coming from generate_fingerprint_hash function:",user_agaent) # debug
-    ip = request.client.host
-    print("IP:",ip)
-    raw_fingerprint = f"{ip}:{user_agaent}"
+    digits = string.digits
+    num = ''.join(random.choices(digits, k=7))
+    print("random number:",num)
+    raw_fingerprint = f"{num}:{user_agaent}"
     fingreprint_hash = Hash.bcrypt(raw_fingerprint)
     return str(fingreprint_hash)

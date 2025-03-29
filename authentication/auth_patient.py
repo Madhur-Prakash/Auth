@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from .redis import client
 import os
+from .rate_limiting import limiter
 from .oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token, serializer
 from .utils import create_session_id, generate_fingerprint_hash, get_country_name, setup_logging, generate_random_string  # Import setup_logging from utils
 from .hashing import Hash
@@ -497,6 +498,8 @@ async def verify(data: models.otp_phone, response: Response, request: Request):
 
 # ********************************************************************* login with email/phone_number and password ************************************
 @auth_patient.post("/patient/login", status_code=status.HTTP_200_OK) # login using email and password
+
+# @limiter.limit("5/minute")  #******************************* Rate limit *********************************************************************
 async def login(data: models.login, response: Response, request: Request):
     try:
         form_data = dict(data)
