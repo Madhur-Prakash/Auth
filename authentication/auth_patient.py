@@ -281,8 +281,7 @@ async def verify_otp_signup(data: models.verify_otp_signup):
             res = await send_otp(phone_number)
             if not res:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
-            otp = str(otp)
-
+            otp = str(res)
 
             encrypted_otp = Hash.bcrypt(otp)
             print("otp sent successfuly")
@@ -337,7 +336,7 @@ async def login(data: models.login_otp):
                     You requested an OTP to log in to your <strong>CuraDocs</strong> account. Please use the code below to proceed.
                 </p>
                 <div style="background-color: #ecf0f1; padding: 15px; border-radius: 4px; display: inline-block;">
-                    <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">548923</span>
+                    <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">{otp}</span>
                 </div>
                 <p style="color: #7f8c8d; font-size: 12px; margin-top: 20px;">This OTP will expire in 10 minutes. For your safety, do not share this code with anyone.</p>
                 <p style="color: #bdc3c7; font-size: 12px; margin-top: 40px;">&copy; 2025 CuraDocs. All rights reserved.</p>

@@ -336,7 +336,7 @@ async def login(data: models.login_otp):
                     You requested an OTP to log in to your <strong>CuraDocs</strong> account. Please use the code below to proceed.
                 </p>
                 <div style="background-color: #ecf0f1; padding: 15px; border-radius: 4px; display: inline-block;">
-                    <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">548923</span>
+                    <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">{otp}</span>
                 </div>
                 <p style="color: #7f8c8d; font-size: 12px; margin-top: 20px;">This OTP will expire in 10 minutes. For your safety, do not share this code with anyone.</p>
                 <p style="color: #bdc3c7; font-size: 12px; margin-top: 40px;">&copy; 2025 CuraDocs. All rights reserved.</p>
