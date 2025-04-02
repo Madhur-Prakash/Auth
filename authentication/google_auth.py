@@ -162,6 +162,9 @@ async def doctor_phone_number_signup(data:models.google_login, request: Request,
         phone_number = form_data.get("phone_number")
         country_code = form_data.get("country_code")
 
+        if not phone_number:
+            raise HTTPException(status_code=400, detail="Phone number is required.")
+
         # retrieve  email and name from session
         email = request.session.get("email")
         name = request.session.get("name")
@@ -248,6 +251,9 @@ async def doctor_phone_number_login(data: models.google_login, request: Request,
         form_data = dict(data)
         phone_number = form_data.get("phone_number")
         country_code = form_data.get("country_code")
+
+        if not phone_number:
+            raise HTTPException(status_code=400, detail="Phone number is required.")
 
         email = request.session.get("email")
         name = request.session.get("name")
@@ -504,6 +510,9 @@ async def patient_phone_number_signup(data:models.google_login, request: Request
         phone_number = form_data.get("phone_number")
         country_code = form_data.get("country_code")
 
+        if not phone_number:
+            raise HTTPException(status_code=400, detail="Phone number is required.")
+
         # retrieve  email and name from session
         email = request.session.get("email")
         name = request.session.get("name")
@@ -590,6 +599,9 @@ async def patient_phone_number_login(data: models.google_login, request: Request
         form_data = dict(data)
         phone_number = form_data.get("phone_number")
         country_code = form_data.get("country_code")
+
+        if not phone_number:
+            raise HTTPException(status_code=400, detail="Phone number is required.")
 
         email = request.session.get("email")
         name = request.session.get("name")
