@@ -1,5 +1,7 @@
 import boto3
 from twilio.rest import Client
+from fastapi import status
+from fastapi.exceptions import HTTPException
 import random,os
 # from .celery_app import celery
 from .redis import client as redis_client
@@ -32,12 +34,12 @@ sns_client = boto3.client(
 async def generate_otp(email: str):
     otp = random.randint(100000, 999999)
     otp_str = str(otp)
-    await redis_client.hset(f"{email}", mapping={
+    await redis_client.hset(f"otp:{email}", mapping={
         "otp": otp_str,
         "email": email
     })
-    await redis_client.expire(f"{email}", 600)  # Expire in 5 minutes
-    return otp
+    await redis_client.expire(f"otp:{email}", 600)  # Expire in 5 minutes
+    return otp_str
 
 # Initialize Twilio Client
 client = Client(ACCOUNT_SID, AUTH_TOKEN)
@@ -52,14 +54,17 @@ async def send_otp(phone_number: str):
             to=phone_number  # Must be a verified number in trial mode
         )
 
-        print(f"OTP Sent Successfully! Message SID: {message.sid}")
+        if message:
+            print(f"OTP Sent Successfully! Message SID: {message.sid}")
 
-        store_opt =  await redis_client.hset(f"{phone_number}", mapping={
-            "otp": otp_sent,
-            "phone_number": phone_number
-        })
-        await redis_client.expire(f"{phone_number}", 600)  # Expire in 5 minutes
-        return otp_sent
+            store_opt =  await redis_client.hset(f"otp:{phone_number}", mapping={
+                "otp": otp_sent,
+                "phone_number": phone_number
+            })
+            await redis_client.expire(f"otp:{phone_number}", 600)  # Expire in 5 minutes
+            return otp_sent
+        print("Error sending OTP")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
     except Exception as e:
         logging.error(f"Error sending OTP: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
@@ -80,19 +85,20 @@ async def send_otp_sns_during_login(phone_number: str):
             'AWS.SNS.SMS.SMSType': {'DataType': 'String', 'StringValue': 'Transactional'}
         }
         )
-        print(f"OTP Sent Successfully! Message ID: {response['MessageId']}")
-        store_opt =  await redis_client.hset(f"{phone_number}", mapping={
-                "otp": otp_sent,
-                "phone_number": phone_number
-        })
-        await redis_client.expire(f"{phone_number}", 600)  # Expire in 5 minutes
-        return otp_sent
+        if response:
+            print(f"OTP Sent Successfully! Message ID: {response['MessageId']}")
+            store_opt =  await redis_client.hset(f"otp:{phone_number}", mapping={
+                    "otp": otp_sent,
+                    "phone_number": phone_number
+            })
+            await redis_client.expire(f"otp:{phone_number}", 600)  # Expire in 5 minutes
+            return otp_sent
+        print("Error sending OTP")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
     except Exception as e:
         logging.error(f"Error sending OTP: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         print(f"Error sending OTP: {str(e)}")
-
-
 
 async def send_otp_sns_during_signup(phone_number: str):
     try:
@@ -108,27 +114,19 @@ async def send_otp_sns_during_signup(phone_number: str):
         #     'AWS.SNS.SMS.SMSType': {'DataType': 'String', 'StringValue': 'Transactional'}
         # }
         )
-        print(f"OTP Sent Successfully! Message ID: {response['MessageId']}")
-        store_opt =  await redis_client.hset(f"{phone_number}", mapping={
-                "otp": otp_sent,
-                "phone_number": phone_number
-        })
-        await redis_client.expire(f"{phone_number}", 600)  # Expire in 5 minutes
-        return otp_sent
+        if response:
+            print(f"OTP Sent Successfully! Message ID: {response['MessageId']}")
+            store_opt =  await redis_client.hset(f"otp:{phone_number}", mapping={
+                    "otp": otp_sent,
+                    "phone_number": phone_number
+            })
+            await redis_client.expire(f"otp:{phone_number}", 600)  # Expire in 5 minutes
+            return otp_sent
+        print("Error sending OTP")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
     except Exception as e:
         logging.error(f"Error sending OTP: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         print(f"Error sending OTP: {str(e)}")
 
-
-
-
-# Store OTP and phone number in MongoDB
-async def store_otp_in_mongo(email: str, phone_number: str, otp: int):
-    document = {
-        "email": email,
-        "phone_number": phone_number,
-        "otp": otp
-    }
-    await mongo_client.your_database.your_collection.insert_one(document)
 

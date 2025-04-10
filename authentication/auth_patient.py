@@ -23,42 +23,48 @@ logger = setup_logging() # initialize logger
 
 # implemeting cahing using redis
 async def cache(data: str, plain_password):
+    CachedData = await client.hgetall(f'patient:auth:{data}')
+    if CachedData:
+        hashed_password = await Hash.verify(CachedData["password"], plain_password)
+        if hashed_password:
+            print("Data is cached") # debug
+            print(CachedData) # debug
+            logger.info(f"cache hit and credential verified for {data}")
+            return data
+            
+    # user was not cached, searching in db
     user = await mongo_client.auth.patient.find_one({"$or": [{
         "email": data}, 
         {"phone_number": data}]})
-    CachedData = await client.get(f'patient:{data}')
-    if CachedData and user:
-            hashed_password = await Hash.verify(user["password"], plain_password)
-            if hashed_password:
-                print("Data is cached") # debug
-                print(CachedData) # debug
-                return user
-            logger.warning(f"login attempt with invalid credentials: {data} and {plain_password}")
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    elif user:
+    if user:
         hashed_password = await Hash.verify(user["password"], plain_password)
         if hashed_password:
             print("searching inside db") # debug
-            await client.set(f"patient:{data}",data, ex=30) # expire in 30 seconds
+            await client.hset(f"patient:auth:{data}",mapping={
+                "data":data,
+                "password":user['password']
+            }) 
+            await client.expire(f"patient:auth:{data}", 432000) # expire in 5 days
+            logger.info(f"searched inside db and credential verified for:{data} ")
             return user
     return None
 
 async def cache_without_password(data: str):
+    CachedData = await client.get(f'patient:auth:2_factor_login:{data}')
+    if CachedData:
+        print("Data is cached") # debug
+        print(CachedData) # debug
+        logger.info(f"cache hit for {data}")
+        return CachedData
+  
     user = await mongo_client.auth.patient.find_one({"$or": [{
         "email": data}, 
         {"phone_number": data}]})
-    CachedData = await client.get(f'patient:{data}')
-    if CachedData:
-        if user:
-            print("Data is cached") # debug
-            print(CachedData) # debug
-            return user
-        logger.warning(f"login attempt with invalid credentials: {data}")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    elif user:
-            print("searching inside db") # debug
-            await client.set(f"patient:{data}",data, ex=30) # expire in 30 seconds
-            return user
+    if user:
+        print("searching inside db") # debug
+        await client.set(f"patient:auth:2_factor_login:{data}",data, ex=432000) # expire in 5 days
+        return user
+    logger.warning(f"login attempt with invalid credentials: {data}")
     return None
 
 # @auth_patient.get("/", response_class=HTMLResponse)
@@ -146,11 +152,13 @@ async def signup(data: models.patient, response: Response, request: Request):
                                                             "session_id":encrypyted_session_id})
         await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
-        await mongo_client.auth.patient.insert_one(dict_data)  # Insert into MongoDB
-        logger.info(f"Account for patient created successfully: {dict_data['email']}")
         # Generate a cache during signup with email as key
         cache_key = dict_data["email"]
-        cached_data = await client.set(f"patient:{cache_key}",cache_key,ex=3600) 
+        await client.hset(f"patient:new_account:{cache_key}", mapping=dict_data)
+
+        # await mongo_client.auth.patient.insert_one(dict_data)  # Insert into MongoDB  --> #  this will be done when user verifies himself
+        logger.info(f"Account for patient created successfully: {dict_data['email']}")
+        
         access_token = auth_token.create_access_token(data={"sub": dict_data['email']})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
@@ -193,7 +201,7 @@ async def signup(data: models.patient, response: Response, request: Request):
         #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
         
         # return {"message":f"OTP sent successfully on {form_data['phone_number'][:6]+'x'*6+dict_data['phone_number'][13:]} and {dict_data['email']}"} # Return success message
-        return {"message":f"Account for patient created successfully: {dict_data['email']}"}
+        return {"message":f"Account for patient created successfully: {dict_data['email']}", "status_code":status.HTTP_201_CREATED}
 
 
     except Exception as e:
@@ -397,7 +405,7 @@ async def verify_otp(data: models.otp_email, response: Response, request: Reques
         print(otp_entered) # debug
         if not otp_entered or len(otp_entered) != 6:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
-        otp_stored = await client.hgetall(email)
+        otp_stored = await client.hgetall(f"otp:{email}")
         print(otp_stored) # debug
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
@@ -451,7 +459,7 @@ async def verify(data: models.otp_phone, response: Response, request: Request):
         print(otp_entered)
         if not otp_entered or len(otp_entered) != 6:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
-        otp_stored = await client.hgetall(phone_number)
+        otp_stored = await client.hgetall(f"otp:{phone_number}")
         print(otp_stored)
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
