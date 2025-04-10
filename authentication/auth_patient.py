@@ -155,6 +155,7 @@ async def signup(data: models.patient, response: Response, request: Request):
         # Generate a cache during signup with email as key
         cache_key = dict_data["email"]
         await client.hset(f"patient:new_account:{cache_key}", mapping=dict_data)
+        await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days 
 
         # await mongo_client.auth.patient.insert_one(dict_data)  # Insert into MongoDB  --> #  this will be done when user verifies himself
         logger.info(f"Account for patient created successfully: {dict_data['email']}")
