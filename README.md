@@ -88,7 +88,7 @@ Auth/
 │   ├── schemas.py         # Request and response schemas
 │   ├── token.py           # creating the jwt token 
 ├── gitignore              # gitignore file for github
-├── app.py                 # main faastapi app
+├── app.py                 # main fastapi app
 └── README.md              # Project documentation
 ```
 
