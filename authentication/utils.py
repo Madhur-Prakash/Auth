@@ -3,19 +3,16 @@ import string
 from fastapi import Request, status
 from fastapi.responses import Response
 import logging
+from .redis import client
+import requests
 import uuid
 from fastapi.exceptions import HTTPException
 from .hashing import Hash 
 import os
 import pycountry, phonenumbers
 from phonenumbers.phonenumberutil import region_code_for_number
-import aioredis
 from concurrent_log_handler import ConcurrentRotatingFileHandler
 
-# redis connection
-# client = aioredis.from_url('redis://default@13.217.2.25:6379', decode_responses=True) #in production
-
-client =  aioredis.from_url('redis://localhost', decode_responses=True) # in local testing
 
 def setup_logging():
     logger = logging.getLogger("auth_log") # create logger
@@ -89,3 +86,14 @@ def generate_fingerprint_hash(request: Request):
     raw_fingerprint = f"{num}:{user_agaent}"
     fingreprint_hash = Hash.bcrypt(raw_fingerprint)
     return str(fingreprint_hash)
+
+def create_new_log(log_type: str, message: str, head: str):
+    url ="http://127.0.0.1:8005/backend/create_new_logs"
+    log = {
+         "log_type": log_type,
+         "message": message}
+    headers = {
+        "X-Source-Endpoint": head}
+            
+    resp = requests.post(url, json=log, headers=headers)
+    return resp

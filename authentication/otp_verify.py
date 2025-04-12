@@ -8,6 +8,8 @@ from .redis import client as redis_client
 import traceback
 from .utils import setup_logging
 from .database import mongo_client
+
+
 # Twilio Credentials (Get these from Twilio Console)
 ACCOUNT_SID = 'AC9ebccb08930b46be576f7b6c3aff3041'
 AUTH_TOKEN = '241333cb6cb2b9e0aaa80cdb252576f3'

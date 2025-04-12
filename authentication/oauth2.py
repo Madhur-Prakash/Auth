@@ -4,7 +4,7 @@ import traceback
 from itsdangerous import URLSafeTimedSerializer
 from fastapi.security import OAuth2PasswordBearer 
 from typing import Optional
-from .utils import setup_logging  # Import setup_logging from utils
+from .utils import setup_logging, create_new_log  # Import setup_logging from utils
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/patient/mpm/logout")
 logger = setup_logging() # initialize logger
@@ -50,6 +50,7 @@ def decode_verification_token(token: str):
         token_data = serializer.loads(token, max_age=600)
         return token_data
     except Exception as e:
+        create_new_log("error", "Error validating user", "/api/backend/Auth")
         logger.exception("Error validating user")
         print(f"Error validating user {str(e)}")
         print(f"Error: {traceback.format_exc()}")

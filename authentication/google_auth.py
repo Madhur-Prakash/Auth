@@ -14,7 +14,7 @@ from . import models, auth_token
 from fastapi.templating import Jinja2Templates
 from .database import mongo_client
 from dotenv import load_dotenv
-from .utils import setup_logging, generate_random_string, get_country_name
+from .utils import setup_logging, create_new_log, generate_random_string, get_country_name
 
 google_auth = APIRouter(tags=["Google Authentication"])
 # google_auth.mount("/authentication/static", StaticFiles(directory="static"), name="static")
@@ -120,7 +120,9 @@ async def doctor_google_signup_callback(request: Request, response: Response):
         country_name = get_country_name(updated_phone_number)
         country_name = country_name.lower()
         user_data["country_name"] = country_name
-        await mongo_client.auth.doctor.insert_one(user_data)
+        # await mongo_client.auth.doctor.insert_one(user_data) -> now data goes in cache
+        await client.hset(f"doctor:new_account:{cache_key}", mapping=user_data)
+        await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
 
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
@@ -147,10 +149,12 @@ async def doctor_google_signup_callback(request: Request, response: Response):
         access_token = create_access_token(data={"sub": cache_key})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
+        create_new_log("info", f"Account for doctor created successfully: {user_data['email']}", "/api/backend/Auth")
         logger.info(f"Account for doctor created successfully: {user_data['email']}")
         return {"message":f"Account for doctor created successfully: {user_data['email']}"}
 
     except OAuthError as e:
+        create_new_log("error", f"OAuth Error: {str(e)}", "/api/backend/Auth")
         logger.exception(f"OAuth Error: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(status_code=400, detail="Authentication failed")
@@ -194,7 +198,9 @@ async def doctor_phone_number_signup(data:models.google_login, request: Request,
         country_name = get_country_name(updated_phone_number)
         country_name = country_name.lower()
         user_data["country_name"] = country_name
-        await mongo_client.auth.doctor.insert_one(user_data)
+        # await mongo_client.auth.doctor.insert_one(user_data) -> now data goes in cache
+        await client.hset(f"doctor:new_account:{cache_key}", mapping=user_data)
+        await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
 
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
@@ -221,11 +227,14 @@ async def doctor_phone_number_signup(data:models.google_login, request: Request,
         access_token = create_access_token(data={"sub": cache_key})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
+        create_new_log("info", f"Account for doctor created successfully: {user_data['email']}", "/api/backend/Auth")
         logger.info(f"Account for doctor created successfully: {user_data['email']}")
         return {"message":f"Account for doctor created successfully: {user_data['email']}"}
     
     except Exception as e:
         print(f"Error: {traceback.format_exc()}")
+        create_new_log("error", f"Signup attempt failed: {str(e)}", "/api/backend/Auth")
+        logger.error(f"Signup attempt failed: {str(e)}")
         print(f"Error: {str(e)}")
         raise HTTPException(status_code=400, detail="Internal server error")
 
@@ -274,7 +283,9 @@ async def doctor_phone_number_login(data: models.google_login, request: Request,
         country_name = get_country_name(updated_phone_number)
         country_name = country_name.lower()
         new_user["country_name"] = country_name
-        await mongo_client.auth.doctor.insert_one(new_user)
+        # await mongo_client.auth.doctor.insert_one(new_user) -> now data goes in cache
+        await client.hset(f"doctor:new_account:{cache_key}", mapping=new_user)
+        await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
         
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
@@ -301,11 +312,14 @@ async def doctor_phone_number_login(data: models.google_login, request: Request,
         access_token = create_access_token(data={"sub": cache_key})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
+        create_new_log("info", f"Account for doctor created successfully: {new_user['email']}", "/api/backend/Auth")
         logger.info(f"Account for doctor created successfully: {new_user['email']}")
         return {"message":f"Account for doctor created successfully: {new_user['email']}"}
 
     except Exception as e:
         print(traceback.format_exc())
+        create_new_log("error", f"Login attempt failed: {str(e)}", "/api/backend/Auth")
+        logger.error(f"Login attempt failed: {str(e)}")
         raise HTTPException(status_code=400, detail="Internal server error")
 
 
@@ -348,6 +362,7 @@ async def doctor_google_login_callback(request: Request, response: Response):
                                                                 "session_id":encrypyted_session_id})
             await client.expire(f"doctor:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
+            create_new_log("info", f"Doctor login successful: {existing_email['email']}", "/api/backend/Auth")
             logger.info(f"Doctor login successful: {existing_email['email']}")
             return {"message": f"Doctor login successful: {existing_email['email']}"}
         
@@ -369,7 +384,11 @@ async def doctor_google_login_callback(request: Request, response: Response):
                 "created_at" : datetime.now().isoformat(),
                 "verification_status": "false"
             }
-            await mongo_client.auth.doctor.insert_one(user_doc)
+            # await mongo_client.auth.doctor.insert_one(user_doc) -> now data goes in cache
+            await client.hset(f"doctor:new_account:{cache_key}", mapping=user_doc)
+            await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+            
+            create_new_log("info", f"Auto-registered doctor during login: {user_doc['email']}", "/api/backend/Auth")
             logger.info(f"Auto-registered doctor during login: {user_doc['email']}")
             # Proceed to login as usual below
             cache_key = user_doc["email"]
@@ -407,6 +426,7 @@ async def doctor_google_login_callback(request: Request, response: Response):
             return RedirectResponse(url="/doctor/phone_number_login")
     
     except OAuthError as e:
+        create_new_log("error", f"OAuth Error: {str(e)}", "/api/backend/Auth")
         logger.exception(f"OAuth Error: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(status_code=400, detail="Authentication failed")
@@ -468,7 +488,9 @@ async def patient_google_signup_callback(request: Request, response: Response):
         country_name = get_country_name(updated_phone_number)
         country_name = country_name.lower()
         user_data["country_name"] = country_name
-        await mongo_client.auth.patient.insert_one(user_data)
+        # await mongo_client.auth.patient.insert_one(user_data) -> now data goes in cache
+        await client.hset(f"patient:new_account:{cache_key}", mapping=user_data)
+        await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days  
 
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
@@ -495,10 +517,12 @@ async def patient_google_signup_callback(request: Request, response: Response):
         access_token = create_access_token(data={"sub": cache_key})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
+        create_new_log("info", f"Account for patient created successfully: {user_data['email']}", "/api/backend/Auth")
         logger.info(f"Account for patient created successfully: {user_data['email']}")
         return {"message":f"Account for patient created successfully: {user_data['email']}"}
 
     except OAuthError as e:
+        create_new_log("error", f"OAuth Error: {str(e)}", "/api/backend/Auth")
         logger.exception(f"OAuth Error: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(status_code=400, detail="Authentication failed")
@@ -542,7 +566,9 @@ async def patient_phone_number_signup(data:models.google_login, request: Request
         country_name = get_country_name(updated_phone_number)
         country_name = country_name.lower()
         user_data["country_name"] = country_name
-        await mongo_client.auth.patient.insert_one(user_data)
+        # await mongo_client.auth.patient.insert_one(user_data) now data goes in cache
+        await client.hset(f"patient:new_account:{cache_key}", mapping=user_data)
+        await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days 
 
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
@@ -569,12 +595,15 @@ async def patient_phone_number_signup(data:models.google_login, request: Request
         access_token = create_access_token(data={"sub": cache_key})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
+        create_new_log("info", f"Account for patient created successfully: {user_data['email']}", "/api/backend/Auth")
         logger.info(f"Account for patient created successfully: {user_data['email']}")
         return {"message":f"Account for patient created successfully: {user_data['email']}"}
     
     except Exception as e:
         print(f"Error: {traceback.format_exc()}")
         print(f"Error: {str(e)}")
+        create_new_log("error", f"Signup attempt failed: {str(e)}", "/api/backend/Auth")
+        logger.error(f"Signup attempt failed: {str(e)}")
         raise HTTPException(status_code=400, detail="Internal server error")
 
 # Phone Number Entry Page (GET)
@@ -622,7 +651,9 @@ async def patient_phone_number_login(data: models.google_login, request: Request
         country_name = get_country_name(updated_phone_number)
         country_name = country_name.lower()
         new_user["country_name"] = country_name
-        await mongo_client.auth.patient.insert_one(new_user)
+        # await mongo_client.auth.patient.insert_one(new_user) -> now data goes in cache
+        await client.hset(f"patient:new_account:{cache_key}", mapping=new_user)
+        await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days 
         
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
@@ -649,11 +680,14 @@ async def patient_phone_number_login(data: models.google_login, request: Request
         access_token = create_access_token(data={"sub": cache_key})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
+        create_new_log("info", f"Account for patient created successfully: {new_user['email']}", "/api/backend/Auth")
         logger.info(f"Account for patient created successfully: {new_user['email']}")
         return {"message":f"Account for patient created successfully: {new_user['email']}"}
 
     except Exception as e:
         print(traceback.format_exc())
+        create_new_log("error", f"Login attempt failed: {str(e)}", "/api/backend/Auth")
+        logger.error(f"Login attempt failed: {str(e)}")
         raise HTTPException(status_code=400, detail="Internal server error")
 
 
@@ -695,7 +729,8 @@ async def patient_google_login_callback(request: Request, response: Response):
                                                                 "data":user_data['email'],
                                                                 "session_id":encrypyted_session_id})
             await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
-
+            
+            create_new_log("info", f"Patient login successful: {existing_email['email']}", "/api/backend/Auth")
             logger.info(f"patient login successful: {existing_email['email']}")
             return {"message": f"patient login successful: {existing_email['email']}"}
         
@@ -717,7 +752,11 @@ async def patient_google_login_callback(request: Request, response: Response):
                 "created_at" : datetime.now().isoformat(),
                 "verification_status": "false"
             }
-            await mongo_client.auth.patient.insert_one(user_doc)
+            # await mongo_client.auth.patient.insert_one(user_doc) -> now data goes in cache
+            await client.hset(f"patient:new_account:{cache_key}", mapping=user_doc)
+            await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days 
+
+            create_new_log("info", f"Auto-registered patient during login: {user_doc['email']}", "/api/backend/Auth")
             logger.info(f"Auto-registered patient during login: {user_doc['email']}")
             # Proceed to login as usual below
             cache_key = user_doc["email"]
@@ -755,6 +794,7 @@ async def patient_google_login_callback(request: Request, response: Response):
             return RedirectResponse(url="/patient/phone_number_login")
     
     except OAuthError as e:
+        create_new_log("error", f"OAuth Error: {str(e)}", "/api/backend/Auth")
         logger.exception(f"OAuth Error: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(status_code=400, detail="Authentication failed")

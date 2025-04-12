@@ -9,7 +9,7 @@ from .redis import client
 import os
 from .rate_limiting import limiter
 from .oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token, serializer
-from .utils import create_session_id, generate_fingerprint_hash, get_country_name, setup_logging, generate_random_string  # Import setup_logging from utils
+from .utils import create_session_id, create_new_log, setup_logging, generate_fingerprint_hash, get_country_name, generate_random_string  # Import setup_logging from utils
 from .hashing import Hash
 from datetime import datetime
 from .send_mail import send_email_ses, send_email
@@ -29,7 +29,8 @@ async def cache(data: str, plain_password):
         if hashed_password:
             print("Data is cached") # debug
             print(CachedData) # debug
-            logger.info(f"cache hit and credential verified for {data}")
+            create_new_log("info", f"cache hit and credential verified for {data}", "/api/backend/Auth")
+            logger.info(f"cache hit and credential verified for {data}") # log the cache hit
             return data
             
     # user was not cached, searching in db
@@ -45,7 +46,8 @@ async def cache(data: str, plain_password):
                 "password":user['password']
             }) 
             await client.expire(f"doctor:auth:{data}", 432000) # expire in 5 days
-            logger.info(f"searched inside db and credential verified for:{data} ")
+            create_new_log("info", f"searched inside db and credential verified for:{data}", "/api/backend/Auth")
+            logger.info(f"searched inside db and credential verified for:{data}") # log the cache hit
             return user
     return None
 
@@ -54,7 +56,8 @@ async def cache_without_password(data: str):
     if CachedData:
         print("Data is cached") # debug
         print(CachedData) # debug
-        logger.info(f"cache hit for {data}")
+        create_new_log("info", f"cache hit for {data}", "/api/backend/Auth")
+        logger.info(f"cache hit for {data}") # log the cache hit
         return CachedData
   
     user = await mongo_client.auth.doctor.find_one({"$or": [{
@@ -64,7 +67,8 @@ async def cache_without_password(data: str):
         print("searching inside db") # debug
         await client.set(f"doctor:auth:2_factor_login:{data}",data, ex=432000) # expire in 5 days
         return user
-    logger.warning(f"login attempt with invalid credentials: {data}")
+    create_new_log("warning", f"login attempt with invalid credentials: {data}", "/api/backend/Auth")
+    logger.warning(f"login attempt with invalid credentials: {data}") # log the cache hit
     return None
 
 # @auth_doctor.get("/", response_class=HTMLResponse)
@@ -108,11 +112,13 @@ async def signup(data: models.doctor, response: Response, request: Request):
         
         # data validation
         if email:
-            logger.warning(f"Signup attempt with existing email: {dict_data['email']}")
+            create_new_log("warning", f"Signup attempt with existing email: {dict_data['email']}", "/api/backend/Auth")
+            logger.warning(f"Signup attempt with existing email: {dict_data['email']}") 
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
         if(form_data["phone_number"].__len__() < 10 or form_data["phone_number"].__len__() > 10):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be 10 digits long")
         if phone_number:
+            create_new_log("warning",f"Signup attempt with existing phone number: {dict_data['phone_number']}", "/api/backend/Auth")
             logger.warning(f"Signup attempt with existing phone number: {dict_data['phone_number']}")
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
         
@@ -158,7 +164,8 @@ async def signup(data: models.doctor, response: Response, request: Request):
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
 
         # await mongo_client.auth.doctor.insert_one(dict_data)  # Insert into MongoDB  --> #  this will be done when user verifies himself
-        logger.info(f"Account for doctor created successfully: {dict_data['email']}")
+        create_new_log("info", f"Account for doctor created successfully: {dict_data['email']}", "/api/backend/Auth")
+        logger.info(f"Account for doctor created successfully: {dict_data['email']}") # log the cache hit
         
         access_token = auth_token.create_access_token(data={"sub": dict_data['email']})
         response.delete_cookie("access_token")  # Remove old token
@@ -207,7 +214,8 @@ async def signup(data: models.doctor, response: Response, request: Request):
 
     except Exception as e:
         print(f"Error creating new user: {str(e)}")
-        logger.exception(f"Error creating new user: {str(e)}")
+        create_new_log("error", f"Error creating new user: {str(e)}", "/api/backend/Auth")
+        logger.error(f"Error creating new user: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***********************************************************************************************************************************************
@@ -282,7 +290,8 @@ async def signup(data: models.doctor, response: Response, request: Request):
 #             # response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
 #             # print(f"{email} signed up succesfully as doctor")  # Return success message
 #             print("otp sent successfuly")
-#             logger.info(f"otp sent successfuly on {email}")
+#             create_new_log("info", f"otp sent successfuly on {email}", "/api/backend/Auth")
+#             logger.info(f"otp sent successfuly on {email}") # log the cache hit
 #             return ({"message":f"otp sent successfuly on {email}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
 #         elif phone_number:
 #             phone_number = country_code + phone_number # adding country code
@@ -294,12 +303,14 @@ async def signup(data: models.doctor, response: Response, request: Request):
 
 #             encrypted_otp = Hash.bcrypt(otp)
 #             print("otp sent successfuly")
-#             logger.info(f"otp sent successfuly on {phone_number}")
+#             create_new_log("info", f"otp sent successfuly on {phone_number}", "/api/backend/Auth")
+#             logger.info(f"otp sent successfuly on {phone_number}") # log the cache hit
 #             return ({"message":f"otp sent successfuly on {phone_number}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
         
 #     except Exception as e:
 #         print(f"Error verifying OTP: {str(e)}")
-#         logger.exception(f"Error verifying OTP: {str(e)}")
+#         create_new_log("error", f"Error verifying OTP: {str(e)}", "/api/backend/Auth")
+#         logger.error(f"Error verifying OTP: {str(e)}") # log the cache hit
 #         print(f"Error: {traceback.format_exc()}")
 #         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
@@ -360,12 +371,14 @@ async def login(data: models.login_otp):
                     email_sent = (send_email(form_data["email"], "Login to CuraDocs using the provided otp", html_body, retries=3, delay=5))
                     if not email_sent:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
-                    logger.info(f"otp sent successfuly on {email_provided}")
+                    create_new_log("info", f"otp sent successfuly on {email_provided}", "/api/backend/Auth")
+                    logger.info(f"otp sent successfuly on {email_provided}") # log the cache hit
                     return {"message": f"OTP sent successfully on {email_provided}", "status":status.HTTP_200_OK}
 
                     
                 print("cache data returned none") # debug
-                logger.warning(f"login attempt with invalid credentials: {form_data['email']}")
+                create_new_log("warning", f"login attempt with invalid credentials: {form_data['email']}", "/api/backend/Auth")
+                logger.warning(f"login attempt with invalid credentials: {form_data['email']}") # log the cache hit
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
             # login using phone_number and password
@@ -380,16 +393,19 @@ async def login(data: models.login_otp):
                     res = await send_otp(phone_number_provided)
                     if not res:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
-                    logger.info(f"otp sent successfuly on {phone_number_provided}")
+                    create_new_log("info", f"otp sent successfuly on {phone_number_provided}", "/api/backend/Auth")
+                    logger.info(f"otp sent successfuly on {phone_number_provided}") # log the cache hit
                     return {"message": f"OTP sent successfully on {phone_number_provided[3:106]+'x'*6+phone_number_provided[13:]}", "status":status.HTTP_200_OK} # masking the phone number for security
 
                 print("cache data returned none") # debug
-                logger.warning(f"login attempt with invalid credentials: {form_data['phone_number']}")
+                create_new_log("warning", f"login attempt with invalid credentials: {form_data['phone_number']}", "/api/backend/Auth")
+                logger.warning(f"login attempt with invalid credentials: {form_data['phone_number']}") # log the cache hit
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
                 
     except Exception as e:
         print(f"login attempt failed: {str(e)}")
-        logger.exception(f"login attempt failed: {str(e)}")
+        create_new_log("error", f"login attempt failed: {str(e)}", "/api/backend/Auth")
+        logger.error(f"login attempt failed: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***************************************************************************************************************************************************************
@@ -438,12 +454,14 @@ async def verify_otp(data: models.otp_email, response: Response, request: Reques
         await client.expire(f"doctor:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         print(f"{email} logged in succesfully")  # Return success message
-        logger.info(f"{email} logged in successfully")
+        create_new_log("info", f"{email} logged in successfully", "/api/backend/Auth")
+        logger.info(f"{email} logged in successfully") # log the cache hit
         return {"message":f"OTP verified successfully from {email}"}
                          
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
-        logger.exception(f"Error verifying OTP: {str(e)}")
+        create_new_log("error", f"Error verifying OTP: {str(e)}", "/api/backend/Auth")
+        logger.error(f"Error verifying OTP: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
@@ -493,12 +511,14 @@ async def verify(data: models.otp_phone, response: Response, request: Request):
         await client.expire(f"doctor:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         print(f"{phone_number} logged in succesfully")  # Return success message
-        logger.info(f"{phone_number} logged in successfully")
+        create_new_log("info", f"{phone_number} logged in successfully", "/api/backend/Auth")
+        logger.info(f"{phone_number} logged in successfully") # log the cache hit
         return {"message":f"OTP verified successfully from {phone_number}"}
 
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
-        logger.exception(f"Error verifying OTP: {str(e)}")
+        create_new_log("error", f"Error verifying OTP: {str(e)}", "/api/backend/Auth")
+        logger.error(f"Error verifying OTP: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -558,12 +578,16 @@ async def login(data: models.login, response: Response, request: Request):
                                                             "session_id":encrypyted_session_id})
                     await client.expire(f"doctor:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
-                    logger.info(f"{email_provided} logged in successfully")
+                    # log 
+                    create_new_log("info", f"{email_provided} logged in successfully", "/api/backend/Auth" )
+                    logger.info(f"{email_provided} logged in successfully") 
+                    
                     # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
                     return {"message":f"{email_provided} logged in succesfully", "status":status.HTTP_200_OK}  # Return success message
 
                 print("cache data returned none") # debug
-                logger.warning(f"login attempt with invalid Invalid credentials: {form_data['email']} ; {form_data['password']}")
+                create_new_log("warning", f"login attempt with invalid Invalid credentials: {form_data['email']} ; {form_data['password']}", "/api/backend/Auth")
+                logger.warning(f"login attempt with invalid Invalid credentials: {form_data['email']} ; {form_data['password']}") # log the cache hit
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
             # login using phone_number and password
@@ -599,17 +623,20 @@ async def login(data: models.login, response: Response, request: Request):
                                                             "session_id":encrypyted_session_id})
                     await client.expire(f"doctor:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
-                    logger.info(f"{phone_number_provided} logged in successfully")
+                    create_new_log("info", f"{phone_number_provided} logged in successfully", "/api/backend/Auth")
+                    logger.info(f"{phone_number_provided} logged in successfully") # log the cache hit
                     # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
                     return {"message":f"{phone_number_provided[:4]+'x'*6+phone_number_provided[11:]} logged in succesfully", "status":status.HTTP_200_OK}  # Return success message
 
                 print("cache data returned none") # debug
-                logger.warning(f"login attempt with invalid Invalid credentials: {form_data['phone_number']} ; {form_data['password']}")
+                create_new_log("warning", f"login attempt with invalid credentials: {form_data['phone_number']} ; {form_data['password']}", "/api/backend/Auth")
+                logger.warning(f"login attempt with invalid credentials: {form_data['phone_number']} ; {form_data['password']}") # log the cache hit
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
             
     except Exception as e:
         print(f"login attempt failed: {str(e)}")
-        logger.exception(f"login attempt failed: {str(e)}")
+        create_new_log("error", f"login attempt failed: {str(e)}", "/api/backend/Auth")
+        logger.error(f"login attempt failed: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***************************************************************************************************************************************************************
@@ -684,13 +711,15 @@ async def refresh_token(request: Request, response: Response):
                                                             "device_fingerprint":encrypyted_device_fingerprint,
                                                             "session_id":encrypyted_session_id})
             await client.expire(f"doctor:refresh_token:{new_refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
-            logger.info(f"Refresh token verified for {device_fingerprint} -> device_fingerprint")
+            create_new_log("info", f"Refresh token verified for {device_fingerprint} -> device_fingerprint", "/api/backend/Auth")
+            logger.info(f"Refresh token verified for {device_fingerprint} -> device_fingerprint") # log the cache hit
             return({"status":status.HTTP_200_OK, "message":"Refresh token verified,doctor logged in"})
         
       
     except Exception as e:
         print(f"Error refreshing token: {str(e)}")
-        logger.exception(f"Error refreshing token: {str(e)}")
+        create_new_log("error", f"Error refreshing token: {str(e)}", "/api/backend/Auth")
+        logger.error(f"Error refreshing token: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
@@ -742,7 +771,8 @@ async def reset_password(data: models.email):
     
     except Exception as e:
         print(f"Error resetting password: {str(e)}")
-        logger.exception(f"Error resetting password: {str(e)}")
+        create_new_log("error", f"Error resetting password: {str(e)}", "/api/backend/Auth")
+        logger.error(f"Error resetting password: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
         
@@ -788,7 +818,8 @@ async def create_new_password(data: models.reset_password, token: str):
     
     except Exception as e:
         print(f"Error creating new password: {str(e)}")
-        logger.exception(f"Error creating new password: {str(e)}")
+        create_new_log("error", f"Error creating new password: {str(e)}", "/api/backend/Auth")
+        logger.error(f"Error creating new password: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -802,7 +833,8 @@ async def logout(data: models.email, response: Response, request: Request):
         await client.delete(f"doctor:refresh_token:{incoming_refresh_token[:106]}")
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
-    logger.info(f"{email} logged out successfully")
+    create_new_log("info", f"{email} logged out successfully", "/api/backend/Auth")
+    logger.info(f"{email} logged out successfully") # log the cache hit
     print(f"{email} logged out successfully") # debug
     return {"message":f"{email} logged out successfully", "status":status.HTTP_200_OK}  # Return success message
 
@@ -851,13 +883,15 @@ async def logout(data: models.email, response: Response, request: Request):
         # response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
         # print(f"{phone_number} signed up succesfully as doctor")  # Return success message
     #     print(f"otp verified successfuly through {phone_number}")
-    #     logger.info(f"otp verified successfuly through {phone_number}")
+        # create_new_log("info", f"otp verified successfuly through {phone_number}", "/api/backend/Auth")
+    #     logger.info(f"otp verified successfuly through {phone_number}") # log the cache hit
     #     return(f"otp verified successfuly through {phone_number}")
        
         
     # except Exception as e:
     #     print(f"Error verifying OTP: {str(e)}")
-        # logger.exception(f"Error verifying OTP: {str(e)}")
+        # create_new_log("error", f"Error verifying OTP: {str(e)}", ""/api/backend/Auth"")
+    #     logger.error(f"Error verifying OTP: {str(e)}") # log the cache hit
     #     print(f"Error: {traceback.format_exc()}")
     #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -876,7 +910,8 @@ async def logout(data: models.email, response: Response, request: Request):
 #         temp_user.pop("_id")
 #         await mongo_client.auth.doctor.insert_one(temp_user) # adding to the main db
 #         await mongo_client.auth.temp.delete_many({"email": email}) # deleting from the temp db
-#         # logger.info(f"Account for doctor created successfully: {email}")
+        # create_new_log("info", f"Account for doctor created successfully: {email}", "/api/backend/Auth")
+#         logger.info(f"Account for doctor created successfully: {email}") # log the cache hit
 #         # Generate a cache during signup with email as key
 #         cache_key = email
 #         cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
@@ -888,5 +923,6 @@ async def logout(data: models.email, response: Response, request: Request):
     
 #     except Exception as e:
 #         print(f"Error verifying email: {str(e)}")
-#         logger.exception(f"Error verifying email: {str(e)}")
+        # create_new_log("error", f"Error verifying email: {str(e)}", "/api/backend/Auth")
+#         logger.error(f"Error verifying email: {str(e)}") # log the cache hit
 #         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
