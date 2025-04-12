@@ -88,7 +88,7 @@ def generate_fingerprint_hash(request: Request):
     return str(fingreprint_hash)
 
 def create_new_log(log_type: str, message: str, head: str):
-    url ="http://127.0.0.1:8005/backend/create_new_logs"
+    url ="http://127.0.0.1:8000/backend/create_new_logs"
     log = {
          "log_type": log_type,
          "message": message}

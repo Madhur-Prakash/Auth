@@ -214,7 +214,8 @@ async def signup(data: models.patient, response: Response, request: Request):
 
     except Exception as e:
         print(f"Error creating new user: {str(e)}")
-        create_new_log("error", f"Error creating new user: {str(e)}", "/api/backend/Auth")
+        formatted_error = traceback.format_exc()
+        create_new_log("error", f"Error creating new user: {formatted_error}", "/api/backend/Auth")
         logger.error(f"Error creating new user: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -309,9 +310,12 @@ async def verify_otp_signup(data: models.verify_otp_signup):
         
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
-        create_new_log("error", f"Error verifying OTP: {str(e)}", "/api/backend/Auth")
+        formatted_error = traceback.format_exc()
+        create_new_log("error", f"Error verifying OTP: {formatted_error}", "/api/backend/Auth")
         logger.error(f"Error verifying OTP: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
+        formatted_error = traceback.format_exc()
+        print(f"Formatted Error: {formatted_error}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 
@@ -404,7 +408,8 @@ async def login(data: models.login_otp):
                 
     except Exception as e:
         print(f"login attempt failed: {str(e)}")
-        create_new_log("error", f"login attempt failed: {str(e)}", "/api/backend/Auth")
+        formatted_error = traceback.format_exc()
+        create_new_log("error", f"login attempt failed: {formatted_error}", "/api/backend/Auth")
         logger.error(f"login attempt failed: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -460,7 +465,8 @@ async def verify_otp(data: models.otp_email, response: Response, request: Reques
                          
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
-        create_new_log("error", f"Error verifying OTP: {str(e)}", "/api/backend/Auth")
+        formatted_error = traceback.format_exc()
+        create_new_log("error", f"Error verifying OTP: {formatted_error}", "/api/backend/Auth")
         logger.error(f"Error verifying OTP: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -517,7 +523,8 @@ async def verify(data: models.otp_phone, response: Response, request: Request):
 
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
-        create_new_log("error", f"Error verifying OTP: {str(e)}", "/api/backend/Auth")
+        formatted_error = traceback.format_exc()
+        create_new_log("error", f"Error verifying OTP: {formatted_error}", "/api/backend/Auth")
         logger.error(f"Error verifying OTP: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -635,9 +642,11 @@ async def login(data: models.login, response: Response, request: Request):
             
     except Exception as e:
         print(f"login attempt failed: {str(e)}")
-        create_new_log("error", f"login attempt failed: {str(e)}", "/api/backend/Auth")
+        formatted_error = traceback.format_exc()
+        create_new_log("error", f"login attempt failed: {formatted_error}", "/api/backend/Auth")
         logger.error(f"login attempt failed: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
+        print(f"Formatted Error: {formatted_error}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***************************************************************************************************************************************************************
    
@@ -718,7 +727,8 @@ async def refresh_token(request: Request, response: Response):
       
     except Exception as e:
         print(f"Error refreshing token: {str(e)}")
-        create_new_log("error", f"Error refreshing token: {str(e)}", "/api/backend/Auth")
+        formatted_error = traceback.format_exc()
+        create_new_log("error", f"Error refreshing token: {formatted_error}", "/api/backend/Auth")
         logger.error(f"Error refreshing token: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -767,13 +777,16 @@ async def reset_password(data: models.email):
         email_sent = (send_email(email, "Password Reset Request", html_body, retries=3, delay=5))
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+        create_new_log("info", f"Password reset link sent successfully to {email}", "/api/backend/Auth")
+        logger.info(f"Password reset link sent successfully to {email}") 
         return ({"message": "Password reset link sent successfully"}) # Return success message
     
     except Exception as e:
         print(f"Error resetting password: {str(e)}")
-        create_new_log("error", f"Error resetting password: {str(e)}", "/api/backend/Auth")
-        logger.error(f"Error resetting password: {str(e)}") # log the cache hit
-        print(f"Error: {traceback.format_exc()}")
+        formatted_error = traceback.format_exc()
+        create_new_log("error", f"Error sending reset password link: {formatted_error}", "/api/backend/Auth")
+        logger.error(f"Error sending reset password link: {str(e)}")
+        print(f"Error: {formatted_error}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
         
 
@@ -818,9 +831,10 @@ async def create_new_password(data: models.reset_password, token: str):
     
     except Exception as e:
         print(f"Error creating new password: {str(e)}")
-        create_new_log("error", f"Error creating new password: {str(e)}", "/api/backend/Auth")
+        formatted_error = traceback.format_exc()
+        create_new_log("error", f"Error creating new password: {formatted_error}", "/api/backend/Auth")
         logger.error(f"Error creating new password: {str(e)}") # log the cache hit
-        print(f"Error: {traceback.format_exc()}")
+        print(f"Error: {formatted_error}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
@@ -890,7 +904,8 @@ async def logout(data: models.email, response: Response, request: Request):
         
     # except Exception as e:
     #     print(f"Error verifying OTP: {str(e)}")
-        # create_new_log("error", f"Error verifying OTP: {str(e)}", ""/api/backend/Auth"")
+    #     formatted_error = traceback.format_exc()
+        # create_new_log("error", f"Error verifying OTP: {formatted_error}", ""/api/backend/Auth"")
     #     logger.error(f"Error verifying OTP: {str(e)}") # log the cache hit
     #     print(f"Error: {traceback.format_exc()}")
     #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -923,6 +938,7 @@ async def logout(data: models.email, response: Response, request: Request):
     
 #     except Exception as e:
 #         print(f"Error verifying email: {str(e)}")
-        # create_new_log("error", f"Error verifying email: {str(e)}", "/api/backend/Auth")
+#         formatted_error = traceback.format_exc()
+        # create_new_log("error", f"Error verifying email: {formatted_error}", "/api/backend/Auth")
 #         logger.error(f"Error verifying email: {str(e)}") # log the cache hit
 #         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
