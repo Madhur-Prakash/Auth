@@ -207,7 +207,7 @@ async def signup(data: models.doctor, response: Response, request: Request):
 
     except Exception as e:
         print(f"Error creating new user: {str(e)}")
-        logger.error(f"Error creating new user: {str(e)}")
+        logger.exception(f"Error creating new user: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***********************************************************************************************************************************************
@@ -299,7 +299,7 @@ async def signup(data: models.doctor, response: Response, request: Request):
         
 #     except Exception as e:
 #         print(f"Error verifying OTP: {str(e)}")
-#         logger.error(f"Error verifying OTP: {str(e)}")
+#         logger.exception(f"Error verifying OTP: {str(e)}")
 #         print(f"Error: {traceback.format_exc()}")
 #         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
@@ -389,7 +389,7 @@ async def login(data: models.login_otp):
                 
     except Exception as e:
         print(f"login attempt failed: {str(e)}")
-        logger.error(f"login attempt failed: {str(e)}")
+        logger.exception(f"login attempt failed: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***************************************************************************************************************************************************************
@@ -443,7 +443,7 @@ async def verify_otp(data: models.otp_email, response: Response, request: Reques
                          
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
-        logger.error(f"Error verifying OTP: {str(e)}")
+        logger.exception(f"Error verifying OTP: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
@@ -498,7 +498,7 @@ async def verify(data: models.otp_phone, response: Response, request: Request):
 
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
-        logger.error(f"Error verifying OTP: {str(e)}")
+        logger.exception(f"Error verifying OTP: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -609,7 +609,7 @@ async def login(data: models.login, response: Response, request: Request):
             
     except Exception as e:
         print(f"login attempt failed: {str(e)}")
-        logger.error(f"login attempt failed: {str(e)}")
+        logger.exception(f"login attempt failed: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***************************************************************************************************************************************************************
@@ -690,7 +690,7 @@ async def refresh_token(request: Request, response: Response):
       
     except Exception as e:
         print(f"Error refreshing token: {str(e)}")
-        logger.error(f"Error refreshing token: {str(e)}")
+        logger.exception(f"Error refreshing token: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
@@ -742,7 +742,7 @@ async def reset_password(data: models.email):
     
     except Exception as e:
         print(f"Error resetting password: {str(e)}")
-        logger.error(f"Error resetting password: {str(e)}")
+        logger.exception(f"Error resetting password: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
         
@@ -788,7 +788,7 @@ async def create_new_password(data: models.reset_password, token: str):
     
     except Exception as e:
         print(f"Error creating new password: {str(e)}")
-        logger.error(f"Error creating new password: {str(e)}")
+        logger.exception(f"Error creating new password: {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -857,7 +857,7 @@ async def logout(data: models.email, response: Response, request: Request):
         
     # except Exception as e:
     #     print(f"Error verifying OTP: {str(e)}")
-        # logger.error(f"Error verifying OTP: {str(e)}")
+        # logger.exception(f"Error verifying OTP: {str(e)}")
     #     print(f"Error: {traceback.format_exc()}")
     #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -888,5 +888,5 @@ async def logout(data: models.email, response: Response, request: Request):
     
 #     except Exception as e:
 #         print(f"Error verifying email: {str(e)}")
-#         logger.error(f"Error verifying email: {str(e)}")
+#         logger.exception(f"Error verifying email: {str(e)}")
 #         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

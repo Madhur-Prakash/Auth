@@ -39,7 +39,7 @@ def setup_logging():
         console_handler.setLevel(logging.INFO)
 
         # create a formatter
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s - %(pathname)s - %(module)s - %(lineno)d",
                                       datefmt="%Y-%m-%d %H:%M:%S")
         file_handler.setFormatter(formatter)
         console_handler.setFormatter(formatter)
