@@ -151,7 +151,7 @@ async def doctor_google_signup_callback(request: Request, response: Response):
         return {"message":f"Account for doctor created successfully: {user_data['email']}"}
 
     except OAuthError as e:
-        logger.error(f"OAuth Error: {str(e)}")
+        logger.exception(f"OAuth Error: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(status_code=400, detail="Authentication failed")
 
@@ -407,7 +407,7 @@ async def doctor_google_login_callback(request: Request, response: Response):
             return RedirectResponse(url="/doctor/phone_number_login")
     
     except OAuthError as e:
-        logger.error(f"OAuth Error: {str(e)}")
+        logger.exception(f"OAuth Error: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(status_code=400, detail="Authentication failed")
     
@@ -499,7 +499,7 @@ async def patient_google_signup_callback(request: Request, response: Response):
         return {"message":f"Account for patient created successfully: {user_data['email']}"}
 
     except OAuthError as e:
-        logger.error(f"OAuth Error: {str(e)}")
+        logger.exception(f"OAuth Error: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(status_code=400, detail="Authentication failed")
 
@@ -755,6 +755,6 @@ async def patient_google_login_callback(request: Request, response: Response):
             return RedirectResponse(url="/patient/phone_number_login")
     
     except OAuthError as e:
-        logger.error(f"OAuth Error: {str(e)}")
+        logger.exception(f"OAuth Error: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(status_code=400, detail="Authentication failed")

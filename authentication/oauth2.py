@@ -50,7 +50,7 @@ def decode_verification_token(token: str):
         token_data = serializer.loads(token, max_age=600)
         return token_data
     except Exception as e:
-        logger.error("Error validating user")
+        logger.exception("Error validating user")
         print(f"Error validating user {str(e)}")
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
