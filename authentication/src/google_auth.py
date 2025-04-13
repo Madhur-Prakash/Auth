@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Request, status, HTTPException, Depends, Response
 import traceback
 from datetime import datetime
-
 from ..models import models
 from ..config.database import mongo_client
 from ..helper.utils import create_session_id, create_new_log, generate_fingerprint_hash, get_country_name, generate_random_string, setup_logging
@@ -11,6 +10,7 @@ from authlib.integrations.starlette_client import OAuth, OAuthError
 from ..config.redis import client
 from ..helper.auth_token import create_access_token
 import os
+from ..otp_service.send_mail import send_email
 from ..helper.hashing import Hash
 from ..helper import auth_token
 from fastapi.templating import Jinja2Templates
@@ -144,6 +144,16 @@ async def doctor_google_signup_callback(request: Request, response: Response):
                                                             "session_id":encrypyted_session_id})
         await client.expire(f"doctor:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
+        html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+        # html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        with open(html_path,'r') as file:
+            html_body = file.read()
+        # send email verification link
+        email_sent = send_email(user_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        if not email_sent:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+
+
         # Generate a cache during signup with email as key
         cache_key = user_data["email"]
         cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
@@ -228,6 +238,16 @@ async def doctor_phone_number_signup(data:models.google_login, request: Request,
         access_token = create_access_token(data={"sub": cache_key})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
+
+        html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+        # html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        with open(html_path,'r') as file:
+            html_body = file.read()
+        # send email verification link
+        email_sent = send_email(user_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        if not email_sent:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+
         create_new_log("info", f"Account for doctor created successfully: {user_data['email']}", "/api/backend/Auth")
         logger.info(f"Account for doctor created successfully: {user_data['email']}")
         return {"message":f"Account for doctor created successfully: {user_data['email']}"}
@@ -313,6 +333,16 @@ async def doctor_phone_number_login(data: models.google_login, request: Request,
         access_token = create_access_token(data={"sub": cache_key})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
+
+        html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+        # html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        with open(html_path,'r') as file:
+            html_body = file.read()
+        # send email verification link
+        email_sent = send_email(new_user["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        if not email_sent:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+
         create_new_log("info", f"Account for doctor created successfully: {new_user['email']}", "/api/backend/Auth")
         logger.info(f"Account for doctor created successfully: {new_user['email']}")
         return {"message":f"Account for doctor created successfully: {new_user['email']}"}
@@ -389,6 +419,15 @@ async def doctor_google_login_callback(request: Request, response: Response):
             await client.hset(f"doctor:new_account:{cache_key}", mapping=user_doc)
             await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
             
+            html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+            # html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+            with open(html_path,'r') as file:
+                html_body = file.read()
+            # send email verification link
+            email_sent = send_email(user_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+            if not email_sent:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+
             create_new_log("info", f"Auto-registered doctor during login: {user_doc['email']}", "/api/backend/Auth")
             logger.info(f"Auto-registered doctor during login: {user_doc['email']}")
             # Proceed to login as usual below
@@ -512,6 +551,16 @@ async def patient_google_signup_callback(request: Request, response: Response):
                                                             "session_id":encrypyted_session_id})
         await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
+        html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+        # html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        with open(html_path,'r') as file:
+            html_body = file.read()
+        # send email verification link
+        email_sent = send_email(user_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        if not email_sent:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+
+
         # Generate a cache during signup with email as key
         cache_key = user_data["email"]
         cached_data = await client.set(f"patient:{cache_key}",cache_key,ex=3600) 
@@ -589,6 +638,15 @@ async def patient_phone_number_signup(data:models.google_login, request: Request
                                                             "data":user_data['email'],
                                                             "session_id":encrypyted_session_id})
         await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
+
+        html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+        # html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        with open(html_path,'r') as file:
+            html_body = file.read()
+        # send email verification link
+        email_sent = send_email(user_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        if not email_sent:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
         # Generate a cache during signup with email as key
         cache_key = user_data["email"]
@@ -675,6 +733,15 @@ async def patient_phone_number_login(data: models.google_login, request: Request
                                                             "session_id":encrypyted_session_id})
         await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
+        html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+        # html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        with open(html_path,'r') as file:
+            html_body = file.read()
+        # send email verification link
+        email_sent = send_email(new_user["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        if not email_sent:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
+
         # Generate a cache during signup with email as key
         cache_key = new_user["email"]
         cached_data = await client.set(f"patient:{cache_key}",cache_key,ex=3600) 
@@ -756,6 +823,15 @@ async def patient_google_login_callback(request: Request, response: Response):
             # await mongo_client.auth.patient.insert_one(user_doc) -> now data goes in cache
             await client.hset(f"patient:new_account:{cache_key}", mapping=user_doc)
             await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days 
+
+            html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+            # html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+            with open(html_path,'r') as file:
+                html_body = file.read()
+            # send email verification link
+            email_sent = send_email(user_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+            if not email_sent:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
             create_new_log("info", f"Auto-registered patient during login: {user_doc['email']}", "/api/backend/Auth")
             logger.info(f"Auto-registered patient during login: {user_doc['email']}")
