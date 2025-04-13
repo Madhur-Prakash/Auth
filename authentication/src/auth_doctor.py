@@ -830,6 +830,8 @@ async def create_new_password(data: models.reset_password, token: str):
         # Check if user was updated
         if result.modified_count == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        create_new_log("info", f"Password reset successfully for {email}", "/api/backend/Auth")
+        logger.info(f"Password reset successfully for {email}")
         return ({"message": "Password updated successfully"}) # Return success message
     
     except Exception as e:
