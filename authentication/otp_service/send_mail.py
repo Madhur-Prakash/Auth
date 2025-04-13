@@ -3,7 +3,7 @@ import base64
 import pickle
 import time
 import boto3
-# from .celery_app import celery
+# from ..config.celery_app import celery
 from email.mime.text import MIMEText
 import traceback
 from google.auth.transport.requests import Request
