@@ -1,19 +1,21 @@
 from fastapi import APIRouter, Request, status, HTTPException, Depends, BackgroundTasks
 import traceback, jwt
-from .otp_verify import send_otp, generate_otp, send_otp_sns_during_login, send_otp_sns_during_signup
-from .database import mongo_client
+
+from ..models import models
+from ..otp_service.otp_verify import send_otp, generate_otp, send_otp_sns_during_login, send_otp_sns_during_signup
+from ..config.database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
-from .redis import client
+from ..config.redis import client
 import os
-from .rate_limiting import limiter
-from .oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token, serializer
-from .utils import create_session_id, create_new_log, setup_logging, generate_fingerprint_hash, get_country_name, generate_random_string  # Import setup_logging from utils
-from .hashing import Hash
+from ..config.rate_limiting import limiter
+from ..helper.oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token
+from ..helper.hashing import Hash
+from ..helper.utils import create_session_id, create_new_log, generate_fingerprint_hash, get_country_name, generate_random_string, setup_logging
 from datetime import datetime
-from .send_mail import send_email_ses, send_email
-from . import auth_token, models, oauth2
+from ..otp_service.send_mail import send_email_ses, send_email
+from ..helper import oauth2, auth_token
 
 auth_patient = APIRouter(tags=["patient Authentication"]) # create a router for patient
 templates = Jinja2Templates(directory="authentication/templates")

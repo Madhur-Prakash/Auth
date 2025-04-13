@@ -1,10 +1,12 @@
 from fastapi import Depends, HTTPException, status, Form
-from . import auth_token, auth_patient
+
+from ..src import auth_patient
+from . import auth_token
 import traceback
 from itsdangerous import URLSafeTimedSerializer
 from fastapi.security import OAuth2PasswordBearer 
 from typing import Optional
-from .utils import setup_logging, create_new_log  # Import setup_logging from utils
+from ..helper.utils import setup_logging, create_new_log  # Import setup_logging from utils
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/patient/mpm/logout")
 logger = setup_logging() # initialize logger

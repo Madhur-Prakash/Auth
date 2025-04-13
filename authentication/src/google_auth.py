@@ -1,20 +1,21 @@
 from fastapi import APIRouter, Request, status, HTTPException, Depends, Response
 import traceback
 from datetime import datetime
-from .database import mongo_client
-from .utils import generate_fingerprint_hash,create_session_id
+
+from ..models import models
+from ..config.database import mongo_client
+from ..helper.utils import create_session_id, create_new_log, generate_fingerprint_hash, get_country_name, generate_random_string, setup_logging
 from fastapi.responses import RedirectResponse, HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
 from authlib.integrations.starlette_client import OAuth, OAuthError
-from .redis import client
-from .auth_token import create_access_token
+from ..config.redis import client
+from ..helper.auth_token import create_access_token
 import os
-from .hashing import Hash
-from . import models, auth_token
+from ..helper.hashing import Hash
+from ..helper import auth_token
 from fastapi.templating import Jinja2Templates
-from .database import mongo_client
+from ..config.database import mongo_client
 from dotenv import load_dotenv
-from .utils import setup_logging, create_new_log, generate_random_string, get_country_name
 
 google_auth = APIRouter(tags=["Google Authentication"])
 # google_auth.mount("/authentication/static", StaticFiles(directory="static"), name="static")

@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
-from authentication.auth_patient import auth_patient
-from authentication.auth_doctor import auth_doctor
+from authentication.src.auth_patient import auth_patient
+from authentication.src.auth_doctor import auth_doctor
 from fastapi.middleware.cors import CORSMiddleware
-from authentication.google_auth import google_auth
+from authentication.src.google_auth import google_auth
 import os
 from starlette.middleware.sessions import SessionMiddleware
 app = FastAPI()

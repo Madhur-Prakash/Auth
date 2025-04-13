@@ -3,11 +3,11 @@ import string
 from fastapi import Request, status
 from fastapi.responses import Response
 import logging
-from .redis import client
+from ..config.redis import client as redis_client
 import requests
 import uuid
 from fastapi.exceptions import HTTPException
-from .hashing import Hash 
+from ..helper.hashing import Hash 
 import os
 import pycountry, phonenumbers
 from phonenumbers.phonenumberutil import region_code_for_number

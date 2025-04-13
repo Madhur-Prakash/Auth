@@ -4,10 +4,10 @@ from fastapi import status
 from fastapi.exceptions import HTTPException
 import random,os
 # from .celery_app import celery
-from .redis import client as redis_client
+from ..config.redis import client as redis_client
 import traceback
-from .utils import setup_logging
-from .database import mongo_client
+from ..helper.utils import setup_logging
+from ..config.database import mongo_client
 
 
 # Twilio Credentials (Get these from Twilio Console)
