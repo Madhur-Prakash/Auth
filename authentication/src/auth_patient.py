@@ -111,7 +111,6 @@ async def signup(data: models.patient, response: Response, request: Request):
 
         email = await mongo_client.auth.patient.find_one({"email": dict_data["email"]})
         phone_number = await mongo_client.auth.patient.find_one({"phone_number": dict_data["phone_number"]})
-        
         # data validation
         if email:
             create_new_log("warning", f"Signup attempt with existing email: {dict_data['email']}", "/api/backend/Auth")
