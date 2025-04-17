@@ -1,19 +1,21 @@
-import random
-import string
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from ..app import app
 
-generated_strings = set()
-def generate_random_string():
-    letters = string.ascii_uppercase  # Uppercase letters
-    digits = string.digits  # Numbers 0-9
 
-    first_part = ''.join(random.choices(letters, k=4))
-    middle_part = ''.join(random.choices(digits, k=4))
-    new_string = first_part + middle_part
-    if new_string not in generated_strings:
-        generated_strings.add(new_string)
-        print(new_string)
-        return new_string
-    else:
-        return generate_random_string()
+@app.get("/")
+async def read_main():
+    return {"msg": "Hello World"}
 
-generate_random_string()
+
+client = TestClient(app)
+
+def test_patient_login():
+    response = client.post("/patient/login", json={
+        "email": "madhurprakash2005@gmail.com",
+        "password": "123456"
+    })
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "Login successful",
+        "access_token": response.json()["access_token"]}

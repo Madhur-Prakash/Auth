@@ -161,10 +161,16 @@ async def signup(data: models.patient, response: Response, request: Request):
 
         # Generate a cache during signup with email as key
         cache_key = dict_data["email"]
-        await client.hset(f"patient:new_account:{cache_key}", mapping=dict_data)
-        await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days 
+        await client.hset(f"patient:new_account:{cache_key}",mapping={
+            "email": cache_key,
+            "password": dict_data["password"]})
+        await client.expire(f"patient:new_account:{cache_key}", 3600) # expire in 1 hour
+        
+        # ************* this was done previously **************
+        # await client.hset(f"patient:new_account:{cache_key}", mapping=dict_data)
+        # await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days 
 
-        # await mongo_client.auth.patient.insert_one(dict_data)  # Insert into MongoDB  --> #  this will be done when user verifies himself
+        await mongo_client.auth.patient.insert_one(dict_data) 
         create_new_log("info", f"Account for patient created successfully: {dict_data['email']}", "/api/backend/Auth")
         logger.info(f"Account for patient created successfully: {dict_data['email']}") # log the cache hit
         
