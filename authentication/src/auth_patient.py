@@ -165,7 +165,7 @@ async def signup(data: models.patient, response: Response, request: Request):
             "email": cache_key,
             "password": dict_data["password"]})
         await client.expire(f"patient:new_account:{cache_key}", 3600) # expire in 1 hour
-        
+
         # ************* this was done previously **************
         # await client.hset(f"patient:new_account:{cache_key}", mapping=dict_data)
         # await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days 
