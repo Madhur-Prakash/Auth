@@ -145,7 +145,7 @@ async def doctor_google_signup_callback(request: Request, response: Response):
         await client.expire(f"doctor:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
-        html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
         with open(html_path,'r') as file:
             html_body = file.read()
         # send email verification link
@@ -239,7 +239,7 @@ async def doctor_phone_number_signup(data:models.google_login, request: Request,
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
 
         # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
-        html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
         with open(html_path,'r') as file:
             html_body = file.read()
         # send email verification link
@@ -334,7 +334,7 @@ async def doctor_phone_number_login(data: models.google_login, request: Request,
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
 
         # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
-        html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
         with open(html_path,'r') as file:
             html_body = file.read()
         # send email verification link
@@ -419,7 +419,7 @@ async def doctor_google_login_callback(request: Request, response: Response):
             await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
             
             # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
-            html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+            html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
             with open(html_path,'r') as file:
                 html_body = file.read()
             # send email verification link
@@ -557,7 +557,7 @@ async def patient_google_signup_callback(request: Request, response: Response):
         await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
-        html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
         with open(html_path,'r') as file:
             html_body = file.read()
         # send email verification link
@@ -646,7 +646,7 @@ async def patient_phone_number_signup(data:models.google_login, request: Request
         await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
-        html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
         with open(html_path,'r') as file:
             html_body = file.read()
         # send email verification link
@@ -740,7 +740,7 @@ async def patient_phone_number_login(data: models.google_login, request: Request
         await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
-        html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
         with open(html_path,'r') as file:
             html_body = file.read()
         # send email verification link
@@ -832,7 +832,7 @@ async def patient_google_login_callback(request: Request, response: Response):
             # await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days 
 
             # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
-            html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+            html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
             with open(html_path,'r') as file:
                 html_body = file.read()
             # send email verification link

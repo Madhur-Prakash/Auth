@@ -198,7 +198,7 @@ async def signup(data: models.doctor, response: Response, request: Request):
         # otp =  await generate_otp(dict_data["email"])
         
         # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
-        html_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html') # in local testing
+        html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
         with open(html_path,'r') as file:
             html_body = file.read()
         # send email verification link
