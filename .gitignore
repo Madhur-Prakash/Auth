@@ -9,4 +9,4 @@ python=3.11
 auth.log
 .__auth.log
 *.pytest_cache
-structure.py
+.vscode
