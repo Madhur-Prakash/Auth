@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request, status, HTTPException, Depends, BackgroundTasks
-import traceback, jwt
-
+import traceback
+from kafka import KafkaProducer
+import json
 from ..models import models
 from ..otp_service.otp_verify import send_otp, generate_otp, send_otp_sns_during_login, send_otp_sns_during_signup
 from ..config.database import mongo_client
@@ -22,15 +23,30 @@ templates = Jinja2Templates(directory="authentication/templates")
 
 logger = setup_logging() # initialize logger
 
+# Kafka Producer
+producer = KafkaProducer(
+    bootstrap_servers=['localhost:9092'],
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
 
 # implemeting cahing using redis
 async def cache(data: str, plain_password):
     CachedData = await client.hgetall(f'patient:auth:{data}')
+    new_account = await client.hgetall(f'patient:new_account:{data}')
     if CachedData:
         hashed_password = await Hash.verify(CachedData["password"], plain_password)
         if hashed_password:
             print("Data is cached") # debug
             print(CachedData) # debug
+            create_new_log("info", f"cache hit and credential verified for {data}", "/api/backend/Auth")
+            logger.info(f"cache hit and credential verified for {data}") # log the cache hit
+            return data
+        
+    elif new_account:
+        hashed_password = await Hash.verify(new_account["password"], plain_password)
+        if hashed_password:
+            print("Data is cached in new_account") # debug
+            print(new_account) # debug
             create_new_log("info", f"cache hit and credential verified for {data}", "/api/backend/Auth")
             logger.info(f"cache hit and credential verified for {data}") # log the cache hit
             return data
@@ -88,7 +104,7 @@ async def cache_without_password(data: str):
 #     #     })
 #     return templates.TemplateResponse("login.html", {"request": request, "user": new_user}) 
     
-
+TOPIC_NAME = 'patient_signups'
 @auth_patient.post("/patient/signup", status_code=status.HTTP_201_CREATED)
 async def signup(data: models.patient, response: Response, request: Request):
     try:
@@ -166,11 +182,21 @@ async def signup(data: models.patient, response: Response, request: Request):
             "password": dict_data["password"]})
         await client.expire(f"patient:new_account:{cache_key}", 3600) # expire in 1 hour
 
+        #  for instant loggin in, after signup
+        await client.set(f"patient:auth:2_factor_login:{cache_key}", cache_key, ex=3600) # expire in 1 hour
+        await client.set(f"patient:auth:2_factor_login:{dict_data['phone_number']}", dict_data['phone_number'], ex=3600) # expire in 1 hour
+
         # ************* this was done previously **************
         # await client.hset(f"patient:new_account:{cache_key}", mapping=dict_data)
         # await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days 
 
-        await mongo_client.auth.patient.insert_one(dict_data) 
+        # ****************send data to kafka topic *****************
+        producer.send(TOPIC_NAME, dict_data) # send data to kafka topic
+        producer.flush() # flush the producer to ensure data is sent
+
+        # await mongo_client.auth.patient.insert_one(dict_data) # this will be done when kafka consumer will consume the data from topic and insert into mongodb
+
+
         create_new_log("info", f"Account for patient created successfully: {dict_data['email']}", "/api/backend/Auth")
         logger.info(f"Account for patient created successfully: {dict_data['email']}") # log the cache hit
         

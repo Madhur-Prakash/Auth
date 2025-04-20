@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Request, status, HTTPException, Depends, Response
 import traceback
+from kafka import KafkaProducer
+import json
 from datetime import datetime
 from ..models import models
 from ..config.database import mongo_client
@@ -26,6 +28,12 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 templates = Jinja2Templates(directory="authentication/templates")
+
+# Kafka Producer
+producer = KafkaProducer(
+    bootstrap_servers=['localhost:9092'],
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
 
 # initialize logger
 logger = setup_logging() 
@@ -125,6 +133,10 @@ async def doctor_google_signup_callback(request: Request, response: Response):
         await client.hset(f"doctor:new_account:{cache_key}", mapping=user_data)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
 
+        #  for instant logging in after signup
+        await client.set(f"doctor:auth:2_factor_login:{user_data['email']}", user_data["email"], ex=3600) # expire in 1 hour
+        await client.set(f"doctor:auth:2_factor_login:{user_data['phone_number']}", user_data["phone_number"], ex=3600) # expire in 1 hour
+
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
         refresh_token = auth_token.create_refresh_token(data={
@@ -211,6 +223,11 @@ async def doctor_phone_number_signup(data:models.google_login, request: Request,
         # await mongo_client.auth.doctor.insert_one(user_data) -> now data goes in cache
         await client.hset(f"doctor:new_account:{cache_key}", mapping=user_data)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+
+        #  for instant logging in after signup
+        await client.set(f"doctor:auth:2_factor_login:{user_data['email']}", user_data["email"], ex=3600) # expire in 1 hour
+        await client.set(f"doctor:auth:2_factor_login:{user_data['phone_number']}", user_data["phone_number"], ex=3600) # expire in 1 hour
+
 
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
@@ -306,6 +323,11 @@ async def doctor_phone_number_login(data: models.google_login, request: Request,
         # await mongo_client.auth.doctor.insert_one(new_user) -> now data goes in cache
         await client.hset(f"doctor:new_account:{cache_key}", mapping=new_user)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+
+        #  for instant logging in after signup
+        await client.set(f"doctor:auth:2_factor_login:{new_user['email']}", new_user["email"], ex=3600) # expire in 1 hour
+        await client.set(f"doctor:auth:2_factor_login:{new_user['phone_number']}", new_user["phone_number"], ex=3600) # expire in 1 hour
+
         
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
@@ -367,7 +389,7 @@ async def doctor_google_login_callback(request: Request, response: Response):
 
             # Generate access token
             cache_key = existing_email["email"]
-            await client.set(f"doctor:{cache_key}", cache_key, ex=3600) 
+            await client.set(f"doctor:auth:2_factor_login:{cache_key}", cache_key, ex=3600) 
             access_token = create_access_token(data={"sub": cache_key})
             
             response.delete_cookie("access_token")
@@ -417,6 +439,10 @@ async def doctor_google_login_callback(request: Request, response: Response):
             # await mongo_client.auth.doctor.insert_one(user_doc) -> now data goes in cache
             await client.hset(f"doctor:new_account:{cache_key}", mapping=user_doc)
             await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+
+            #  for instant logging in after signup
+            await client.set(f"doctor:auth:2_factor_login:{user_doc['email']}", user_doc["email"], ex=3600) # expire in 1 hour
+            await client.set(f"doctor:auth:2_factor_login:{user_doc['phone_number']}", user_doc["phone_number"], ex=3600) # expire in 1 hour
             
             # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
             html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
@@ -469,7 +495,9 @@ async def doctor_google_login_callback(request: Request, response: Response):
         logger.exception(f"OAuth Error: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(status_code=400, detail="Authentication failed")
-    
+
+
+TOPIC_NAME = 'patient_google_signups'
 # ---- Patient Signup ----
 @google_auth.get("/patient/google_signup")
 async def patient_google_signup(request: Request):
@@ -527,11 +555,22 @@ async def patient_google_signup_callback(request: Request, response: Response):
         country_name = get_country_name(updated_phone_number)
         country_name = country_name.lower()
         user_data["country_name"] = country_name
-        await mongo_client.auth.patient.insert_one(user_data) 
+
+        # ****************send data to kafka topic *****************
+        producer.send(TOPIC_NAME, user_data) # send data to kafka topic
+        producer.flush() # flush the producer to ensure data is sent
+
+        # await mongo_client.auth.patient.insert_one(user_data)  # this is done when kafka topic is consumed
 
         # Generate a cache during signup with email as key
         cache_key = user_data["email"]
-        await client.set(f"patient:new_account:{cache_key}",cache_key, ex=3600)
+        await client.hset(f"patient:new_account:{cache_key}",mapping={
+            "email": cache_key})
+        await client.expire(f"patient:new_account:{cache_key}", 3600) # expire in 1 hour
+
+        #  for instant logging in after signup
+        await client.set(f"patient:auth:2_factor_login:{user_data['email']}", user_data["email"], ex=3600) # expire in 1 hour
+        await client.set(f"patient:auth:2_factor_login:{user_data['phone_number']}", user_data["phone_number"], ex=3600) # expire in 1 hour
 
         # **** this was done previously to store data in redis cache ****
         # await client.hset(f"patient:new_account:{cache_key}", mapping=user_data)
@@ -618,9 +657,21 @@ async def patient_phone_number_signup(data:models.google_login, request: Request
         country_name = get_country_name(updated_phone_number)
         country_name = country_name.lower()
         user_data["country_name"] = country_name
-        await mongo_client.auth.patient.insert_one(user_data) 
+
+        # ****************send data to kafka topic *****************
+        producer.send(TOPIC_NAME, user_data) # send data to kafka topic
+        producer.flush() # flush the producer to ensure data is sent
+
+        # await mongo_client.auth.patient.insert_one(user_data) # this is done when kafka topic is consumed
+
         cache_key = user_data["email"]
-        await client.set(f"patient:new_account:{cache_key}", cache_key, ex=3600) 
+        await client.hset(f"patient:new_account:{cache_key}",mapping={
+            "email": cache_key})
+        await client.expire(f"patient:new_account:{cache_key}", 3600) # expire in 1 hour
+
+        #  for instant logging in after signup
+        await client.set(f"patient:auth:2_factor_login:{user_data['email']}", user_data["email"], ex=3600) # expire in 1 hour
+        await client.set(f"patient:auth:2_factor_login:{user_data['phone_number']}", user_data["phone_number"], ex=3600) # expire in 1 hour
 
         # **** this was done previously to store data in redis cache ****
         # await client.hset(f"patient:new_account:{cache_key}", mapping=user_data)
@@ -712,9 +763,21 @@ async def patient_phone_number_login(data: models.google_login, request: Request
         country_name = get_country_name(updated_phone_number)
         country_name = country_name.lower()
         new_user["country_name"] = country_name
-        await mongo_client.auth.patient.insert_one(new_user) 
+
+        # ****************send data to kafka topic *****************
+        producer.send(TOPIC_NAME, new_user) # send data to kafka topic
+        producer.flush() # flush the producer to ensure data is sent
+
+        # await mongo_client.auth.patient.insert_one(new_user)  # this is done when kafka topic is consumed
+
         cache_key = new_user["email"]
-        await client.set(f"patient:new_account:{cache_key}", cache_key, ex=3600) 
+        await client.hset(f"patient:new_account:{cache_key}",mapping={
+            "email": cache_key})
+        await client.expire(f"patient:new_account:{cache_key}", 3600) # expire in 1 hour
+
+         #  for instant logging in after signup
+        await client.set(f"patient:auth:2_factor_login:{new_user['email']}", new_user["email"], ex=3600) # expire in 1 hour
+        await client.set(f"patient:auth:2_factor_login:{new_user['phone_number']}", new_user["phone_number"], ex=3600) # expire in 1 hour
 
         # ***** this was done previously to store data in redis cache *****
         # await client.hset(f"patient:new_account:{cache_key}", mapping=new_user)
@@ -823,9 +886,22 @@ async def patient_google_login_callback(request: Request, response: Response):
                 "created_at" : datetime.now().isoformat(),
                 "verification_status": "false"
             }
-            await mongo_client.auth.patient.insert_one(user_doc) 
+
+        # ****************send data to kafka topic *****************
+            producer.send(TOPIC_NAME, user_doc) # send data to kafka topic
+            producer.flush() # flush the producer to ensure data is sent
+
+            # await mongo_client.auth.patient.insert_one(user_doc)  # this is done when kafka topic is consumed
+
+
             cache_key = user_doc["email"]
-            await client.set(f"patient:new_account:{cache_key}", cache_key, ex=3600)
+            await client.hset(f"patient:new_account:{cache_key}",mapping={
+                    "email": cache_key})
+            await client.expire(f"patient:new_account:{cache_key}", 3600) # expire in 1 hour
+
+            #  for instant logging in after signup
+            await client.set(f"patient:auth:2_factor_login:{user_doc['email']}", user_doc["email"], ex=3600) # expire in 1 hour
+            await client.set(f"patient:auth:2_factor_login:{user_doc['phone_number']}", user_doc["phone_number"], ex=3600) # expire in 1 hour
 
             # **** this was done previously to store data in redis cache ****
             # await client.hset(f"patient:new_account:{cache_key}", mapping=user_doc)

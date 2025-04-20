@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Request, status, HTTPException, Depends, BackgroundTasks
-import traceback, jwt
-
+import traceback
 from ..models import models
 from ..otp_service.otp_verify import send_otp, generate_otp, send_otp_sns_during_login, send_otp_sns_during_signup
 from ..config.database import mongo_client
@@ -27,11 +26,21 @@ logger = setup_logging() # initialize logger
 # implemeting cahing using redis
 async def cache(data: str, plain_password):
     CachedData = await client.hgetall(f'doctor:auth:{data}')
+    new_account = await client.hgetall(f'doctor:new_account:{data}')
     if CachedData:
         hashed_password = await Hash.verify(CachedData["password"], plain_password)
         if hashed_password:
             print("Data is cached") # debug
             print(CachedData) # debug
+            create_new_log("info", f"cache hit and credential verified for {data}", "/api/backend/Auth")
+            logger.info(f"cache hit and credential verified for {data}") # log the cache hit
+            return data
+        
+    elif new_account:
+        hashed_password = await Hash.verify(new_account["password"], plain_password)
+        if hashed_password:
+            print("Data is cached in new_account") # debug
+            print(new_account) # debug
             create_new_log("info", f"cache hit and credential verified for {data}", "/api/backend/Auth")
             logger.info(f"cache hit and credential verified for {data}") # log the cache hit
             return data
@@ -165,6 +174,10 @@ async def signup(data: models.doctor, response: Response, request: Request):
         cache_key = dict_data["email"]
         await client.hset(f"doctor:new_account:{cache_key}", mapping=dict_data)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+
+        #  for instant logging in after signup
+        await client.set(f"doctor:auth:2_factor_login:{dict_data['email']}", dict_data["email"], ex=3600) # expire in 1 hour
+        await client.set(f"doctor:auth:2_factor_login:{dict_data['phone_number']}", dict_data["phone_number"], ex=3600) # expire in 1 hour
 
         # await mongo_client.auth.doctor.insert_one(dict_data)  # Insert into MongoDB  --> #  this will be done when user verifies himself
         create_new_log("info", f"Account for doctor created successfully: {dict_data['email']}", "/api/backend/Auth")
