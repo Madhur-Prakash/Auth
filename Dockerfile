@@ -15,9 +15,8 @@ RUN sudo apt install python3-venv
 RUN python3 -m venv auth
 RUN source auth/bin/activate
 
-COPY .env .env
-COPY authentication authentication 
-COPY app app
 COPY requirements.txt requirements.txt
 RUN pip3 install -r requirements.txt
+COPY .env .env
+COPY . .
 RUN  uvicorn app:app
