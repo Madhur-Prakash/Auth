@@ -126,15 +126,18 @@ async def signup(data: models.patient, response: Response, request: Request):
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
 
         email = await mongo_client.auth.patient.find_one({"email": dict_data["email"]})
+        email_in_redis = await client.hgetall(f"patient:new_account:{dict_data['email']}")
         phone_number = await mongo_client.auth.patient.find_one({"phone_number": dict_data["phone_number"]})
+        phone_number_in_redis = await client.hgetall(f"patient:new_account:{dict_data['phone_number']}")
+
         # data validation
-        if email:
+        if email or email_in_redis:
             create_new_log("warning", f"Signup attempt with existing email: {dict_data['email']}", "/api/backend/Auth")
             logger.warning(f"Signup attempt with existing email: {dict_data['email']}") 
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
         if(form_data["phone_number"].__len__() < 10 or form_data["phone_number"].__len__() > 10):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be 10 digits long")
-        if phone_number:
+        if phone_number or phone_number_in_redis:
             create_new_log("warning",f"Signup attempt with existing phone number: {dict_data['phone_number']}", "/api/backend/Auth")
             logger.warning(f"Signup attempt with existing phone number: {dict_data['phone_number']}")
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
@@ -177,10 +180,8 @@ async def signup(data: models.patient, response: Response, request: Request):
 
         # Generate a cache during signup with email as key
         cache_key = dict_data["email"]
-        await client.hset(f"patient:new_account:{cache_key}",mapping={
-            "email": cache_key,
-            "password": dict_data["password"]})
-        await client.expire(f"patient:new_account:{cache_key}", 3600) # expire in 1 hour
+        await client.hset(f"patient:new_account:{cache_key}",mapping=dict_data) # store the entire data in redis
+        await client.expire(f"patient:new_account:{cache_key}", 691200) # expire in 7 days
 
         #  for instant loggin in, after signup
         await client.set(f"patient:auth:2_factor_login:{cache_key}", cache_key, ex=3600) # expire in 1 hour
