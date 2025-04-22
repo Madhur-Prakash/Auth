@@ -182,6 +182,8 @@ async def signup(data: models.patient, response: Response, request: Request):
         cache_key = dict_data["email"]
         await client.hset(f"patient:new_account:{cache_key}",mapping=dict_data) # store the entire data in redis
         await client.expire(f"patient:new_account:{cache_key}", 691200) # expire in 7 days
+        await client.hset(f"patient:new_account:{dict_data['phone_number']}", mapping=dict_data)
+        await client.expire(f"patient:new_account:{dict_data['phone_number']}", 691200)  # expire in 7 days
 
         #  for instant loggin in, after signup
         await client.set(f"patient:auth:2_factor_login:{cache_key}", cache_key, ex=3600) # expire in 1 hour
