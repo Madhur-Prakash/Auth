@@ -1,95 +1,83 @@
-from aiokafka import AIOKafkaConsumer
+from kafka import KafkaConsumer
 import os
-import asyncio
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import mongo_client  # Use absolute import instead of relative import
 import json
 import time
 
-
-async def insert_batch(batch):
-    for attempt in range(3):
-        try:
-            await mongo_client.auth.patient.insert_many(batch, ordered=False)
-            print(f"✅ Inserted batch of {len(batch)} patients.")
-            return True
-        except Exception as e:
-            print(f"⚠️ Insert failed. Retrying... Attempt {attempt+1} Error: {str(e)}")
-            await asyncio.sleep(2)
-    print("❌ Insert failed after 3 attempts. Logging error...")
-    return False
-
-print("Worker started, waiting for signup messages...")
-
-
-async def consumer_1():
-    consumer = AIOKafkaConsumer(
+# Kafka Consumer
+consumer = KafkaConsumer(
     'patient_signups',
     bootstrap_servers=['localhost:9092'],
     group_id='patient_signup_worker',
     auto_offset_reset='earliest',
     enable_auto_commit=False,  # We'll commit manually after success
-    value_deserializer=lambda m: json.loads(m.decode('utf-8')))
-    BATCH_SIZE = 2   # Insert 100 patients at once
-    SIGNUP_BATCH = []  # Temporary storage for batch
-
-    await consumer.start()
-    
-    try:
-        for message in consumer:
-            patient_data = message.value
-            SIGNUP_BATCH.append(patient_data)
-
-            if len(SIGNUP_BATCH) >= BATCH_SIZE:
-                success = insert_batch(SIGNUP_BATCH)
-                if success:
-                    consumer.commit()  # Only commit Kafka offset after successful DB write
-                    SIGNUP_BATCH = []  # Clear batch
-
-    except KeyboardInterrupt:
-        print("Shutting down worker...")
-    finally:
-       await consumer.stop()
+    value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+)
 
 
-# Google Signup Consumer
-async def consumer_2():
-    consumer_2 = AIOKafkaConsumer(
+consumer_2 = KafkaConsumer(
     'patient_google_signups',
     bootstrap_servers=['localhost:9092'],
     group_id='patient_google_signup_worker',    
     auto_offset_reset='earliest',
     enable_auto_commit=False,  # We'll commit manually after success
-    value_deserializer=lambda m: json.loads(m.decode('utf-8')))
-    GOOGLE_BATCH_SIZE = 2   # Insert 100 patients at once
-    GOOGLE_SIGNUP_BATCH = []  # Temporary storage for batch
+    value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+)
 
-    await consumer_2.start()
+BATCH_SIZE = 2   # Insert 100 patients at once
+SIGNUP_BATCH = []  # Temporary storage for batch
 
-    try:
-        for val in consumer_2:
-            patient_data = val.value
-            GOOGLE_SIGNUP_BATCH.append(patient_data)
+GOOGLE_BATCH_SIZE = 2   # Insert 100 patients at once
+GOOGLE_SIGNUP_BATCH = []  # Temporary storage for batch
 
-            if len(GOOGLE_SIGNUP_BATCH) >= GOOGLE_BATCH_SIZE:
-                success = insert_batch(GOOGLE_SIGNUP_BATCH)
-                if success:
-                    consumer_2.commit()  # Only commit Kafka offset after successful DB write
-                    GOOGLE_SIGNUP_BATCH = []  # Clear batch
 
-    except KeyboardInterrupt:
-        print("Shutting down worker...")
-    finally:
-       await consumer_2.stop()
+def insert_batch(batch):
+    for attempt in range(3):  # Retry 3 times
+        try:
+            mongo_client.auth.patient.insert_many(batch, ordered=False)
+            print(f"✅ Inserted batch of {len(batch)} patients.")
+            return True
+        except Exception as e:
+            print(f"⚠️ Insert failed. Retrying... Attempt {attempt+1}")
+            time.sleep(2)  # Wait before retry
+    print("❌ Insert failed after 3 attempts. Logging error...")
+    # (Optional) Save failed data somewhere safe
+    return False
 
-    
-async def main():
-    await asyncio.gather(consumer_1(), consumer_2())
+print("Worker started, waiting for signup messages...")
 
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    
-    except KeyboardInterrupt:
-        print("Shutting down worker...")
+try:
+    for message in consumer:
+        patient_data = message.value
+        SIGNUP_BATCH.append(patient_data)
+
+        if len(SIGNUP_BATCH) >= BATCH_SIZE:
+            success = insert_batch(SIGNUP_BATCH)
+            if success:
+                consumer.commit()  # Only commit Kafka offset after successful DB write
+                SIGNUP_BATCH = []  # Clear batch
+
+except KeyboardInterrupt:
+    print("Shutting down worker 1...")
+finally:
+    consumer.close()
+
+
+# Google Signup Consumer
+try:
+    for val in consumer_2:
+        patient_data = val.value
+        GOOGLE_SIGNUP_BATCH.append(patient_data)
+
+        if len(GOOGLE_SIGNUP_BATCH) >= GOOGLE_BATCH_SIZE:
+            success = insert_batch(GOOGLE_SIGNUP_BATCH)
+            if success:
+                consumer_2.commit()  # Only commit Kafka offset after successful DB write
+                GOOGLE_SIGNUP_BATCH = []  # Clear batch
+
+except KeyboardInterrupt:
+    print("Shutting down worker 2...")
+finally:
+    consumer_2.close()
