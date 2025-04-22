@@ -122,9 +122,9 @@ async def patient_google_signup_callback(request: Request, response: Response):
         }
 
         existing_email = await mongo_client.auth.patient.find_one({"email": user_data["email"]})
-        email_in_redis = await client.get(f"patient:new_account:{user_data['email']}")
+        email_in_redis = await client.hgetall(f"patient:new_account:{user_data['email']}")
         existing_phone = await mongo_client.auth.patient.find_one({"phone_number": user_data["phone_number"]})
-        phone_in_redis = await client.get(f"patient:new_account:{user_data['phone_number']}")
+        phone_in_redis = await client.hgetall(f"patient:new_account:{user_data['phone_number']}")
 
         if existing_email or email_in_redis:
             create_new_log("error", "signup attempt with existing email", "/api/backend/Auth")
@@ -150,15 +150,14 @@ async def patient_google_signup_callback(request: Request, response: Response):
         # Generate a cache during signup with email as key
         cache_key = user_data["email"]
         await client.hset(f"patient:new_account:{cache_key}",mapping=user_data)
-        await client.expire(f"patient:new_account:{cache_key}", 3600) # expire in 1 hour
+        await client.expire(f"patient:new_account:{cache_key}", 691200) # expire in 7 days
+        await client.hset(f"patient:new_account:{user_data['phone_number']}",mapping=user_data)
+        await client.expire(f"patient:new_account:{user_data['phone_number']}", 691200) # expire in 7 days
 
         #  for instant logging in after signup
         await client.set(f"patient:auth:2_factor_login:{user_data['email']}", user_data["email"], ex=3600) # expire in 1 hour
         await client.set(f"patient:auth:2_factor_login:{user_data['phone_number']}", user_data["phone_number"], ex=3600) # expire in 1 hour
 
-        # **** this was done previously to store data in redis cache ****
-        # await client.hset(f"patient:new_account:{cache_key}", mapping=user_data)
-        # await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days  
 
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
@@ -229,9 +228,9 @@ async def patient_phone_number_signup(data:models.google_login, request: Request
         }
 
         existing_email = await mongo_client.auth.patient.find_one({"email": user_data["email"]})
-        email_in_redis = await client.get(f"patient:new_account:{user_data['email']}")
+        email_in_redis = await client.hgetall(f"patient:new_account:{user_data['email']}")
         existing_phone = await mongo_client.auth.patient.find_one({"phone_number": user_data["phone_number"]})
-        phone_in_redis = await client.get(f"patient:new_account:{user_data['phone_number']}")
+        phone_in_redis = await client.hgetall(f"patient:new_account:{user_data['phone_number']}")
 
         if existing_email or email_in_redis:
             create_new_log("error", "signup attempt with existing email", "/api/backend/Auth")
@@ -255,15 +254,13 @@ async def patient_phone_number_signup(data:models.google_login, request: Request
 
         cache_key = user_data["email"]
         await client.hset(f"patient:new_account:{cache_key}",mapping=user_data)
-        await client.expire(f"patient:new_account:{cache_key}", 3600) # expire in 1 hour
+        await client.expire(f"patient:new_account:{cache_key}", 691200) # expire in 7 days
+        await client.hset(f"patient:new_account:{phone_number}",mapping=user_data)
+        await client.expire(f"patient:new_account:{phone_number}", 691200) # expire in 7 days
 
         #  for instant logging in after signup
-        await client.set(f"patient:auth:2_factor_login:{user_data['email']}", user_data["email"], ex=3600) # expire in 1 hour
-        await client.set(f"patient:auth:2_factor_login:{user_data['phone_number']}", user_data["phone_number"], ex=3600) # expire in 1 hour
-
-        # **** this was done previously to store data in redis cache ****
-        # await client.hset(f"patient:new_account:{cache_key}", mapping=user_data)
-        # await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days 
+        await client.set(f"patient:auth:2_factor_login:{cache_key}", cache_key, ex=691200) # expire in 1 hour
+        await client.set(f"patient:auth:2_factor_login:{phone_number}", phone_number, ex=691200) # expire in 1 hour
 
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
@@ -349,8 +346,8 @@ async def patient_phone_number_login(data: models.google_login, request: Request
             "verification_status": "false"
         }
 
-        existing_phone = await mongo_client.auth.patient.find_one({"phone_number": new_user["phone_number"]})
-        phone_in_redis = await client.get(f"patient:new_account:{new_user['phone_number']}")
+        existing_phone = await mongo_client.auth.patient.find_one({"phone_number": phone_number})
+        phone_in_redis = await client.hgetall(f"patient:new_account:{new_user['phone_number']}")
 
         if phone_in_redis or existing_phone:
             create_new_log("error", "signup attempt with existing phone number", "/api/backend/Auth")
@@ -368,13 +365,14 @@ async def patient_phone_number_login(data: models.google_login, request: Request
         # await mongo_client.auth.patient.insert_one(new_user)  # this is done when kafka topic is consumed
 
         cache_key = new_user["email"]
-        await client.hset(f"patient:new_account:{cache_key}",mapping={
-            "email": cache_key})
-        await client.expire(f"patient:new_account:{cache_key}", 3600) # expire in 1 hour
+        await client.hset(f"patient:new_account:{cache_key}",mapping=new_user)
+        await client.expire(f"patient:new_account:{cache_key}", 691200) # expire in 7 days
+        await client.hset(f"patient:new_account:{phone_number}",mapping=new_user)
+        await client.expire(f"patient:new_account:{phone_number}", 691200) # expire in 7 days
 
          #  for instant logging in after signup
-        await client.set(f"patient:auth:2_factor_login:{new_user['email']}", new_user["email"], ex=3600) # expire in 1 hour
-        await client.set(f"patient:auth:2_factor_login:{new_user['phone_number']}", new_user["phone_number"], ex=3600) # expire in 1 hour
+        await client.set(f"patient:auth:2_factor_login:{cache_key}", cache_key, ex=3600) # expire in 1 hour
+        await client.set(f"patient:auth:2_factor_login:{phone_number}", phone_number, ex=3600) # expire in 1 hour
 
         # ***** this was done previously to store data in redis cache *****
         # await client.hset(f"patient:new_account:{cache_key}", mapping=new_user)
@@ -430,12 +428,13 @@ async def patient_google_login_callback(request: Request, response: Response):
         user_info = await oauth.google_patient.get("https://openidconnect.googleapis.com/v1/userinfo", token=token)
         user_data = user_info.json()
 
+        existing_email = user_data.get("email")
         # Check if user exists in the database
-        existing_email = cache_without_password(user_data.get("email"))
-        if existing_email: # Case 1: User exists ➡️ Login
+        existing_account = cache_without_password(user_data.get("email"))
+        if existing_account: # Case 1: User exists ➡️ Login
 
             # Generate access token
-            cache_key = existing_email["email"]
+            cache_key = existing_email
             await client.set(f"patient:new_account:{cache_key}", cache_key, ex=3600) 
             access_token = create_access_token(data={"sub": cache_key})
             
@@ -461,9 +460,9 @@ async def patient_google_login_callback(request: Request, response: Response):
                                                                 "session_id":encrypyted_session_id})
             await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
             
-            create_new_log("info", f"Patient login successful: {existing_email['email']}", "/api/backend/Auth")
-            logger.info(f"patient login successful: {existing_email['email']}")
-            return {"message": f"patient login successful: {existing_email['email']}"}
+            create_new_log("info", f"Patient login successful: {existing_email}", "/api/backend/Auth")
+            logger.info(f"patient login successful: {existing_email}")
+            return {"message": f"patient login successful: {existing_email}"}
         
         # Case 2: User NOT found ➡️ Check for Google phone
         people_api_url = "https://people.googleapis.com/v1/people/me?personFields=phoneNumbers"
@@ -486,7 +485,7 @@ async def patient_google_login_callback(request: Request, response: Response):
             }
 
             existing_phone = await mongo_client.auth.patient.find_one({"phone_number": user_doc["phone_number"]})
-            phone_in_redis = await client.get(f"patient:new_account:{user_doc['phone_number']}")
+            phone_in_redis = await client.hgetall(f"patient:new_account:{user_doc['phone_number']}")
 
             if existing_phone or phone_in_redis:
                 create_new_log("error", "signup attempt with existing phone number", "/api/backend/Auth")
@@ -501,15 +500,12 @@ async def patient_google_login_callback(request: Request, response: Response):
 
             cache_key = user_doc["email"]
             await client.hset(f"patient:new_account:{cache_key}",mapping=user_doc)
-            await client.expire(f"patient:new_account:{cache_key}", 3600) # expire in 1 hour
-
+            await client.expire(f"patient:new_account:{cache_key}", 691200) # expire in  7 days
+            await client.hset(f"patient:new_account:{phone_number}",mapping=user_doc)
+            await client.expire(f"patient:new_account:{phone_number}", 691200) # expire in 7 days
             #  for instant logging in after signup
-            await client.set(f"patient:auth:2_factor_login:{user_doc['email']}", user_doc["email"], ex=3600) # expire in 1 hour
-            await client.set(f"patient:auth:2_factor_login:{user_doc['phone_number']}", user_doc["phone_number"], ex=3600) # expire in 1 hour
-
-            # **** this was done previously to store data in redis cache ****
-            # await client.hset(f"patient:new_account:{cache_key}", mapping=user_doc)
-            # await client.expire(f"patient:new_account:{cache_key}", 691200)  # expire in 7 days 
+            await client.set(f"patient:auth:2_factor_login:{cache_key}", cache_key, ex=3600) # expire in 1 hour
+            await client.set(f"patient:auth:2_factor_login:{phone_number}", phone_number, ex=3600) # expire in 1 hour
 
             # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
             html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing

@@ -42,6 +42,8 @@ async def cache_without_password(data: str):
     if user:
         print("searching inside db") # debug
         await client.set(f"doctor:auth:2_factor_login:{data}",data, ex=432000) # expire in 5 days
+        create_new_log("info", f"cache hit for {data}", "/api/backend/Auth")
+        logger.info(f"cache hit for {data}") # log the cache hit
         return user
     create_new_log("warning", f"login attempt with invalid credentials: {data}", "/api/backend/Auth")
     logger.warning(f"login attempt with invalid credentials: {data}") # log the cache hit
@@ -138,9 +140,15 @@ async def doctor_google_signup_callback(request: Request, response: Response):
             country_name = get_country_name(updated_phone_number)
             country_name = country_name.lower()
             user_data["country_name"] = country_name
+
         # await mongo_client.auth.doctor.insert_one(user_data) -> now data goes in cache
+
+        # Generate a cache during signup with email as key
+        cache_key = user_data["email"]
         await client.hset(f"doctor:new_account:{cache_key}", mapping=user_data)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+        await client.hset(f"doctor:new_account:{user_data['phone_number']}", mapping=user_data)
+        await client.expire(f"doctor:new_account:{user_data['phone_number']}", 691200)  # expire in 7 days
 
         #  for instant logging in after signup
         await client.set(f"doctor:auth:2_factor_login:{user_data['email']}", user_data["email"], ex=3600) # expire in 1 hour
@@ -175,9 +183,7 @@ async def doctor_google_signup_callback(request: Request, response: Response):
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
 
-        # Generate a cache during signup with email as key
-        cache_key = user_data["email"]
-        cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
+        await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
         access_token = create_access_token(data={"sub": cache_key})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
@@ -234,8 +240,13 @@ async def doctor_phone_number_signup(data:models.google_login, request: Request,
         country_name = country_name.lower()
         user_data["country_name"] = country_name
         # await mongo_client.auth.doctor.insert_one(user_data) -> now data goes in cache
+
+        # Generate a cache during signup with email as key
+        cache_key = user_data["email"]
         await client.hset(f"doctor:new_account:{cache_key}", mapping=user_data)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+        await client.hset(f"doctor:new_account:{user_data['phone_number']}", mapping=user_data)
+        await client.expire(f"doctor:new_account:{user_data['phone_number']}", 691200)  # expire in 7 days
 
         #  for instant logging in after signup
         await client.set(f"doctor:auth:2_factor_login:{user_data['email']}", user_data["email"], ex=3600) # expire in 1 hour
@@ -261,9 +272,7 @@ async def doctor_phone_number_signup(data:models.google_login, request: Request,
                                                             "session_id":encrypyted_session_id})
         await client.expire(f"doctor:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
-        # Generate a cache during signup with email as key
-        cache_key = user_data["email"]
-        cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
+        await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
         access_token = create_access_token(data={"sub": cache_key})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
@@ -344,12 +353,17 @@ async def doctor_phone_number_login(data: models.google_login, request: Request,
         country_name = country_name.lower()
         new_user["country_name"] = country_name
         # await mongo_client.auth.doctor.insert_one(new_user) -> now data goes in cache
+       
+       
+        cache_key = new_user["email"]
         await client.hset(f"doctor:new_account:{cache_key}", mapping=new_user)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+        await client.hset(f"doctor:new_account:{phone_number}", mapping=new_user)
+        await client.expire(f"doctor:new_account:{phone_number}", 691200)  # expire in 7 days
 
         #  for instant logging in after signup
-        await client.set(f"doctor:auth:2_factor_login:{new_user['email']}", new_user["email"], ex=3600) # expire in 1 hour
-        await client.set(f"doctor:auth:2_factor_login:{new_user['phone_number']}", new_user["phone_number"], ex=3600) # expire in 1 hour
+        await client.set(f"doctor:auth:2_factor_login:{cache_key}", cache_key, ex=3600) # expire in 1 hour
+        await client.set(f"doctor:auth:2_factor_login:{phone_number}", phone_number, ex=3600) # expire in 1 hour
 
         
         device_fingerprint = generate_fingerprint_hash(request)
@@ -372,8 +386,7 @@ async def doctor_phone_number_login(data: models.google_login, request: Request,
         await client.expire(f"doctor:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         # Generate a cache during signup with email as key
-        cache_key = new_user["email"]
-        cached_data = await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
+        await client.set(f"doctor:{cache_key}",cache_key,ex=3600) 
         access_token = create_access_token(data={"sub": cache_key})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
@@ -406,12 +419,14 @@ async def doctor_google_login_callback(request: Request, response: Response):
         user_info = await oauth.google_doctor.get("https://openidconnect.googleapis.com/v1/userinfo", token=token)
         user_data = user_info.json()
 
+        existing_email = user_data.get("email")
+
         # Check if user exists in the database
-        existing_email = cache_without_password(user_data.get("email"))
-        if existing_email: # Case 1: User exists ➡️ Login
+        existing_account = cache_without_password(existing_email)
+        if existing_account: # Case 1: User exists ➡️ Login
 
             # Generate access token
-            cache_key = existing_email["email"]
+            cache_key = existing_email
             await client.set(f"doctor:auth:2_factor_login:{cache_key}", cache_key, ex=3600) 
             access_token = create_access_token(data={"sub": cache_key})
             
@@ -437,9 +452,9 @@ async def doctor_google_login_callback(request: Request, response: Response):
                                                                 "session_id":encrypyted_session_id})
             await client.expire(f"doctor:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
-            create_new_log("info", f"Doctor login successful: {existing_email['email']}", "/api/backend/Auth")
-            logger.info(f"Doctor login successful: {existing_email['email']}")
-            return {"message": f"Doctor login successful: {existing_email['email']}"}
+            create_new_log("info", f"Doctor login successful: {cache_key}", "/api/backend/Auth")
+            logger.info(f"Doctor login successful: {cache_key}")
+            return {"message": f"Doctor login successful: {cache_key}"}
         
         # Case 2: User NOT found ➡️ Check for Google phone
         people_api_url = "https://people.googleapis.com/v1/people/me?personFields=phoneNumbers"
@@ -464,7 +479,7 @@ async def doctor_google_login_callback(request: Request, response: Response):
             existing_phone = await mongo_client.auth.doctor.find_one({"phone_number": user_doc["phone_number"]})
             phone_in_redis = await client.hgetall(f"doctor:new_account:{user_doc['phone_number']}")
 
-            if existing_phone or phone_in_redis:
+            if phone_in_redis or existing_phone:
                 create_new_log("error", f"signup attempt with existing phone number: {user_doc['phone_number']}", "/api/backend/Auth")
                 raise HTTPException(status_code=400, detail="Phone number already exists.")
 
@@ -474,9 +489,14 @@ async def doctor_google_login_callback(request: Request, response: Response):
                 country_name = country_name.lower()
                 user_doc["country_name"] = country_name
             
+            # Generate a cache during signup with email as key
+            cache_key = user_doc["email"]
+
             # await mongo_client.auth.doctor.insert_one(user_doc) -> now data goes in cache
             await client.hset(f"doctor:new_account:{cache_key}", mapping=user_doc)
             await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+            await client.hset(f"doctor:new_account:{user_doc['phone_number']}", mapping=user_doc)
+            await client.expire(f"doctor:new_account:{user_doc['phone_number']}", 691200)  # expire in 7 days
 
             #  for instant logging in after signup
             await client.set(f"doctor:auth:2_factor_login:{user_doc['email']}", user_doc["email"], ex=3600) # expire in 1 hour
@@ -494,7 +514,6 @@ async def doctor_google_login_callback(request: Request, response: Response):
             create_new_log("info", f"Auto-registered doctor during login: {user_doc['email']}", "/api/backend/Auth")
             logger.info(f"Auto-registered doctor during login: {user_doc['email']}")
             # Proceed to login as usual below
-            cache_key = user_doc["email"]
             await client.set(f"auth:doctor:{cache_key}", cache_key, ex=3600) 
             access_token = create_access_token(data={"sub": cache_key})
             response.delete_cookie("access_token")
