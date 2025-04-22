@@ -18,7 +18,7 @@ consumer = KafkaConsumer(
 
 
 consumer_2 = KafkaConsumer(
-    'patient_google_signups,',
+    'patient_google_signups',
     bootstrap_servers=['localhost:9092'],
     group_id='patient_google_signup_worker',    
     auto_offset_reset='earliest',
