@@ -175,7 +175,9 @@ async def signup(data: models.doctor, response: Response, request: Request):
         # send all data in cache 
         cache_key = dict_data["email"]
         await client.hset(f"doctor:new_account:{cache_key}", mapping=dict_data)
-        await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+        await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days
+        await client.hset(f"doctor:new_account:{dict_data['phone_number']}", mapping=dict_data)
+        await client.expire(f"doctor:new_account:{dict_data['phone_number']}", 691200)  # expire in 7 days
 
         #  for instant logging in after signup
         await client.set(f"doctor:auth:2_factor_login:{dict_data['email']}", dict_data["email"], ex=3600) # expire in 1 hour
