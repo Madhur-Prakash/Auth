@@ -1,7 +1,5 @@
 from fastapi import APIRouter, Request, status, HTTPException, Depends, Response
 import traceback
-from kafka import KafkaProducer
-import json
 from datetime import datetime
 from ..models import models
 from ..config.database import mongo_client
@@ -48,12 +46,6 @@ async def cache_without_password(data: str):
     create_new_log("warning", f"login attempt with invalid credentials: {data}", "/api/backend/Auth")
     logger.warning(f"login attempt with invalid credentials: {data}") # log the cache hit
     return None
-
-# Kafka Producer
-producer = KafkaProducer(
-    bootstrap_servers=['localhost:9092'],
-    value_serializer=lambda v: json.dumps(v).encode('utf-8')
-)
 
 # initialize logger
 logger = setup_logging() 
