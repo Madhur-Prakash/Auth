@@ -15,7 +15,7 @@ from ..helper.oauth2 import OAuth2PatientRequestForm, create_verification_token,
 from ..helper.hashing import Hash
 from ..helper.utils import create_session_id, create_new_log, generate_fingerprint_hash, get_country_name, generate_random_string, setup_logging
 from datetime import datetime
-from ..otp_service.send_mail import send_email_ses, send_email
+from ..otp_service.send_mail import send_email_ses, send_email,send_mail_to_mailhog
 from ..helper import oauth2, auth_token
 
 auth_patient = APIRouter(tags=["patient Authentication"]) # create a router for patient
