@@ -60,7 +60,7 @@ try:
                 SIGNUP_BATCH = []  # Clear batch
 
 except KeyboardInterrupt:
-    print("Shutting down worker 1...")
+    print("Shutting down worker...")
 finally:
     consumer.close()
 
@@ -78,6 +78,6 @@ try:
                 GOOGLE_SIGNUP_BATCH = []  # Clear batch
 
 except KeyboardInterrupt:
-    print("Shutting down worker 2...")
+    print("Shutting down worker...")
 finally:
     consumer_2.close()
