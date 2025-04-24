@@ -3,7 +3,6 @@ from twilio.rest import Client
 from fastapi import status
 from fastapi.exceptions import HTTPException
 import random,os
-# from .celery_app import celery
 from ..config.redis import client as redis_client
 import traceback
 from ..helper.utils import setup_logging

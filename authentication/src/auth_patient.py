@@ -235,7 +235,7 @@ async def signup(data: models.patient, response: Response, request: Request):
         with open(html_path,'r') as file:
             html_body = file.read()
         # send email verification link
-        email_sent = send_email(dict_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        email_sent = send_mail_to_mailhog(dict_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 

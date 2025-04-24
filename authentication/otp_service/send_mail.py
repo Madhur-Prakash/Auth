@@ -56,9 +56,9 @@ def authenticate_gmail():
 # @celery.task()
 def send_email(to_email, subject, body, retries=3, delay=5):
     """Send an email using Gmail API with retry mechanism."""
+    service = authenticate_gmail()
     for attempt in range(retries):
         try:
-            service = authenticate_gmail()
 
             # Create email message
             message = MIMEText(body, "html")  # Specify the MIME type as "html"
