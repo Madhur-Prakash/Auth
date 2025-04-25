@@ -181,7 +181,7 @@ async def doctor_google_signup_callback(request: Request, response: Response):
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
         create_new_log("info", f"Account for doctor created successfully: {user_data['email']}", "/api/backend/Auth")
         logger.info(f"Account for doctor created successfully: {user_data['email']}")
-        return {"message":f"Account for doctor created successfully: {user_data['email']}", "status": status.HTTP_201_CREATED}
+        return {"message":f"Account for doctor created successfully: {user_data['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer"}
 
     except OAuthError as e:
         formatted_error = (traceback.format_exc())
@@ -280,7 +280,7 @@ async def doctor_phone_number_signup(data:models.google_login, request: Request,
 
         create_new_log("info", f"Account for doctor created successfully: {user_data['email']}", "/api/backend/Auth")
         logger.info(f"Account for doctor created successfully: {user_data['email']}")
-        return {"message":f"Account for doctor created successfully: {user_data['email']}"}
+        return {"message":f"Account for doctor created successfully: {user_data['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer"}
     
     except Exception as e:
         formatted_error = (traceback.format_exc())
@@ -394,7 +394,7 @@ async def doctor_phone_number_login(data: models.google_login, request: Request,
 
         create_new_log("info", f"Account for doctor created successfully: {new_user['email']}", "/api/backend/Auth")
         logger.info(f"Account for doctor created successfully: {new_user['email']}")
-        return {"message":f"Account for doctor created successfully: {new_user['email']}"}
+        return {"message":f"Account for doctor created successfully: {new_user['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer"}
 
     except Exception as e:
         formatted_error = (traceback.format_exc())
@@ -446,7 +446,7 @@ async def doctor_google_login_callback(request: Request, response: Response):
 
             create_new_log("info", f"Doctor login successful: {cache_key}", "/api/backend/Auth")
             logger.info(f"Doctor login successful: {cache_key}")
-            return {"message": f"Doctor login successful: {cache_key}"}
+            return {"message": f"Doctor login successful: {cache_key}", "status_code": status.HTTP_200_OK, "token_type": "Bearer"}
         
         # Case 2: User NOT found ➡️ Check for Google phone
         people_api_url = "https://people.googleapis.com/v1/people/me?personFields=phoneNumbers"
@@ -531,7 +531,7 @@ async def doctor_google_login_callback(request: Request, response: Response):
                                                                 "session_id":encrypyted_session_id})
             await client.expire(f"doctor:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
-            return {"message": f"Doctor auto-registered and logged in: {user_doc['email']}"}
+            return {"message": f"Doctor auto-registered and logged in: {user_doc['email']}", "status_code": status.HTTP_200_OK, "token_type": "Bearer"}
         
         else:
             # Case 3: No phone found ➡️ redirect to phone collection page

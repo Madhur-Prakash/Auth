@@ -245,7 +245,7 @@ async def signup(data: models.patient, response: Response, request: Request):
         #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
         
         # return {"message":f"OTP sent successfully on {form_data['phone_number'][:6]+'x'*6+dict_data['phone_number'][13:]} and {dict_data['email']}"} # Return success message
-        return {"message":f"Account for patient created successfully: {dict_data['email']}", "status_code":status.HTTP_201_CREATED}
+        return {"message":f"Account for patient created successfully: {dict_data['email']}", "status_code":status.HTTP_201_CREATED, "token_type":"Bearer"}
 
 
     except Exception as e:
@@ -329,7 +329,7 @@ async def verify_otp_signup(data: models.verify_otp_signup):
             print("otp sent successfuly")
             create_new_log("info", f"otp sent successfuly on {email}", "/api/backend/Auth")
             logger.info(f"otp sent successfuly on {email}") # log the cache hit
-            return ({"message":f"otp sent successfuly on {email}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
+            return ({"message":f"otp sent successfuly on {email}", "status_code": status.HTTP_200_OK, "otp": encrypted_otp})
         elif phone_number:
             phone_number = country_code + phone_number # adding country code
 
@@ -342,7 +342,7 @@ async def verify_otp_signup(data: models.verify_otp_signup):
             print("otp sent successfuly")
             create_new_log("info", f"otp sent successfuly on {phone_number}", "/api/backend/Auth")
             logger.info(f"otp sent successfuly on {phone_number}") # log the cache hit
-            return ({"message":f"otp sent successfuly on {phone_number}", "status": status.HTTP_200_OK, "otp": encrypted_otp})
+            return ({"message":f"otp sent successfuly on {phone_number}", "status_code": status.HTTP_200_OK, "otp": encrypted_otp})
         
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -413,7 +413,7 @@ async def login(data: models.login_otp):
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
                     create_new_log("info", f"otp sent successfuly on {email_provided}", "/api/backend/Auth")
                     logger.info(f"otp sent successfuly on {email_provided}") # log the cache hit
-                    return {"message": f"OTP sent successfully on {email_provided}", "status":status.HTTP_200_OK}
+                    return {"message": f"OTP sent successfully on {email_provided}", "status_code":status.HTTP_200_OK}
 
                     
                 print("cache data returned none") # debug
@@ -435,7 +435,7 @@ async def login(data: models.login_otp):
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
                     create_new_log("info", f"otp sent successfuly on {phone_number_provided}", "/api/backend/Auth")
                     logger.info(f"otp sent successfuly on {phone_number_provided}") # log the cache hit
-                    return {"message": f"OTP sent successfully on {phone_number_provided[3:106]+'x'*6+phone_number_provided[13:]}", "status":status.HTTP_200_OK} # masking the phone number for security
+                    return {"message": f"OTP sent successfully on {phone_number_provided[3:106]+'x'*6+phone_number_provided[13:]}", "status_code":status.HTTP_200_OK} # masking the phone number for security
 
                 print("cache data returned none") # debug
                 create_new_log("warning", f"login attempt with invalid credentials: {form_data['phone_number']}", "/api/backend/Auth")
@@ -497,7 +497,7 @@ async def verify_otp(data: models.otp_email, response: Response, request: Reques
         print(f"{email} logged in succesfully")  # Return success message
         create_new_log("info", f"{email} logged in successfully", "/api/backend/Auth")
         logger.info(f"{email} logged in successfully") # log the cache hit
-        return {"message":f"OTP verified successfully from {email}"}
+        return {"message":f"OTP verified successfully from {email}", "status_code":status.HTTP_200_OK, "token_type":"Bearer"}
                          
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -555,7 +555,7 @@ async def verify(data: models.otp_phone, response: Response, request: Request):
         print(f"{phone_number} logged in succesfully")  # Return success message
         create_new_log("info", f"{phone_number} logged in successfully", "/api/backend/Auth")
         logger.info(f"{phone_number} logged in successfully") # log the cache hit
-        return {"message":f"OTP verified successfully from {phone_number}"}
+        return {"message":f"OTP verified successfully from {phone_number}", "status_code":status.HTTP_200_OK, "token_type":"Bearer"}
 
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -626,7 +626,7 @@ async def login(data: models.login, response: Response, request: Request):
                     logger.info(f"{email_provided} logged in successfully") 
                     
                     # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
-                    return {"message":f"{email_provided} logged in succesfully", "status":status.HTTP_200_OK}  # Return success message
+                    return {"message":f"{email_provided} logged in succesfully", "status_code":status.HTTP_200_OK, "token_type": "Bearer"}  # Return success message
 
                 print("cache data returned none") # debug
                 create_new_log("warning", f"login attempt with invalid Invalid credentials: {form_data['email']} ; {form_data['password']}", "/api/backend/Auth")
@@ -669,7 +669,7 @@ async def login(data: models.login, response: Response, request: Request):
                     create_new_log("info", f"{phone_number_provided} logged in successfully", "/api/backend/Auth")
                     logger.info(f"{phone_number_provided} logged in successfully") # log the cache hit
                     # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
-                    return {"message":f"{phone_number_provided[:4]+'x'*6+phone_number_provided[11:]} logged in succesfully", "status":status.HTTP_200_OK}  # Return success message
+                    return {"message":f"{phone_number_provided[:4]+'x'*6+phone_number_provided[11:]} logged in succesfully", "status_code":status.HTTP_200_OK, "token_type": "Bearer"}  # Return success message
 
                 print("cache data returned none") # debug
                 create_new_log("warning", f"login attempt with invalid credentials: {form_data['phone_number']} ; {form_data['password']}", "/api/backend/Auth")
@@ -758,7 +758,7 @@ async def refresh_token(request: Request, response: Response):
             await client.expire(f"patient:refresh_token:{new_refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
             create_new_log("info", f"Refresh token verified for {device_fingerprint} -> device_fingerprint", "/api/backend/Auth")
             logger.info(f"Refresh token verified for {device_fingerprint} -> device_fingerprint") # log the cache hit
-            return({"status":status.HTTP_200_OK, "message":"Refresh token verified,patient logged in"})
+            return({"status_code":status.HTTP_200_OK, "message":"Refresh token verified,patient logged in", "token_type":"Bearer"})
         
       
     except Exception as e:
@@ -815,7 +815,7 @@ async def reset_password(data: models.email):
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
         create_new_log("info", f"Password reset link sent successfully to {email}", "/api/backend/Auth")
         logger.info(f"Password reset link sent successfully to {email}") 
-        return ({"message": "Password reset link sent successfully"}) # Return success message
+        return ({"message": "Password reset link sent successfully", "status_code": status.HTTP_200_OK}) # Return success message
     
     except Exception as e:
         print(f"Error resetting password: {str(e)}")
@@ -865,7 +865,7 @@ async def create_new_password(data: models.reset_password, token: str):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         create_new_log("info", f"Password reset successfully for {email}", "/api/backend/Auth")
         logger.info(f"Password reset successfully for {email}")
-        return ({"message": "Password updated successfully"}) # Return success message
+        return ({"message": "Password updated successfully", "status_code": status.HTTP_200_OK}) # Return success message
     
     except Exception as e:
         print(f"Error creating new password: {str(e)}")
