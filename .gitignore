@@ -10,3 +10,4 @@ auth.log
 .__auth.log
 *.pytest_cache
 .vscode
+.python-version
