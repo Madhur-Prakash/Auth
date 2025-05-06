@@ -4,6 +4,8 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import mongo_client  # Use absolute import instead of relative import
 import json
+from helper.utils import create_new_log, setup_logging
+import traceback
 import time
 
 # Kafka Consumer
@@ -26,6 +28,7 @@ consumer_2 = KafkaConsumer(
     value_deserializer=lambda m: json.loads(m.decode('utf-8'))
 )
 
+logger = setup_logging()
 BATCH_SIZE = 2   # Insert 100 patients at once
 SIGNUP_BATCH = []  # Temporary storage for batch
 
@@ -38,11 +41,17 @@ def insert_batch(batch):
         try:
             mongo_client.auth.patient.insert_many(batch, ordered=False)
             print(f"✅ Inserted batch of {len(batch)} patients.")
+            # Log the successful insert
+            logger.info(f"Inserted batch of {len(batch)} patients.")
+            create_new_log("info", f"Inserted batch of {len(batch)} patients.", "/api/backend/Auth")
             return True
         except Exception as e:
             print(f"⚠️ Insert failed. Retrying... Attempt {attempt+1}")
             time.sleep(2)  # Wait before retry
     print("❌ Insert failed after 3 attempts. Logging error...")
+    logger.error(f"Failed to insert patient data: {e}")
+    formatted_traceback = traceback.format_exc()
+    create_new_log("error", formatted_traceback, "/api/backend/Auth")
     # (Optional) Save failed data somewhere safe
     return False
 
