@@ -21,12 +21,12 @@ logging = setup_logging()
 #  AWS credentials
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_REGION = os.getenv("AWS_REGION")
+AWS_REGION_NAME = os.getenv("AWS_REGION_NAME", default="us-east-1")
 
 # aws client
 sns_client = boto3.client(
     'sns',
-    region_name=AWS_REGION,
+    region_name=AWS_REGION_NAME,
     aws_access_key_id=AWS_ACCESS_KEY_ID,
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY
 )
