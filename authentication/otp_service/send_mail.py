@@ -121,7 +121,7 @@ def send_mail_to_mailhog(to_email, subject, body, retries=3, delay=5):
             print(f"Failed to send email to MailHog: {e}. Retrying in {delay} seconds...")
             print(f"Error: {traceback.format_exc()}")
             time.sleep(delay)
+            return {"status": "failure", "error": str(e)}
 
     print("Failed to send email to MailHog after multiple attempts.")
-    return {"status": "failure", "error": str(e)}
 
