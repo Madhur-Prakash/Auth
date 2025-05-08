@@ -435,7 +435,7 @@ async def login(data: models.login_otp):
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
                     create_new_log("info", f"otp sent successfuly on {phone_number_provided}", "/api/backend/Auth")
                     logger.info(f"otp sent successfuly on {phone_number_provided}") # log the cache hit
-                    return {"message": f"OTP sent successfully on {phone_number_provided[5:]+'x'*6+phone_number_provided[13:]}", "status_code":status.HTTP_200_OK} # masking the phone number for security
+                    return {"message": f"OTP sent successfully on {phone_number_provided[:5]+'x'*6+phone_number_provided[13:]}", "status_code":status.HTTP_200_OK} # masking the phone number for security
 
                 print("cache data returned none") # debug
                 create_new_log("warning", f"login attempt with invalid credentials: {form_data['phone_number']}", "/api/backend/Auth")
