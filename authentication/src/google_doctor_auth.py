@@ -6,7 +6,7 @@ from ..config.database import mongo_client
 from ..helper.utils import create_session_id, create_new_log, generate_fingerprint_hash, get_country_name, generate_random_string, setup_logging
 from fastapi.responses import RedirectResponse
 from authlib.integrations.starlette_client import OAuth, OAuthError
-from ..config.redis import client
+from ..config.redis_config import client
 from ..helper.auth_token import create_access_token
 import os
 from ..otp_service.send_mail import send_email

@@ -3,7 +3,7 @@ from twilio.rest import Client
 from fastapi import status
 from fastapi.exceptions import HTTPException
 import random,os
-from ..config.redis import client as redis_client
+from ..config.redis_config import client as redis_client
 import traceback
 from ..helper.utils import setup_logging
 from ..config.database import mongo_client

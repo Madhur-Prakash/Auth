@@ -1,8 +1,9 @@
 from kafka import KafkaConsumer
 import os
 import sys
+import asyncio
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from database import client as mongo_client  # Use absolute import instead of relative import
+from database import mongo_client  # Use absolute import instead of relative import
 import json
 import time
 import traceback
@@ -18,18 +19,14 @@ consumer_2 = KafkaConsumer(
     value_deserializer=lambda m: json.loads(m.decode('utf-8'))
 )
 
-GOOGLE_BATCH_SIZE = 2   # Insert 100 patients at once
-GOOGLE_SIGNUP_BATCH = []  # Temporary storage for batch
-
-
 
 logging = setup_logging()
 
 
-def insert_batch(batch):
+async def insert_batch(batch):
     for attempt in range(3):  # Retry 3 times
         try:
-            mongo_client.auth.patient.insert_many(batch, ordered=False)
+            await mongo_client.auth.patient.insert_many(batch, ordered=False)
             print(f"✅ Inserted batch of {len(batch)} patients.")
             # Log the successful insert
             logging.info(f"Inserted batch of {len(batch)} patients.")
@@ -49,18 +46,27 @@ def insert_batch(batch):
 print("Worker started, waiting for connection requests...")
 
 # Google Signup Consumer
-try:
-    for val in consumer_2:
-        patient_data = val.value
-        GOOGLE_SIGNUP_BATCH.append(patient_data)
+async def run_kafka():
+    GOOGLE_BATCH_SIZE = 2   # Insert 100 patients at once
+    GOOGLE_SIGNUP_BATCH = []  # Temporary storage for batch
 
-        if len(GOOGLE_SIGNUP_BATCH) >= GOOGLE_BATCH_SIZE:
-            success = insert_batch(GOOGLE_SIGNUP_BATCH)
-            if success:
-                consumer_2.commit()  # Only commit Kafka offset after successful DB write
-                GOOGLE_SIGNUP_BATCH = []  # Clear batch
+    try:
+        for val in consumer_2:
+            patient_data = val.value
+            GOOGLE_SIGNUP_BATCH.append(patient_data)
 
-except KeyboardInterrupt:
-    print("Shutting down worker...")
-finally:
-    consumer_2.close()
+            if len(GOOGLE_SIGNUP_BATCH) >= GOOGLE_BATCH_SIZE:
+                success = await insert_batch(GOOGLE_SIGNUP_BATCH)
+                if success:
+                    consumer_2.commit()  # Only commit Kafka offset after successful DB write
+                    GOOGLE_SIGNUP_BATCH = []  # Clear batch
+
+    except KeyboardInterrupt:
+        print("Shutting down worker...")
+    finally:
+        consumer_2.close()
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run_kafka())
+    loop.close()

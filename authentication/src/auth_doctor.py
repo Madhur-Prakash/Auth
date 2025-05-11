@@ -6,7 +6,7 @@ from ..config.database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
-from ..config.redis import client
+from ..config.redis_config import client
 import os
 from ..config.rate_limiting import limiter
 from ..helper.oauth2 import OAuth2PatientRequestForm, create_verification_token, decode_verification_token, serializer

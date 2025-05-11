@@ -1,6 +1,7 @@
 from kafka import KafkaConsumer
 import os
 import sys
+import asyncio
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import mongo_client  # Use absolute import instead of relative import
 import json
@@ -21,14 +22,11 @@ consumer = KafkaConsumer(
 
 logger = setup_logging()
 
-BATCH_SIZE = 2   # Insert 100 patients at once
-SIGNUP_BATCH = []  # Temporary storage for batch
 
-
-def insert_batch(batch):
+async def insert_batch(batch):
     for attempt in range(3):  # Retry 3 times
         try:
-            mongo_client.auth.patient.insert_many(batch, ordered=False)
+            await mongo_client.auth.patient.insert_many(batch, ordered=False)
             print(f"✅ Inserted batch of {len(batch)} patients.")
             # Log the successful insert
             logger.info(f"Inserted batch of {len(batch)} patients.")
@@ -45,21 +43,27 @@ def insert_batch(batch):
     return False
 
 print("Worker started, waiting for signup messages...")
+async def run_kafka():
+    BATCH_SIZE = 2   # Insert 100 patients at once
+    SIGNUP_BATCH = []  # Temporary storage for batch
+    try:
+        for message in consumer:
+            patient_data = message.value
+            SIGNUP_BATCH.append(patient_data)
 
-try:
-    for message in consumer:
-        patient_data = message.value
-        SIGNUP_BATCH.append(patient_data)
+            if len(SIGNUP_BATCH) >= BATCH_SIZE:
+                success = await insert_batch(SIGNUP_BATCH)
+                if success:
+                    consumer.commit()  # Only commit Kafka offset after successful DB write
+                    SIGNUP_BATCH = []  # Clear batch
 
-        if len(SIGNUP_BATCH) >= BATCH_SIZE:
-            success = insert_batch(SIGNUP_BATCH)
-            if success:
-                consumer.commit()  # Only commit Kafka offset after successful DB write
-                SIGNUP_BATCH = []  # Clear batch
-
-except KeyboardInterrupt:
-    print("Shutting down worker...")
-finally:
-    consumer.close()
+    except KeyboardInterrupt:
+        print("Shutting down worker...")
+    finally:
+        consumer.close()
 
 
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run_kafka())
+    loop.close()
