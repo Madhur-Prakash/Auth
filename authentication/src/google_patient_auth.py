@@ -462,7 +462,7 @@ async def patient_google_login_callback(request: Request, response: Response):
             
             create_new_log("info", f"Patient login successful: {existing_email}", "/api/backend/Auth")
             logger.info(f"patient login successful: {existing_email}")
-            return {"message": f"patient login successful: {existing_email}", "status_code": status.HTTP_200_OK, "token_type": "Bearer", "email": existing_email}
+            return {"message": f"patient login successful: {existing_email}", "status_code": status.HTTP_200_OK, "token_type": "Bearer", "email": cache_key}
         
         # Case 2: User NOT found ➡️ Check for Google phone
         people_api_url = "https://people.googleapis.com/v1/people/me?personFields=phoneNumbers"
