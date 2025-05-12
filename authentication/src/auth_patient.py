@@ -245,7 +245,7 @@ async def signup(data: models.patient, response: Response, request: Request):
         #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
         
         # return {"message":f"OTP sent successfully on {form_data['phone_number'][:6]+'x'*6+dict_data['phone_number'][13:]} and {dict_data['email']}"} # Return success message
-        return {"message":f"Account for patient created successfully: {dict_data['email']}", "status_code":status.HTTP_201_CREATED, "token_type":"Bearer"}
+        return {"message":f"Account for patient created successfully: {dict_data['email']}", "status_code":status.HTTP_201_CREATED, "token_type":"Bearer", "CIN": dict_data["CIN"]}
 
 
     except Exception as e:
