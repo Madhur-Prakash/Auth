@@ -193,7 +193,7 @@ async def patient_google_signup_callback(request: Request, response: Response):
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
         create_new_log("info", f"Account for patient created successfully: {user_data['email']}", "/api/backend/Auth")
         logger.info(f"Account for patient created successfully: {user_data['email']}")
-        return {"message":f"Account for patient created successfully: {user_data['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer", "CIN": user_data["CIN"]}
+        return {"message":f"Account for patient created successfully: {user_data['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer", "CIN": user_data["CIN"], "created_at": user_data["created_at"]}
 
     except OAuthError as e:
         formatted_error = traceback.format_exc()
@@ -295,7 +295,7 @@ async def patient_phone_number_signup(data:models.google_login, request: Request
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
         create_new_log("info", f"Account for patient created successfully: {user_data['email']}", "/api/backend/Auth")
         logger.info(f"Account for patient created successfully: {user_data['email']}")
-        return {"message":f"Account for patient created successfully: {user_data['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer", "CIN": user_data["CIN"]}
+        return {"message":f"Account for patient created successfully: {user_data['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer", "CIN": user_data["CIN"], "created_at": user_data["created_at"]}
     
     except Exception as e:
         formatted_error = traceback.format_exc()
@@ -411,7 +411,7 @@ async def patient_phone_number_login(data: models.google_login, request: Request
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
         create_new_log("info", f"Account for patient created successfully: {new_user['email']}", "/api/backend/Auth")
         logger.info(f"Account for patient created successfully: {new_user['email']}")
-        return {"message":f"Account for patient created successfully: {new_user['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer", "CIN": new_user["CIN"]}
+        return {"message":f"Account for patient created successfully: {new_user['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer", "CIN": new_user["CIN"], "created_at": new_user["created_at"]}
 
     except Exception as e:
         formatted_error = traceback.format_exc()
@@ -544,7 +544,7 @@ async def patient_google_login_callback(request: Request, response: Response):
                                                                 "session_id":encrypyted_session_id})
             await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
-            return {"message": f"patient auto-registered and logged in: {user_doc['email']}", "status_code": status.HTTP_200_OK, "token_type": "Bearer", "CIN": user_doc["CIN"]}
+            return {"message": f"patient auto-registered and logged in: {user_doc['email']}", "status_code": status.HTTP_200_OK, "token_type": "Bearer", "CIN": user_doc["CIN"], "created_at": user_doc["created_at"]}
         
         else:
             # Case 3: No phone found ➡️ redirect to phone collection page
