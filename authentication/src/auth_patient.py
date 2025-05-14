@@ -862,8 +862,11 @@ async def create_new_password(data: models.reset_password):
         
         hashed_password = Hash.bcrypt(password)
         # If bcrypt returns bytes, decode to string for MongoDB storage
-        hashed_password = hashed_password.decode('utf-8')
+        hashed_password = hashed_password.encode('utf-8')
         result = await mongo_client.auth.patient.update_one({"email": email}, {"$set": {"password": hashed_password}})
+        await client.hset(f"patient:auth:{email}",mapping={
+                                                            "data":email,
+                                                            "password": hashed_password})
         # Check if user was updated
         if result.modified_count == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
