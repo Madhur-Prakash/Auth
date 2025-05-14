@@ -764,8 +764,10 @@ async def reset_password(data: models.email):
         user = await mongo_client.auth.doctor.find_one({"email": email})
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        token = create_verification_token({"email":email})
-        reset_link = f"http://127.0.0.1:8000/doctor/create_new_password/{token}"
+        # token = create_verification_token({"email":email})
+        # reset_link = f"http://127.0.0.1:8000/doctor/create_new_password/{token}"
+        otp = await generate_otp(email)
+        hashed_otp = Hash.bcrypt(otp)
         html_body = f"""
                     <html>
 <body style="font-family: Arial, sans-serif; background-color: #f0f2f5; padding: 30px;">
@@ -778,9 +780,9 @@ async def reset_password(data: models.email):
                     Hello,
                 </p>
                 <p style="color: #606f7b; font-size: 15px; margin-bottom: 20px;">
-                    We received a request to reset the password for your <strong>CuraDocs</strong> account. Please click the button below to create a new password.
+                    We received a request to reset the password for your <strong>CuraDocs</strong> account. Please use the below otp for creaing a new password.
                 </p>
-                <a href="{reset_link}" style="background-color: #1d72b8; color: #ffffff; padding: 12px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-bottom: 20px; font-size: 16px;">Reset Password</a>
+                <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">{otp}</span>
                 <p style="color: #606f7b; font-size: 13px; margin-bottom: 30px;">
                     If you did not request this, you can safely ignore this email.
                 </p>
@@ -800,7 +802,7 @@ async def reset_password(data: models.email):
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
         create_new_log("info", f"Password reset link sent successfully to {email}", "/api/backend/Auth")
         logger.info(f"Password reset link sent successfully to {email}") 
-        return ({"message": "Password reset link sent successfully", "status_code": status.HTTP_200_OK, "token": token}) # Return success message
+        return ({"message": "Password reset link sent successfully", "status_code": status.HTTP_200_OK, "otp": hashed_otp}) # Return success message
     
     except Exception as e:
         print(f"Error resetting password: {str(e)}")
@@ -816,12 +818,13 @@ async def reset_password(data: models.email):
 #     return templates.TemplateResponse("reset_password.html", {"request": request}, status_code=status.HTTP_200_OK)
 
 
-@auth_doctor.post("/doctor/create_new_password/{token}", status_code=status.HTTP_200_OK) 
+@auth_doctor.post("/doctor/create_new_password", status_code=status.HTTP_200_OK) 
 async def create_new_password(data: models.reset_password, token: str):
     try:
-        token_data = decode_verification_token(token)
-        email = token_data["email"]
+        # token_data = decode_verification_token(token)
+        # email = token_data["email"]
         form_data = dict(data)
+        email = form_data.get("email")
         
         user = await mongo_client.auth.doctor.find_one({"email": email})
         if not user:

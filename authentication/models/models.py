@@ -84,6 +84,7 @@ class login_otp(BaseModel):
         return self
 
 class reset_password(BaseModel):
+    email: EmailStr = Field(..., title="Email Address")
     password: str = Field(..., title="Password")
     confirm_password: str = Field(..., title="Confirm Password")
 
