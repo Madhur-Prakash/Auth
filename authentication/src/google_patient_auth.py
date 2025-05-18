@@ -16,7 +16,7 @@ from ..otp_service.send_mail import send_email
 from ..helper.hashing import Hash
 from ..helper import auth_token
 from fastapi.templating import Jinja2Templates
-from ..config.database import mongo_client
+from ..config.bloom_filter import CountingBloomFilter
 from dotenv import load_dotenv
 
 google_patient_auth = APIRouter(tags=["Google Authentication"])
@@ -34,6 +34,9 @@ producer = KafkaProducer(
     bootstrap_servers=['localhost:9092'],
     value_serializer=lambda v: json.dumps(v).encode('utf-8')
 )
+
+google_patient_email_bloom_filter = CountingBloomFilter(capacity=1000000, error_rate=0.01)
+google_patient_phone_bloom_filter = CountingBloomFilter(capacity=1000000, error_rate=0.01)
 
 # initialize logger
 logger = setup_logging() 
@@ -121,18 +124,46 @@ async def patient_google_signup_callback(request: Request, response: Response):
 
         }
 
-        existing_email = await mongo_client.auth.patient.find_one({"email": user_data["email"]})
-        email_in_redis = await client.hgetall(f"patient:new_account:{user_data['email']}")
-        existing_phone = await mongo_client.auth.patient.find_one({"phone_number": user_data["phone_number"]})
-        phone_in_redis = await client.hgetall(f"patient:new_account:{user_data['phone_number']}")
+        if google_patient_email_bloom_filter.contains(user_data["email"]):
+            print("email in bloom filter")
+            create_new_log("warning", f"Signup attempt with existing email: {user_data['email']}", "/api/backend/Auth")
+            logger.warning(f"Signup attempt with existing email: {user_data['email']}")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
+        
+        else:
+            email_in_redis = await client.hgetall(f"patient:new_account:{user_data['email']}")
+            if email_in_redis:
+                print("email in redis")
+                create_new_log("warning", f"Signup attempt with existing email: {user_data['email']}", "/api/backend/Auth")
+                logger.warning(f"Signup attempt with existing email: {user_data['email']}") 
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
+            else:
+                email = await mongo_client.auth.patient.find_one({"email": user_data["email"]})
+                if email:
+                    print("email in db")
+                    create_new_log("warning", f"Signup attempt with existing email: {user_data['email']}", "/api/backend/Auth")
+                    logger.warning(f"Signup attempt with existing email: {user_data['email']}")
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
 
-        if existing_email or email_in_redis:
-            create_new_log("error", "signup attempt with existing email", "/api/backend/Auth")
-            raise HTTPException(status_code=400, detail="Email already exists.")
-        if existing_phone or phone_in_redis:
-            create_new_log("error", "signup attempt with existing phone number", "/api/backend/Auth")
-            raise HTTPException(status_code=400, detail="Phone number already exists.")
-
+        if google_patient_phone_bloom_filter.contains(user_data["phone_number"]):
+            print("phone number in bloom filter")
+            create_new_log("warning", f"Signup attempt with existing phone number: {user_data['phone_number']}", "/api/backend/Auth")
+            logger.warning(f"Signup attempt with existing phone number: {user_data['phone_number']}")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
+        else:
+            phone_number_in_redis = await client.hgetall(f"patient:new_account:{user_data['phone_number']}")
+            if phone_number_in_redis:
+                print("phone number in redis")
+                create_new_log("warning",f"Signup attempt with existing phone number: {user_data['phone_number']}", "/api/backend/Auth")
+                logger.warning(f"Signup attempt with existing phone number: {user_data['phone_number']}")
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
+            else:
+                phone_number = await mongo_client.auth.patient.find_one({"phone_number": user_data["phone_number"]})
+                if phone_number:
+                    print("phone number in db")
+                    create_new_log("warning",f"Signup attempt with existing phone number: {user_data['phone_number']}", "/api/backend/Auth")
+                    logger.warning(f"Signup attempt with existing phone number: {user_data['phone_number']}")
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
         # if phone number was fetched then insert the user into the database and create a JWT token
         user_data["full_name"] = user_data["first_name"]  # last_name will be handeled when all other details of user will be taken
         if user_data["country_code"] is not None:
@@ -149,6 +180,8 @@ async def patient_google_signup_callback(request: Request, response: Response):
 
         # Generate a cache during signup with email as key
         cache_key = user_data["email"]
+        google_patient_email_bloom_filter.add(user_data["email"])
+        google_patient_phone_bloom_filter.add(user_data["phone_number"])
         await client.hset(f"patient:new_account:{cache_key}",mapping=user_data)
         await client.expire(f"patient:new_account:{cache_key}", 691200) # expire in 7 days
         await client.hset(f"patient:new_account:{user_data['phone_number']}",mapping=user_data)
@@ -227,17 +260,46 @@ async def patient_phone_number_signup(data:models.google_login, request: Request
             "verification_status": "false"
         }
 
-        existing_email = await mongo_client.auth.patient.find_one({"email": user_data["email"]})
-        email_in_redis = await client.hgetall(f"patient:new_account:{user_data['email']}")
-        existing_phone = await mongo_client.auth.patient.find_one({"phone_number": user_data["phone_number"]})
-        phone_in_redis = await client.hgetall(f"patient:new_account:{user_data['phone_number']}")
+        if google_patient_email_bloom_filter.contains(user_data["email"]):
+            print("email in bloom filter")
+            create_new_log("warning", f"Signup attempt with existing email: {user_data['email']}", "/api/backend/Auth")
+            logger.warning(f"Signup attempt with existing email: {user_data['email']}")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
+        
+        else:
+            email_in_redis = await client.hgetall(f"patient:new_account:{user_data['email']}")
+            if email_in_redis:
+                print("email in redis")
+                create_new_log("warning", f"Signup attempt with existing email: {user_data['email']}", "/api/backend/Auth")
+                logger.warning(f"Signup attempt with existing email: {user_data['email']}") 
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
+            else:
+                email = await mongo_client.auth.patient.find_one({"email": user_data["email"]})
+                if email:
+                    print("email in db")
+                    create_new_log("warning", f"Signup attempt with existing email: {user_data['email']}", "/api/backend/Auth")
+                    logger.warning(f"Signup attempt with existing email: {user_data['email']}")
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
 
-        if existing_email or email_in_redis:
-            create_new_log("error", "signup attempt with existing email", "/api/backend/Auth")
-            raise HTTPException(status_code=400, detail="Email already exists.")
-        if existing_phone or phone_in_redis:
-            create_new_log("error", "signup attempt with existing phone number", "/api/backend/Auth")
-            raise HTTPException(status_code=400, detail="Phone number already exists.")
+        if google_patient_phone_bloom_filter.contains(user_data["phone_number"]):
+            print("phone number in bloom filter")
+            create_new_log("warning", f"Signup attempt with existing phone number: {user_data['phone_number']}", "/api/backend/Auth")
+            logger.warning(f"Signup attempt with existing phone number: {user_data['phone_number']}")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
+        else:
+            phone_number_in_redis = await client.hgetall(f"patient:new_account:{user_data['phone_number']}")
+            if phone_number_in_redis:
+                print("phone number in redis")
+                create_new_log("warning",f"Signup attempt with existing phone number: {user_data['phone_number']}", "/api/backend/Auth")
+                logger.warning(f"Signup attempt with existing phone number: {user_data['phone_number']}")
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
+            else:
+                phone_number = await mongo_client.auth.patient.find_one({"phone_number": user_data["phone_number"]})
+                if phone_number:
+                    print("phone number in db")
+                    create_new_log("warning",f"Signup attempt with existing phone number: {user_data['phone_number']}", "/api/backend/Auth")
+                    logger.warning(f"Signup attempt with existing phone number: {user_data['phone_number']}")
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
 
         # Insert user into the database
         user_data["full_name"] = user_data["first_name"] # last_name will be handeled when all other details of user will be taken
@@ -253,6 +315,8 @@ async def patient_phone_number_signup(data:models.google_login, request: Request
         # await mongo_client.auth.patient.insert_one(user_data) # this is done when kafka topic is consumed
 
         cache_key = user_data["email"]
+        google_patient_email_bloom_filter.add(user_data["email"])
+        google_patient_phone_bloom_filter.add(user_data["phone_number"])
         await client.hset(f"patient:new_account:{cache_key}",mapping=user_data)
         await client.expire(f"patient:new_account:{cache_key}", 691200) # expire in 7 days
         await client.hset(f"patient:new_account:{phone_number}",mapping=user_data)
@@ -346,17 +410,45 @@ async def patient_phone_number_login(data: models.google_login, request: Request
             "verification_status": "false"
         }
 
-        existing_phone = await mongo_client.auth.patient.find_one({"phone_number": phone_number})
-        phone_in_redis = await client.hgetall(f"patient:new_account:{new_user['phone_number']}")
-
-        if phone_in_redis or existing_phone:
-            create_new_log("error", "signup attempt with existing phone number", "/api/backend/Auth")
-            raise HTTPException(status_code=400, detail="Phone number already exists.")
-
-        updated_phone_number = phone_number + country_code
-        country_name = get_country_name(updated_phone_number)
-        country_name = country_name.lower()
-        new_user["country_name"] = country_name
+        if google_patient_email_bloom_filter.contains(new_user["email"]):
+            print("email in bloom filter")
+            create_new_log("warning", f"Signup attempt with existing email: {new_user['email']}", "/api/backend/Auth")
+            logger.warning(f"Signup attempt with existing email: {new_user['email']}")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
+        
+        else:
+            email_in_redis = await client.hgetall(f"patient:new_account:{new_user['email']}")
+            if email_in_redis:
+                print("email in redis")
+                create_new_log("warning", f"Signup attempt with existing email: {new_user['email']}", "/api/backend/Auth")
+                logger.warning(f"Signup attempt with existing email: {new_user['email']}") 
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
+            else:
+                email = await mongo_client.auth.patient.find_one({"email": new_user["email"]})
+                if email:
+                    print("email in db")
+                    create_new_log("warning", f"Signup attempt with existing email: {new_user['email']}", "/api/backend/Auth")
+                    logger.warning(f"Signup attempt with existing email: {new_user['email']}")
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
+        if google_patient_phone_bloom_filter.contains(new_user["phone_number"]):
+            print("phone number in bloom filter")
+            create_new_log("warning", f"Signup attempt with existing phone number: {new_user['phone_number']}", "/api/backend/Auth")
+            logger.warning(f"Signup attempt with existing phone number: {new_user['phone_number']}")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
+        else:
+            phone_number_in_redis = await client.hgetall(f"patient:new_account:{new_user['phone_number']}")
+            if phone_number_in_redis:
+                print("phone number in redis")
+                create_new_log("warning",f"Signup attempt with existing phone number: {new_user['phone_number']}", "/api/backend/Auth")
+                logger.warning(f"Signup attempt with existing phone number: {new_user['phone_number']}")
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
+            else:
+                phone_number = await mongo_client.auth.patient.find_one({"phone_number": new_user["phone_number"]})
+                if phone_number:
+                    print("phone number in db")
+                    create_new_log("warning",f"Signup attempt with existing phone number: {new_user['phone_number']}", "/api/backend/Auth")
+                    logger.warning(f"Signup attempt with existing phone number: {new_user['phone_number']}")
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
 
         # ****************send data to kafka topic *****************
         producer.send(TOPIC_NAME, new_user) # send data to kafka topic
@@ -365,6 +457,8 @@ async def patient_phone_number_login(data: models.google_login, request: Request
         # await mongo_client.auth.patient.insert_one(new_user)  # this is done when kafka topic is consumed
 
         cache_key = new_user["email"]
+        google_patient_email_bloom_filter.add(new_user["email"])
+        google_patient_phone_bloom_filter.add(new_user["phone_number"])
         await client.hset(f"patient:new_account:{cache_key}",mapping=new_user)
         await client.expire(f"patient:new_account:{cache_key}", 691200) # expire in 7 days
         await client.hset(f"patient:new_account:{phone_number}",mapping=new_user)
@@ -484,12 +578,46 @@ async def patient_google_login_callback(request: Request, response: Response):
                 "verification_status": "false"
             }
 
-            existing_phone = await mongo_client.auth.patient.find_one({"phone_number": user_doc["phone_number"]})
-            phone_in_redis = await client.hgetall(f"patient:new_account:{user_doc['phone_number']}")
+            if google_patient_email_bloom_filter.contains(user_doc["email"]):
+                print("email in bloom filter")
+                create_new_log("warning", f"Signup attempt with existing email: {user_doc['email']}", "/api/backend/Auth")
+                logger.warning(f"Signup attempt with existing email: {user_doc['email']}")
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
+        
+            else:
+                email_in_redis = await client.hgetall(f"patient:new_account:{user_doc['email']}")
+                if email_in_redis:
+                    print("email in redis")
+                    create_new_log("warning", f"Signup attempt with existing email: {user_doc['email']}", "/api/backend/Auth")
+                    logger.warning(f"Signup attempt with existing email: {user_doc['email']}") 
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
+                else:
+                    email = await mongo_client.auth.patient.find_one({"email": user_doc["email"]})
+                    if email:
+                        print("email in db")
+                        create_new_log("warning", f"Signup attempt with existing email: {user_doc['email']}", "/api/backend/Auth")
+                        logger.warning(f"Signup attempt with existing email: {user_doc['email']}")
+                        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
 
-            if existing_phone or phone_in_redis:
-                create_new_log("error", "signup attempt with existing phone number", "/api/backend/Auth")
-                raise HTTPException(status_code=400, detail="Phone number already exists.")
+            if google_patient_phone_bloom_filter.contains(user_doc["phone_number"]):
+                print("phone number in bloom filter")
+                create_new_log("warning", f"Signup attempt with existing phone number: {user_doc['phone_number']}", "/api/backend/Auth")
+                logger.warning(f"Signup attempt with existing phone number: {user_doc['phone_number']}")
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
+            else:
+                phone_number_in_redis = await client.hgetall(f"patient:new_account:{user_doc['phone_number']}")
+                if phone_number_in_redis:
+                    print("phone number in redis")
+                    create_new_log("warning",f"Signup attempt with existing phone number: {user_doc['phone_number']}", "/api/backend/Auth")
+                    logger.warning(f"Signup attempt with existing phone number: {user_doc['phone_number']}")
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
+                else:
+                    phone_number = await mongo_client.auth.patient.find_one({"phone_number": user_doc["phone_number"]})
+                    if phone_number:
+                        print("phone number in db")
+                        create_new_log("warning",f"Signup attempt with existing phone number: {user_doc['phone_number']}", "/api/backend/Auth")
+                        logger.warning(f"Signup attempt with existing phone number: {user_doc['phone_number']}")
+                        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
 
         # ****************send data to kafka topic *****************
             producer.send(TOPIC_NAME, user_doc) # send data to kafka topic

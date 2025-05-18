@@ -17,6 +17,8 @@ from ..helper.utils import create_session_id, create_new_log, generate_fingerpri
 from datetime import datetime
 from ..otp_service.send_mail import send_email_ses, send_email,send_mail_to_mailhog
 from ..helper import oauth2, auth_token
+from config.bloom_filter import CountingBloomFilter
+
 
 auth_patient = APIRouter(tags=["patient Authentication"]) # create a router for patient
 templates = Jinja2Templates(directory="authentication/templates")
@@ -105,6 +107,12 @@ async def cache_without_password(data: str):
 #     return templates.TemplateResponse("login.html", {"request": request, "user": new_user}) 
     
 TOPIC_NAME = 'patient_signups'
+
+# Initialize bloom filters
+patient_email_bloom_filter = CountingBloomFilter(capacity=100000, error_rate=0.01)
+patient_phone_bloom_filter = CountingBloomFilter(capacity=100000, error_rate=0.01)
+
+
 @auth_patient.post("/patient/signup", status_code=status.HTTP_201_CREATED)
 async def signup(data: models.patient, response: Response, request: Request):
     try:
@@ -125,22 +133,51 @@ async def signup(data: models.patient, response: Response, request: Request):
             if field not in dict_data:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
 
-        email = await mongo_client.auth.patient.find_one({"email": dict_data["email"]})
-        email_in_redis = await client.hgetall(f"patient:new_account:{dict_data['email']}")
-        phone_number = await mongo_client.auth.patient.find_one({"phone_number": dict_data["phone_number"]})
-        phone_number_in_redis = await client.hgetall(f"patient:new_account:{dict_data['phone_number']}")
 
         # data validation
-        if email or email_in_redis:
+        if patient_email_bloom_filter.contains(dict_data["email"]):
+            print("email in bloom filter")
             create_new_log("warning", f"Signup attempt with existing email: {dict_data['email']}", "/api/backend/Auth")
-            logger.warning(f"Signup attempt with existing email: {dict_data['email']}") 
+            logger.warning(f"Signup attempt with existing email: {dict_data['email']}")
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
-        if(form_data["phone_number"].__len__() < 10 or form_data["phone_number"].__len__() > 10):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be 10 digits long")
-        if phone_number or phone_number_in_redis:
-            create_new_log("warning",f"Signup attempt with existing phone number: {dict_data['phone_number']}", "/api/backend/Auth")
+        
+        else:
+            email_in_redis = await client.hgetall(f"patient:new_account:{dict_data['email']}")
+            if email_in_redis:
+                print("email in redis")
+                create_new_log("warning", f"Signup attempt with existing email: {dict_data['email']}", "/api/backend/Auth")
+                logger.warning(f"Signup attempt with existing email: {dict_data['email']}") 
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
+            else:
+                email = await mongo_client.auth.patient.find_one({"email": dict_data["email"]})
+                if email:
+                    print("email in db")
+                    create_new_log("warning", f"Signup attempt with existing email: {dict_data['email']}", "/api/backend/Auth")
+                    logger.warning(f"Signup attempt with existing email: {dict_data['email']}")
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Email already exists")
+
+        if patient_phone_bloom_filter.contains(dict_data["phone_number"]):
+            print("phone number in bloom filter")
+            create_new_log("warning", f"Signup attempt with existing phone number: {dict_data['phone_number']}", "/api/backend/Auth")
             logger.warning(f"Signup attempt with existing phone number: {dict_data['phone_number']}")
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
+        else:
+            phone_number_in_redis = await client.hgetall(f"patient:new_account:{dict_data['phone_number']}")
+            if phone_number_in_redis:
+                print("phone number in redis")
+                create_new_log("warning",f"Signup attempt with existing phone number: {dict_data['phone_number']}", "/api/backend/Auth")
+                logger.warning(f"Signup attempt with existing phone number: {dict_data['phone_number']}")
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
+            else:
+                phone_number = await mongo_client.auth.patient.find_one({"phone_number": dict_data["phone_number"]})
+                if phone_number:
+                    print("phone number in db")
+                    create_new_log("warning",f"Signup attempt with existing phone number: {dict_data['phone_number']}", "/api/backend/Auth")
+                    logger.warning(f"Signup attempt with existing phone number: {dict_data['phone_number']}")
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail = "Phone number already in use")
+
+        if(form_data["phone_number"].__len__() < 10 or form_data["phone_number"].__len__() > 10):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be 10 digits long")
         
         if not(form_data["phone_number"].isdigit()):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be digits only")
@@ -159,6 +196,8 @@ async def signup(data: models.patient, response: Response, request: Request):
         # hashing the password
         hashed_password = Hash.bcrypt(dict_data["password"])
         dict_data["password"] = hashed_password
+        patient_email_bloom_filter.add(dict_data["email"]) # add email to bloom filter
+        patient_phone_bloom_filter.add(dict_data["phone_number"]) # add phone number to bloom filter
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
         refresh_token = auth_token.create_refresh_token(data={
