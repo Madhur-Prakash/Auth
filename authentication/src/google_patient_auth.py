@@ -72,7 +72,8 @@ async def cache_without_password(data: str):
     logger.warning(f"login attempt with invalid credentials: {data}") # log the cache hit
     return None
 
-TOPIC_NAME = 'patient_google_signups'
+TOPIC_NAME = 'patient_signups'
+TOPIC2_NAME = "patient_CIN"
 # ---- Patient Signup ----
 
 
@@ -174,6 +175,8 @@ async def patient_google_signup_callback(request: Request, response: Response):
 
         # ****************send data to kafka topic *****************
         producer.send(TOPIC_NAME, user_data) # send data to kafka topic
+        producer.flush() # flush the producer to ensure data is sent
+        producer.send(TOPIC2_NAME, user_data["CIN"]) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
         # await mongo_client.auth.patient.insert_one(user_data)  # this is done when kafka topic is consumed
@@ -310,6 +313,8 @@ async def patient_phone_number_signup(data:models.google_login, request: Request
 
         # ****************send data to kafka topic *****************
         producer.send(TOPIC_NAME, user_data) # send data to kafka topic
+        producer.flush() # flush the producer to ensure data is sent
+        producer.send(TOPIC2_NAME, user_data["CIN"]) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
         # await mongo_client.auth.patient.insert_one(user_data) # this is done when kafka topic is consumed
@@ -452,6 +457,8 @@ async def patient_phone_number_login(data: models.google_login, request: Request
 
         # ****************send data to kafka topic *****************
         producer.send(TOPIC_NAME, new_user) # send data to kafka topic
+        producer.flush() # flush the producer to ensure data is sent
+        producer.send(TOPIC2_NAME, new_user["CIN"]) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
         # await mongo_client.auth.patient.insert_one(new_user)  # this is done when kafka topic is consumed
@@ -621,6 +628,8 @@ async def patient_google_login_callback(request: Request, response: Response):
 
         # ****************send data to kafka topic *****************
             producer.send(TOPIC_NAME, user_doc) # send data to kafka topic
+            producer.flush() # flush the producer to ensure data is sent
+            producer.send(TOPIC2_NAME, user_doc["CIN"]) # send data to kafka topic
             producer.flush() # flush the producer to ensure data is sent
 
             # await mongo_client.auth.patient.insert_one(user_doc)  # this is done when kafka topic is consumed

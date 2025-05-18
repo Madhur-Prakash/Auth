@@ -11,9 +11,9 @@ from helper.utils import create_new_log, setup_logging
 
 # Kafka Consumer
 consumer_2 = KafkaConsumer(
-    'doctor_CIN',
+    'patient_CIN',
     bootstrap_servers=['localhost:9092'],
-    group_id='doctor_CIN_worker',    
+    group_id='patient_CIN_worker',    
     auto_offset_reset='earliest',
     enable_auto_commit=False,  # We'll commit manually after success
     value_deserializer=lambda m: json.loads(m.decode('utf-8'))
@@ -26,16 +26,16 @@ logging = setup_logging()
 async def insert_batch(batch):
     for attempt in range(3):  # Retry 3 times
         try:
-            await mongo_client.profile_data.doctor_profile_data.insert_many(batch, ordered=False)
-            await mongo_client.public_profile_data.doctor.insert_many(batch, ordered=False)
-            print(f"✅ Inserted batch of {len(batch)} doctors CIN.")
+            await mongo_client.profile_data.patient_profile_data.insert_many(batch, ordered=False)
+            await mongo_client.public_profile_data.patient.insert_many(batch, ordered=False)
+            print(f"✅ Inserted batch of {len(batch)} patients CIN.")
             # Log the successful insert
-            logging.info(f"Inserted batch of {len(batch)} doctors.")
-            create_new_log("info", f"Inserted batch of {len(batch)} doctors CIN.", "/api/backend/Auth")
+            logging.info(f"Inserted batch of {len(batch)} patients.")
+            create_new_log("info", f"Inserted batch of {len(batch)} patients CIN.", "/api/backend/Auth")
             return True
         except Exception as e:
             print(f"⚠️ Insert failed. Retrying... Attempt {attempt+1}")
-            logging.error(f"Failed to insert doctor data: {e}")
+            logging.error(f"Failed to insert patient data: {e}")
             time.sleep(2)  # Wait before retry
     print("❌ Insert failed after 3 attempts. Logging error...")
     formatted_traceback = traceback.format_exc()
@@ -48,19 +48,19 @@ print("Worker started, waiting for signup...")
 
 # Google Signup Consumer
 async def run_kafka():
-    DOCTOR_CIN_BATCH_SIZE = 2   # Insert 100 doctors at once
-    DOCTOR_CIN_BATCH = []  # Temporary storage for batch
+    PATIENT_CIN_BATCH_SIZE = 2   # Insert 100 patients at once
+    PATIENT_CIN_BATCH = []  # Temporary storage for batch
 
     try:
         for val in consumer_2:
-            doctor_data = val.value
-            DOCTOR_CIN_BATCH.append(doctor_data)
+            patient_data = val.value
+            PATIENT_CIN_BATCH.append(patient_data)
 
-            if len(DOCTOR_CIN_BATCH) >= DOCTOR_CIN_BATCH_SIZE:
-                success = await insert_batch(DOCTOR_CIN_BATCH)
+            if len(PATIENT_CIN_BATCH) >= PATIENT_CIN_BATCH_SIZE:
+                success = await insert_batch(PATIENT_CIN_BATCH)
                 if success:
                     consumer_2.commit()  # Only commit Kafka offset after successful DB write
-                    DOCTOR_CIN_BATCH = []  # Clear batch
+                    PATIENT_CIN_BATCH = []  # Clear batch
 
     except KeyboardInterrupt:
         print("Shutting down worker...")

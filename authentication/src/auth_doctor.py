@@ -6,6 +6,8 @@ from ..config.database import mongo_client
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from kafka import KafkaProducer
+import json
 from ..config.redis_config import client
 import os
 from ..config.rate_limiting import limiter
@@ -22,7 +24,11 @@ auth_doctor = APIRouter(tags=["doctor Authentication"]) # create a router for do
 templates = Jinja2Templates(directory="authentication/templates")
 
 logger = setup_logging() # initialize logger
-
+# Kafka Producer
+producer = KafkaProducer(
+    bootstrap_servers=['localhost:9092'],
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
 
 # implemeting cahing using redis
 async def cache(data: str, plain_password):
@@ -104,7 +110,7 @@ async def cache_without_password(data: str):
 doctor_email_bloom_filter = CountingBloomFilter(capacity=100000, error_rate=0.01)
 doctor_phone_bloom_filter = CountingBloomFilter(capacity=100000, error_rate=0.01)
 
-
+TOPIC_NAME = "doctor_CIN"
 @auth_doctor.post("/doctor/signup", status_code=status.HTTP_201_CREATED)
 async def signup(data: models.doctor, response: Response, request: Request):
     try:
@@ -212,6 +218,8 @@ async def signup(data: models.doctor, response: Response, request: Request):
         cache_key = dict_data["email"]
         await client.hset(f"doctor:new_account:{cache_key}", mapping=dict_data)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days
+        producer.send(TOPIC_NAME, value=dict_data["CIN"]) # send CIN to kafka topic
+        producer.flush() # flush the producer
         await client.hset(f"doctor:new_account:{dict_data['phone_number']}", mapping=dict_data)
         await client.expire(f"doctor:new_account:{dict_data['phone_number']}", 691200)  # expire in 7 days
 
@@ -779,7 +787,7 @@ async def refresh_token(request: Request, response: Response):
             await client.expire(f"doctor:refresh_token:{new_refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
             create_new_log("info", f"Refresh token verified for {device_fingerprint} -> device_fingerprint", "/api/backend/Auth")
             logger.info(f"Refresh token verified for {device_fingerprint} -> device_fingerprint") # log the cache hit
-            return({"status_code":status.HTTP_200_OK, "message":"Refresh token verified,doctor logged in", "token_type":"Bearer", "data":extra_data})
+            return({"status_code":status.HTTP_200_OK, "message":"Refresh token verified,doctor logged in", "token_type":"Bearer"})
         
       
     except Exception as e:
@@ -799,9 +807,8 @@ async def reset_password(data: models.email):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is required")
         user = await mongo_client.auth.doctor.find_one({"email": email})
         if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        # token = create_verification_token({"email":email})
-        # reset_link = f"http://127.0.0.1:8000/doctor/create_new_password/{token}"
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")        # token = create_verification_token({"email":email})
+        # reset_link = f"http://127.0.0.1:8000/patient/create_new_password/{token}"
         otp = await generate_otp(email)
         hashed_otp = Hash.bcrypt(otp)
         html_body = f"""
@@ -836,15 +843,15 @@ async def reset_password(data: models.email):
         email_sent = (send_email(email, "Password Reset Request", html_body, retries=3, delay=5))
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
-        create_new_log("info", f"Password reset link sent successfully to {email}", "/api/backend/Auth")
-        logger.info(f"Password reset link sent successfully to {email}") 
-        return ({"message": "Password reset link sent successfully", "status_code": status.HTTP_200_OK, "otp": hashed_otp}) # Return success message
+        create_new_log("info", f"Password reset otp sent successfully to {email}", "/api/backend/Auth")
+        logger.info(f"Password reset otp sent successfully to {email}") 
+        return ({"message": "Password reset otp sent successfully", "status_code": status.HTTP_200_OK, "otp": hashed_otp}) # Return success message # Return success message
     
     except Exception as e:
         print(f"Error resetting password: {str(e)}")
         formatted_error = traceback.format_exc()
-        create_new_log("error", f"Error sending reset password link: {formatted_error}", "/api/backend/Auth")
-        logger.error(f"Error sending reset password link: {str(e)}") # log the cache hit
+        create_new_log("error", f"Error sending reset password otp: {formatted_error}", "/api/backend/Auth")
+        logger.error(f"Error sending reset password otp: {str(e)}") # log the cache hit
         print(f"Error: {formatted_error}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
         
@@ -855,7 +862,7 @@ async def reset_password(data: models.email):
 
 
 @auth_doctor.post("/doctor/create_new_password", status_code=status.HTTP_200_OK) 
-async def create_new_password(data: models.reset_password, token: str):
+async def create_new_password(data: models.reset_password):
     try:
         # token_data = decode_verification_token(token)
         # email = token_data["email"]

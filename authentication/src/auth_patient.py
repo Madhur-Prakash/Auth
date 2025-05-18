@@ -19,7 +19,6 @@ from ..otp_service.send_mail import send_email_ses, send_email,send_mail_to_mail
 from ..helper import oauth2, auth_token
 from config.bloom_filter import CountingBloomFilter
 
-
 auth_patient = APIRouter(tags=["patient Authentication"]) # create a router for patient
 templates = Jinja2Templates(directory="authentication/templates")
 
@@ -107,6 +106,7 @@ async def cache_without_password(data: str):
 #     return templates.TemplateResponse("login.html", {"request": request, "user": new_user}) 
     
 TOPIC_NAME = 'patient_signups'
+TOPIC2_NAME = "patient_CIN"
 
 # Initialize bloom filters
 patient_email_bloom_filter = CountingBloomFilter(capacity=100000, error_rate=0.01)
@@ -132,7 +132,6 @@ async def signup(data: models.patient, response: Response, request: Request):
         for field in required_fields:
             if field not in dict_data:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
-
 
         # data validation
         if patient_email_bloom_filter.contains(dict_data["email"]):
@@ -196,8 +195,8 @@ async def signup(data: models.patient, response: Response, request: Request):
         # hashing the password
         hashed_password = Hash.bcrypt(dict_data["password"])
         dict_data["password"] = hashed_password
-        patient_email_bloom_filter.add(dict_data["email"]) # add email to bloom filter
-        patient_phone_bloom_filter.add(dict_data["phone_number"]) # add phone number to bloom filter
+        patient_email_bloom_filter.add(dict_data["email"])
+        patient_phone_bloom_filter.add(dict_data["phone_number"])
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
         refresh_token = auth_token.create_refresh_token(data={
@@ -235,6 +234,11 @@ async def signup(data: models.patient, response: Response, request: Request):
         # ****************send data to kafka topic *****************
         producer.send(TOPIC_NAME, dict_data) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
+
+        # send cin to public and private profile db
+        producer.send(TOPIC2_NAME, dict_data["CIN"]) # send data to kafka topic
+        producer.flush() # flush the producer to ensure data is sent
+
 
         # await mongo_client.auth.patient.insert_one(dict_data) # this will be done when kafka consumer will consume the data from topic and insert into mongodb
 
@@ -855,15 +859,15 @@ async def reset_password(data: models.email):
         email_sent = (send_email(email, "Password Reset Request", html_body, retries=3, delay=5))
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
-        create_new_log("info", f"Password reset link sent successfully to {email}", "/api/backend/Auth")
-        logger.info(f"Password reset link sent successfully to {email}") 
-        return ({"message": "Password reset link sent successfully", "status_code": status.HTTP_200_OK, "otp": hashed_otp}) # Return success message
+        create_new_log("info", f"Password reset otp sent successfully to {email}", "/api/backend/Auth")
+        logger.info(f"Password reset link otp successfully to {email}") 
+        return ({"message": "Password reset otp sent successfully", "status_code": status.HTTP_200_OK, "otp": hashed_otp}) # Return success message
     
     except Exception as e:
         print(f"Error resetting password: {str(e)}")
         formatted_error = traceback.format_exc()
-        create_new_log("error", f"Error sending reset password link: {formatted_error}", "/api/backend/Auth")
-        logger.error(f"Error sending reset password link: {str(e)}")
+        create_new_log("error", f"Error sending reset password otp: {formatted_error}", "/api/backend/Auth")
+        logger.error(f"Error sending reset password otp: {str(e)}")
         print(f"Error: {formatted_error}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
         
@@ -1026,3 +1030,4 @@ async def logout(data: models.email, response: Response, request: Request):
         # create_new_log("error", f"Error verifying email: {formatted_error}", "/api/backend/Auth")
 #         logger.error(f"Error verifying email: {str(e)}") # log the cache hit
 #         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+

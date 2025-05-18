@@ -6,6 +6,7 @@ from ..config.database import mongo_client
 from ..helper.utils import create_session_id, create_new_log, generate_fingerprint_hash, get_country_name, generate_random_string, setup_logging
 from fastapi.responses import RedirectResponse
 from authlib.integrations.starlette_client import OAuth, OAuthError
+import json
 from ..config.redis_config import client
 from ..helper.auth_token import create_access_token
 import os
@@ -14,6 +15,7 @@ from ..helper.hashing import Hash
 from ..helper import auth_token
 from fastapi.templating import Jinja2Templates
 from ..config.bloom_filter import CountingBloomFilter
+from kafka import KafkaProducer
 
 from dotenv import load_dotenv
 
@@ -26,6 +28,12 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 templates = Jinja2Templates(directory="authentication/templates")
+
+# Kafka Producer
+producer = KafkaProducer(
+    bootstrap_servers=['localhost:9092'],
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
 
 google_doctor_email_bloom_filter = CountingBloomFilter(capacity=100000, error_rate=0.01)
 google_doctor_phone_bloom_filter = CountingBloomFilter(capacity=100000, error_rate=0.01)
@@ -69,7 +77,7 @@ oauth.register(
 )
 
 
-
+TOPIC_NAME = "doctor_CIN"
 @google_doctor_auth.get("/doctor")
 async def index(request: Request):
     return templates.TemplateResponse("doctor.html", {"request": request})
@@ -171,6 +179,8 @@ async def doctor_google_signup_callback(request: Request, response: Response):
         cache_key = user_data["email"]
         await client.hset(f"doctor:new_account:{cache_key}", mapping=user_data)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+        producer.send(TOPIC_NAME, value=user_data['CIN']) # send CIN to kafka topic
+        producer.flush() # flush the producer
         await client.hset(f"doctor:new_account:{user_data['phone_number']}", mapping=user_data)
         await client.expire(f"doctor:new_account:{user_data['phone_number']}", 691200)  # expire in 7 days
 
@@ -303,6 +313,8 @@ async def doctor_phone_number_signup(data:models.google_login, request: Request,
         google_doctor_phone_bloom_filter.add(user_data["phone_number"])
         await client.hset(f"doctor:new_account:{cache_key}", mapping=user_data)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+        producer.send(TOPIC_NAME, value=user_data['CIN']) # send CIN to kafka topic
+        producer.flush() # flush the producer
         await client.hset(f"doctor:new_account:{user_data['phone_number']}", mapping=user_data)
         await client.expire(f"doctor:new_account:{user_data['phone_number']}", 691200)  # expire in 7 days
 
@@ -450,6 +462,8 @@ async def doctor_phone_number_login(data: models.google_login, request: Request,
         google_doctor_phone_bloom_filter.add(new_user["phone_number"])
         await client.hset(f"doctor:new_account:{cache_key}", mapping=new_user)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+        producer.send(TOPIC_NAME, value=new_user['CIN']) # send CIN to kafka topic
+        producer.flush() # flush the producer
         await client.hset(f"doctor:new_account:{phone_number}", mapping=new_user)
         await client.expire(f"doctor:new_account:{phone_number}", 691200)  # expire in 7 days
 
@@ -623,6 +637,8 @@ async def doctor_google_login_callback(request: Request, response: Response):
             # await mongo_client.auth.doctor.insert_one(user_doc) -> now data goes in cache
             await client.hset(f"doctor:new_account:{cache_key}", mapping=user_doc)
             await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
+            producer.send(TOPIC_NAME, value=user_doc['CIN'])
+            producer.flush()
             await client.hset(f"doctor:new_account:{user_doc['phone_number']}", mapping=user_doc)
             await client.expire(f"doctor:new_account:{user_doc['phone_number']}", 691200)  # expire in 7 days
 
