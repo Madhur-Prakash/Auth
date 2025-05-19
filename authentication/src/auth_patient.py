@@ -236,7 +236,7 @@ async def signup(data: models.patient, response: Response, request: Request):
         producer.flush() # flush the producer to ensure data is sent
 
         # send cin to public and private profile db
-        producer.send(TOPIC2_NAME, dict_data["CIN"]) # send data to kafka topic
+        producer.send(TOPIC2_NAME, value={"CIN":dict_data["CIN"]}) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
 

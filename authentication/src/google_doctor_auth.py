@@ -179,8 +179,8 @@ async def doctor_google_signup_callback(request: Request, response: Response):
         cache_key = user_data["email"]
         await client.hset(f"doctor:new_account:{cache_key}", mapping=user_data)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
-        producer.send(TOPIC_NAME, value=user_data['CIN']) # send CIN to kafka topic
-        producer.flush() # flush the producer
+        # producer.send(TOPIC_NAME, value={"CIN":user_data['CIN']}) # send CIN to kafka topic
+        # producer.flush() # flush the producer
         await client.hset(f"doctor:new_account:{user_data['phone_number']}", mapping=user_data)
         await client.expire(f"doctor:new_account:{user_data['phone_number']}", 691200)  # expire in 7 days
 
@@ -313,8 +313,8 @@ async def doctor_phone_number_signup(data:models.google_login, request: Request,
         google_doctor_phone_bloom_filter.add(user_data["phone_number"])
         await client.hset(f"doctor:new_account:{cache_key}", mapping=user_data)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
-        producer.send(TOPIC_NAME, value=user_data['CIN']) # send CIN to kafka topic
-        producer.flush() # flush the producer
+        # producer.send(TOPIC_NAME, value={"CIN":user_data['CIN']}) # send CIN to kafka topic
+        # producer.flush() # flush the producer
         await client.hset(f"doctor:new_account:{user_data['phone_number']}", mapping=user_data)
         await client.expire(f"doctor:new_account:{user_data['phone_number']}", 691200)  # expire in 7 days
 
@@ -462,8 +462,8 @@ async def doctor_phone_number_login(data: models.google_login, request: Request,
         google_doctor_phone_bloom_filter.add(new_user["phone_number"])
         await client.hset(f"doctor:new_account:{cache_key}", mapping=new_user)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
-        producer.send(TOPIC_NAME, value=new_user['CIN']) # send CIN to kafka topic
-        producer.flush() # flush the producer
+        # producer.send(TOPIC_NAME, value={"CIN":new_user['CIN']}) # send CIN to kafka topic
+        # producer.flush() # flush the producer
         await client.hset(f"doctor:new_account:{phone_number}", mapping=new_user)
         await client.expire(f"doctor:new_account:{phone_number}", 691200)  # expire in 7 days
 
@@ -637,8 +637,8 @@ async def doctor_google_login_callback(request: Request, response: Response):
             # await mongo_client.auth.doctor.insert_one(user_doc) -> now data goes in cache
             await client.hset(f"doctor:new_account:{cache_key}", mapping=user_doc)
             await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days 
-            producer.send(TOPIC_NAME, value=user_doc['CIN'])
-            producer.flush()
+            # producer.send(TOPIC_NAME, value={"CIN":user_doc['CIN']})
+            # producer.flush()
             await client.hset(f"doctor:new_account:{user_doc['phone_number']}", mapping=user_doc)
             await client.expire(f"doctor:new_account:{user_doc['phone_number']}", 691200)  # expire in 7 days
 

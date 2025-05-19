@@ -218,8 +218,8 @@ async def signup(data: models.doctor, response: Response, request: Request):
         cache_key = dict_data["email"]
         await client.hset(f"doctor:new_account:{cache_key}", mapping=dict_data)
         await client.expire(f"doctor:new_account:{cache_key}", 691200)  # expire in 7 days
-        producer.send(TOPIC_NAME, value=dict_data["CIN"]) # send CIN to kafka topic
-        producer.flush() # flush the producer
+        # producer.send(TOPIC_NAME, value={"CIN":dict_data["CIN"]}) # send CIN to kafka topic
+        # producer.flush() # flush the producer
         await client.hset(f"doctor:new_account:{dict_data['phone_number']}", mapping=dict_data)
         await client.expire(f"doctor:new_account:{dict_data['phone_number']}", 691200)  # expire in 7 days
 

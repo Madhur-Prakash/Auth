@@ -24,8 +24,15 @@ logging = setup_logging()
 
 
 async def insert_batch(batch):
-    for attempt in range(3):  # Retry 3 times
+    # Filter only dict-like entries
+    batch = [doc for doc in batch if isinstance(doc, dict)]
+
+    for attempt in range(3):
         try:
+            if not batch:
+                logging.warning("Empty or invalid batch, skipping insert.")
+                return True  # or False depending on your logic
+
             await mongo_client.profile_data.patient_profile_data.insert_many(batch, ordered=False)
             await mongo_client.public_profile_data.patient.insert_many(batch, ordered=False)
             print(f"✅ Inserted batch of {len(batch)} patients CIN.")
