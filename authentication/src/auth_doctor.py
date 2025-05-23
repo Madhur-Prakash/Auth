@@ -273,7 +273,7 @@ async def signup(data: models.doctor, response: Response, request: Request):
         #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
         
         # return {"message":f"OTP sent successfully on {form_data['phone_number'][:6]+'x'*6+dict_data['phone_number'][13:]} and {dict_data['email']}"} # Return success message
-        return {"message":f"Account for doctor created successfully: {dict_data['email']}", "status_code":status.HTTP_201_CREATED, "token_type":"Bearer", "CIN":dict_data["CIN"], "created_at":dict_data["created_at"]}
+        return {"message":f"Account for doctor created successfully: {dict_data['email']}", "status_code":status.HTTP_201_CREATED, "token_type":"Bearer", "CIN":dict_data["CIN"], "created_at":dict_data["created_at"], "access_token": access_token, "refresh_token": refresh_token}
 
 
     except Exception as e:
@@ -525,7 +525,7 @@ async def verify_otp(data: models.otp_email, response: Response, request: Reques
         print(f"{email} logged in succesfully")  # Return success message
         create_new_log("info", f"{email} logged in successfully", "/api/backend/Auth")
         logger.info(f"{email} logged in successfully") # log the cache hit
-        return {"message":f"OTP verified successfully from {email}", "status_code":status.HTTP_200_OK, "token_type":"Bearer", "email":email}
+        return {"message":f"OTP verified successfully from {email}", "status_code":status.HTTP_200_OK, "token_type":"Bearer", "email":email, "access_token": access_token, "refresh_token": refresh_token}
                          
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -583,7 +583,7 @@ async def verify(data: models.otp_phone, response: Response, request: Request):
         print(f"{phone_number} logged in succesfully")  # Return success message
         create_new_log("info", f"{phone_number} logged in successfully", "/api/backend/Auth")
         logger.info(f"{phone_number} logged in successfully") # log the cache hit
-        return {"message":f"OTP verified successfully from {phone_number}", "status_code":status.HTTP_200_OK, "token_type":"Bearer", "phone_number":phone_number}
+        return {"message":f"OTP verified successfully from {phone_number}", "status_code":status.HTTP_200_OK, "token_type":"Bearer", "phone_number":phone_number, "access_token": access_token, "refresh_token": refresh_token}
 
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -654,7 +654,7 @@ async def login(data: models.login, response: Response, request: Request):
                     logger.info(f"{email_provided} logged in successfully") 
                     
                     # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
-                    return {"message":f"{email_provided} logged in succesfully", "status_code":status.HTTP_200_OK, "token_type": "Bearer", "email": email_provided}  # Return success message
+                    return {"message":f"{email_provided} logged in succesfully", "status_code":status.HTTP_200_OK, "token_type": "Bearer", "email": email_provided, "access_token": access_token, "refresh_token": refresh_token}  # Return success message
 
                 print("cache data returned none") # debug
                 create_new_log("warning", f"login attempt with invalid Invalid credentials: {form_data['email']} ; {form_data['password']}", "/api/backend/Auth")
@@ -697,7 +697,7 @@ async def login(data: models.login, response: Response, request: Request):
                     create_new_log("info", f"{phone_number_provided} logged in successfully", "/api/backend/Auth")
                     logger.info(f"{phone_number_provided} logged in successfully") # log the cache hit
                     # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
-                    return {"message":f"{phone_number_provided[:4]+'x'*6+phone_number_provided[11:]} logged in succesfully", "status_code":status.HTTP_200_OK, "token_type": "Bearer", "phone_number": phone_number_provided}  # Return success message
+                    return {"message":f"{phone_number_provided[:4]+'x'*6+phone_number_provided[11:]} logged in succesfully", "status_code":status.HTTP_200_OK, "token_type": "Bearer", "phone_number": phone_number_provided, "access_token": access_token, "refresh_token": refresh_token}  # Return success message
 
                 print("cache data returned none") # debug
                 create_new_log("warning", f"login attempt with invalid credentials: {form_data['phone_number']} ; {form_data['password']}", "/api/backend/Auth")
@@ -787,7 +787,7 @@ async def refresh_token(request: Request, response: Response):
             await client.expire(f"doctor:refresh_token:{new_refresh_token[:99]}", 691200) # expire in 7 days -> storing refresh token in redis
             create_new_log("info", f"Refresh token verified for {device_fingerprint} -> device_fingerprint", "/api/backend/Auth")
             logger.info(f"Refresh token verified for {device_fingerprint} -> device_fingerprint") # log the cache hit
-            return({"status_code":status.HTTP_200_OK, "message":"Refresh token verified,doctor logged in", "token_type":"Bearer"})
+            return({"status_code":status.HTTP_200_OK, "message":"Refresh token verified,doctor logged in", "token_type":"Bearer", "access_token": new_access_token, "refresh_token": new_refresh_token})
         
       
     except Exception as e:
