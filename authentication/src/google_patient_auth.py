@@ -207,12 +207,12 @@ async def patient_google_signup_callback(request: Request, response: Response):
         encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint)
         print(encrypted_refresh_token) # debug
 
-        await client.hset(f"patient:refresh_token:{refresh_token[:99]}",mapping={
+        await client.hset(f"patient:refresh_token:{refresh_token[:106]}",mapping={
                                                             "refresh_token": encrypted_refresh_token,
                                                             "device_fingerprint":encrypyted_device_fingerprint,
                                                             "data":user_data['email'],
                                                             "session_id":encrypyted_session_id})
-        await client.expire(f"patient:refresh_token:{refresh_token[:99]}", 691200) # expire in 7 days -> storing refresh token in redis
+        await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
         html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
@@ -343,12 +343,12 @@ async def patient_phone_number_signup(data:models.google_login, request: Request
         encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint)
         print(encrypted_refresh_token) # debug
 
-        await client.hset(f"patient:refresh_token:{refresh_token[:99]}",mapping={
+        await client.hset(f"patient:refresh_token:{refresh_token[:106]}",mapping={
                                                             "refresh_token": encrypted_refresh_token,
                                                             "device_fingerprint":encrypyted_device_fingerprint,
                                                             "data":user_data['email'],
                                                             "session_id":encrypyted_session_id})
-        await client.expire(f"patient:refresh_token:{refresh_token[:99]}", 691200) # expire in 7 days -> storing refresh token in redis
+        await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
         html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
@@ -491,12 +491,12 @@ async def patient_phone_number_login(data: models.google_login, request: Request
         encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint)
         print(encrypted_refresh_token) # debug
 
-        await client.hset(f"patient:refresh_token:{refresh_token[:99]}",mapping={
+        await client.hset(f"patient:refresh_token:{refresh_token[:106]}",mapping={
                                                             "refresh_token": encrypted_refresh_token,
                                                             "device_fingerprint":encrypyted_device_fingerprint,
                                                             "data":new_user['email'],
                                                             "session_id":encrypyted_session_id})
-        await client.expire(f"patient:refresh_token:{refresh_token[:99]}", 691200) # expire in 7 days -> storing refresh token in redis
+        await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
         html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
@@ -554,12 +554,12 @@ async def patient_google_login_callback(request: Request, response: Response):
             encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint)
             print(encrypted_refresh_token) # debug
 
-            await client.hset(f"patient:refresh_token:{refresh_token[:99]}",mapping={
+            await client.hset(f"patient:refresh_token:{refresh_token[:106]}",mapping={
                                                                 "refresh_token": encrypted_refresh_token,
                                                                 "device_fingerprint":encrypyted_device_fingerprint,
                                                                 "data":user_data['email'],
                                                                 "session_id":encrypyted_session_id})
-            await client.expire(f"patient:refresh_token:{refresh_token[:99]}", 691200) # expire in 7 days -> storing refresh token in redis
+            await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
             
             create_new_log("info", f"Patient login successful: {existing_email}", "/api/backend/Auth")
             logger.info(f"patient login successful: {existing_email}")
@@ -674,12 +674,12 @@ async def patient_google_login_callback(request: Request, response: Response):
             encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint)
             print(encrypted_refresh_token) # debug
 
-            await client.hset(f"patient:refresh_token:{refresh_token[:99]}",mapping={
+            await client.hset(f"patient:refresh_token:{refresh_token[:106]}",mapping={
                                                                 "refresh_token": encrypted_refresh_token,
                                                                 "device_fingerprint":encrypyted_device_fingerprint,
                                                                 "data":user_data['email'],
                                                                 "session_id":encrypyted_session_id})
-            await client.expire(f"patient:refresh_token:{refresh_token[:99]}", 691200) # expire in 7 days -> storing refresh token in redis
+            await client.expire(f"patient:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
             return {"message": f"patient auto-registered and logged in: {user_doc['email']}", "status_code": status.HTTP_200_OK, "token_type": "Bearer", "CIN": user_doc["CIN"], "created_at": user_doc["created_at"], "access_token": access_token, "refresh_token": refresh_token}
         
