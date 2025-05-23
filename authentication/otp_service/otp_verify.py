@@ -10,10 +10,10 @@ from ..config.database import mongo_client
 
 
 # Twilio Credentials (Get these from Twilio Console)
-ACCOUNT_SID = 'AC9ebccb08930b46be576f7b6c3aff3041'
-AUTH_TOKEN = '241333cb6cb2b9e0aaa80cdb252576f3'
+ACCOUNT_SID = 'AC19723d2457ae89b4f7ce4a73d4802a3a'
+AUTH_TOKEN = '0756e21bffb5c4dd8c28f24ab6a0f311'
 
-TWILIO_PHONE_NUMBER = "+1 386 260 5314"  # Get this from Twilio Console
+TWILIO_PHONE_NUMBER = "+1 978 737 8540"  # Get this from Twilio Console
 
 logging = setup_logging()
 
