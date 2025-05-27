@@ -51,6 +51,20 @@ The system securely hashes passwords before storing them in the database, ensuri
    - Install MongoDB and start the service.
    - Configure the MongoDB URI in the `.env` file.
 
+6. Set up .env:
+- SECRET_KEY = "YOUR_SECRET_KEY"
+- ALGORITHM = "YOUR_ALGORITHM"
+- ACCESS_TOKEN_EXPIRE_MINUTES = "30" 
+- REFRESH_TOKEN_EXPIRE_DAYS = "7"
+- GOOGLE_CLIENT_SECRET = "YOUR_GOOGLE_CLIENT_SECRET"
+- GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
+- SESSION_SECRET_KEY = "YOUR_SESSION_SECRET_KEY"
+- AWS_ACCESS_KEY_ID = "YOUR_AWS_ACCESS_KEY_ID"
+- AWS_SECRET_ACCESS_KEY = "YOUR_AWS_SECRET_ACCESS_KEY"
+- AWS_REGION = "YOUR_AWS_REGION"
+- NO_REPLY_EMAIL = "YOUR_NO_REPLY_EMAIL"
+- ACCOUNT_SID = "YOUR_TWILIO_ACCOUNT_SID"
+- AUTH_TOKEN = "YOUR_TWILIO_AUTH_TOKEN"
 ---
 
 ## Usage
@@ -79,9 +93,10 @@ The system securely hashes passwords before storing them in the database, ensuri
 
 ```plaintext
 Auth/
+├── .dockerignore
 ├── .env
 ├── .gitignore  # gitignore file for GitHub
-├── FOLDER_STRUCTURE.md
+├── Dockerfile
 ├── README.md  # Project documentation
 ├── __init__.py  # initializes package
 ├── app.py  # main FastAPI app
@@ -89,11 +104,14 @@ Auth/
 │   ├── __init__.py  # initializes package
 │   ├── config
 │   │   ├── __init__.py  # initializes package
+│   │   ├── bloom_filter.py
 │   │   ├── celery_app.py
 │   │   ├── database.py
-│   │   ├── kafka_consumer.py
+│   │   ├── kafka1_config.py
+│   │   ├── kafka2_config.py
+│   │   ├── kafka3_config.py
 │   │   ├── rate_limiting.py
-│   │   └── redis.py
+│   │   └── redis_config.py
 │   ├── fake_doctor.py
 │   ├── fake_patient.py
 │   ├── helper
@@ -111,10 +129,8 @@ Auth/
 │   │   └── send_mail.py
 │   ├── src
 │   │   ├── __init__.py  # initializes package
-│   │   ├── auth_doctor.py
-│   │   ├── auth_patient.py
-│   │   ├── google_doctor_auth.py
-│   │   └── google_patient_auth.py
+│   │   ├── auth_user.py
+│   │   └── google_auth.py
 │   └── templates
 │       ├── create_new_password.html
 │       ├── doctor.html
@@ -132,6 +148,7 @@ Auth/
 ├── credentials.json
 ├── docker-compose.yml
 ├── requirements.txt
+├── run.sh
 ├── test_api
 │   ├── __init__.py  # initializes package
 │   ├── doctor_hit_api.py
