@@ -4,7 +4,7 @@ from fastapi.exceptions import HTTPException
 from fastapi import status
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
-class patient(BaseModel):
+class user(BaseModel):
     first_name: str = Field(..., title="First Name of the User")
     last_name: str = Field(..., title="Last Name of the User")
     email: EmailStr = Field(..., title="Email Address")
@@ -89,11 +89,11 @@ class reset_password(BaseModel):
     confirm_password: str = Field(..., title="Confirm Password")
 
 class TokenData(BaseModel):
-    patient_user_name: Optional[str] = None
+    user_user_name: Optional[str] = None
     email: Optional[str] = None
 
 class Login(BaseModel):
-    patient_user_name: str
+    user_user_name: str
     password:str
 
 class res(BaseModel):
@@ -103,7 +103,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-class UserInDB(patient):
+class UserInDB(user):
     hashed_password: str
 
 class UserInDB(doctor):

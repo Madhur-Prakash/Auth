@@ -1,6 +1,4 @@
 from fastapi import Depends, HTTPException, status, Form
-
-from ..src import auth_patient
 from . import auth_token
 import traceback
 from itsdangerous import URLSafeTimedSerializer
