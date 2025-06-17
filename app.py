@@ -4,6 +4,7 @@ from authentication.src.auth_user import auth_user
 from fastapi.middleware.cors import CORSMiddleware
 from authentication.src.google_auth import google_user_auth
 import os
+from scalar_fastapi import get_scalar_api_reference
 from starlette.middleware.sessions import SessionMiddleware
 app = FastAPI()
 app.include_router(auth_user)
@@ -42,3 +43,10 @@ app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET_KEY")
 #     )
 
 #     return response
+
+@app.get("/scalar", include_in_schema=False)
+def get_scalar_docs():
+    return get_scalar_api_reference(
+        openapi_url=app.openapi_url,
+        title="Scalar API"
+    )
