@@ -109,7 +109,7 @@ async def user_google_signup_callback(request: Request, response: Response):
     2. Retrieves basic user information and phone number from Google APIs.
     3. Checks for the existence of the user's email and phone number in Bloom filters, Redis cache, and MongoDB to prevent duplicate signups.
     4. If the phone number is missing, redirects the user to provide their phone number.
-    5. Prepares user data, including generating a CIN, setting verification status, and determining the user's country.
+    5. Prepares user data, including generating a UID, setting verification status, and determining the user's country.
     6. Sends user data to Kafka topics for further processing.
     7. Caches user data in Redis and sets up two-factor login keys.
     8. Generates and stores refresh and access tokens, setting them as cookies in the response.
@@ -119,7 +119,7 @@ async def user_google_signup_callback(request: Request, response: Response):
         request (Request): The incoming HTTP request object.
         response (Response): The outgoing HTTP response object.
     Returns:
-        dict: A dictionary containing a success message, status code, token type, CIN, creation timestamp, access token, and refresh token.
+        dict: A dictionary containing a success message, status code, token type, UID, creation timestamp, access token, and refresh token.
         OR
         RedirectResponse: If the user's phone number is missing, redirects to the phone number input page.
     Raises:
@@ -156,7 +156,7 @@ async def user_google_signup_callback(request: Request, response: Response):
             # "verified_email": user_info.get("email_verified"),
             "phone_number": phone_number,
             "country_code": user_info.get("country_code", None),
-            "CIN": generate_random_string(),
+            "UID": generate_random_string(),
             "created_at" : datetime.now().isoformat(),
             "verification_status": "false"
 
@@ -213,7 +213,7 @@ async def user_google_signup_callback(request: Request, response: Response):
         # ****************send data to kafka topic *****************
         producer.send(TOPIC_NAME, user_data) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
-        producer.send(TOPIC2_NAME, value={"CIN":user_data["CIN"]}) # send data to kafka topic
+        producer.send(TOPIC2_NAME, value={"UID":user_data["UID"]}) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
         # await mongo_client.auth.user.insert_one(user_data)  # this is done when kafka topic is consumed
@@ -266,7 +266,7 @@ async def user_google_signup_callback(request: Request, response: Response):
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
         create_new_log("info", f"Account for user created successfully: {user_data['email']}", "/api/backend/Auth")
         logger.info(f"Account for user created successfully: {user_data['email']}")
-        return {"message":f"Account for user created successfully: {user_data['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer", "CIN": user_data["CIN"], "created_at": user_data["created_at"], "access_token": access_token, "refresh_token": refresh_token}
+        return {"message":f"Account for user created successfully: {user_data['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer", "UID": user_data["UID"], "created_at": user_data["created_at"], "access_token": access_token, "refresh_token": refresh_token}
 
     except OAuthError as e:
         formatted_error = traceback.format_exc()
@@ -292,7 +292,7 @@ async def user_phone_number_signup(data:models.google_login, request: Request, r
         request (Request): The incoming HTTP request object, used to access session data.
         response (Response): The HTTP response object, used to set cookies.
     Returns:
-        dict: A dictionary containing a success message, status code, token type, CIN, creation timestamp, access token, and refresh token.
+        dict: A dictionary containing a success message, status code, token type, UID, creation timestamp, access token, and refresh token.
     Raises:
         HTTPException: If required fields are missing, session is expired, email or phone number already exists, or if there is an error sending the email.
         Exception: For any other unexpected errors, returns a 400 status code with a generic error message.
@@ -317,7 +317,7 @@ async def user_phone_number_signup(data:models.google_login, request: Request, r
             "first_name": name,
             "phone_number": phone_number,
             "country_code": country_code,
-            "CIN": generate_random_string(),
+            "UID": generate_random_string(),
             "created_at" : datetime.now().isoformat(),
             "verification_status": "false"
         }
@@ -373,7 +373,7 @@ async def user_phone_number_signup(data:models.google_login, request: Request, r
         # ****************send data to kafka topic *****************
         producer.send(TOPIC_NAME, user_data) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
-        producer.send(TOPIC2_NAME, value={"CIN":user_data["CIN"]}) # send data to kafka topic
+        producer.send(TOPIC2_NAME, value={"UID":user_data["UID"]}) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
         # await mongo_client.auth.user.insert_one(user_data) # this is done when kafka topic is consumed
@@ -423,7 +423,7 @@ async def user_phone_number_signup(data:models.google_login, request: Request, r
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
         create_new_log("info", f"Account for user created successfully: {user_data['email']}", "/api/backend/Auth")
         logger.info(f"Account for user created successfully: {user_data['email']}")
-        return {"message":f"Account for user created successfully: {user_data['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer", "CIN": user_data["CIN"], "created_at": user_data["created_at"], "access_token": access_token, "refresh_token": refresh_token}
+        return {"message":f"Account for user created successfully: {user_data['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer", "UID": user_data["UID"], "created_at": user_data["created_at"], "access_token": access_token, "refresh_token": refresh_token}
     
     except Exception as e:
         formatted_error = traceback.format_exc()
@@ -467,7 +467,7 @@ async def user_phone_number_login(data: models.google_login, request: Request, r
         request (Request): The HTTP request object, used to access session data.
         response (Response): The HTTP response object, used to set cookies.
     Returns:
-        dict: A dictionary containing a success message, status code, token type, CIN, creation time, access token, and refresh token.
+        dict: A dictionary containing a success message, status code, token type, UID, creation time, access token, and refresh token.
     Raises:
         HTTPException: If required fields are missing, session is expired, user already exists, or an internal error occurs.
     """
@@ -491,7 +491,7 @@ async def user_phone_number_login(data: models.google_login, request: Request, r
             "full_name": name,
             "phone_number": phone_number,
             "country_code": country_code,
-            "CIN": generate_random_string(),
+            "UID": generate_random_string(),
             "created_at": datetime.now().isoformat(),
             "verification_status": "false"
         }
@@ -539,7 +539,7 @@ async def user_phone_number_login(data: models.google_login, request: Request, r
         # ****************send data to kafka topic *****************
         producer.send(TOPIC_NAME, new_user) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
-        producer.send(TOPIC2_NAME, value={"CIN":new_user["CIN"]}) # send data to kafka topic
+        producer.send(TOPIC2_NAME, value={"UID":new_user["UID"]}) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
         # await mongo_client.auth.user.insert_one(new_user)  # this is done when kafka topic is consumed
@@ -593,7 +593,7 @@ async def user_phone_number_login(data: models.google_login, request: Request, r
         response.set_cookie(key="access_token", value=access_token, max_age=3600)
         create_new_log("info", f"Account for user created successfully: {new_user['email']}", "/api/backend/Auth")
         logger.info(f"Account for user created successfully: {new_user['email']}")
-        return {"message":f"Account for user created successfully: {new_user['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer", "CIN": new_user["CIN"], "created_at": new_user["created_at"], "access_token": access_token, "refresh_token": refresh_token}
+        return {"message":f"Account for user created successfully: {new_user['email']}", "status_code": status.HTTP_201_CREATED, "token_type": "Bearer", "UID": new_user["UID"], "created_at": new_user["created_at"], "access_token": access_token, "refresh_token": refresh_token}
 
     except Exception as e:
         formatted_error = traceback.format_exc()
@@ -682,7 +682,7 @@ async def user_google_login_callback(request: Request, response: Response):
                 "full_name": user_data.get("name"),
                 "phone_number": phone_number,
                 "country_code": user_data.get("country_code", None),
-                "CIN": generate_random_string(),
+                "UID": generate_random_string(),
                 "created_at" : datetime.now().isoformat(),
                 "verification_status": "false"
             }
@@ -731,7 +731,7 @@ async def user_google_login_callback(request: Request, response: Response):
         # ****************send data to kafka topic *****************
             producer.send(TOPIC_NAME, user_doc) # send data to kafka topic
             producer.flush() # flush the producer to ensure data is sent
-            producer.send(TOPIC2_NAME, value={"CIN":user_doc["CIN"]}) # send data to kafka topic
+            producer.send(TOPIC2_NAME, value={"UID":user_doc["UID"]}) # send data to kafka topic
             producer.flush() # flush the producer to ensure data is sent
 
             # await mongo_client.auth.user.insert_one(user_doc)  # this is done when kafka topic is consumed
@@ -783,7 +783,7 @@ async def user_google_login_callback(request: Request, response: Response):
                                                                 "session_id":encrypyted_session_id})
             await client.expire(f"user:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
-            return {"message": f"user auto-registered and logged in: {user_doc['email']}", "status_code": status.HTTP_200_OK, "token_type": "Bearer", "CIN": user_doc["CIN"], "created_at": user_doc["created_at"], "access_token": access_token, "refresh_token": refresh_token}
+            return {"message": f"user auto-registered and logged in: {user_doc['email']}", "status_code": status.HTTP_200_OK, "token_type": "Bearer", "UID": user_doc["UID"], "created_at": user_doc["created_at"], "access_token": access_token, "refresh_token": refresh_token}
         
         else:
             # Case 3: No phone found ➡️ redirect to phone collection page

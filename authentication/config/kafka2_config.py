@@ -35,10 +35,10 @@ async def insert_batch(batch):
 
             await mongo_client.profile_data.user_profile_data.insert_many(batch, ordered=False)
             await mongo_client.public_profile_data.user.insert_many(batch, ordered=False)
-            print(f"✅ Inserted batch of {len(batch)} users CIN.")
+            print(f"✅ Inserted batch of {len(batch)} users UID.")
             # Log the successful insert
             logging.info(f"Inserted batch of {len(batch)} users.")
-            create_new_log("info", f"Inserted batch of {len(batch)} users CIN.", "/api/backend/Auth")
+            create_new_log("info", f"Inserted batch of {len(batch)} users UID.", "/api/backend/Auth")
             return True
         except Exception as e:
             print(f"⚠️ Insert failed. Retrying... Attempt {attempt+1}")

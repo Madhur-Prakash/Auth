@@ -21,7 +21,7 @@ def generate_fake_user():
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     full_name = f"{first_name} {last_name}"
     created_at = fake.date_time_between(start_date='-2y', end_date='now').isoformat()
-    cin = fake.bothify(text='???#####').upper()  # Generate random CIN-like identifier
+    uid = fake.bothify(text='???#####').upper()  # Generate random UID-like identifier
     verification_status = random.choice([True, False])
     country_name = fake.country()
     
@@ -34,7 +34,7 @@ def generate_fake_user():
         "password": hashed_password,
         "full_name": full_name,
         "created_at": created_at,
-        "CIN": cin,
+        "UID": uid,
         "verification_status": verification_status,
         "country_name": country_name
     }

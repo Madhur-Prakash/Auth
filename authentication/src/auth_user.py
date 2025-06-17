@@ -157,7 +157,7 @@ Args:
     response (Response): The FastAPI response object for setting cookies.
     request (Request): The FastAPI request object for extracting device fingerprint.
 Returns:
-    dict: A dictionary containing a success message, status code, token type, CIN, creation timestamp, access token, and refresh token.
+    dict: A dictionary containing a success message, status code, token type, UID, creation timestamp, access token, and refresh token.
 Raises:
     HTTPException: For various validation errors, duplicate entries, or internal server errors."""
     try:
@@ -165,7 +165,7 @@ Raises:
         dict_data = dict(form_data)
         dict_data["full_name"] = dict_data["first_name"] + ' ' + dict_data["last_name"]
         dict_data["created_at"] = datetime.now().isoformat()
-        dict_data["CIN"] = generate_random_string()
+        dict_data["UID"] = generate_random_string()
         dict_data["verification_status"] = "false"
 
         updated_phone_number = dict_data['country_code'] + dict_data['phone_number'] # adding country code to get country name
@@ -280,8 +280,8 @@ Raises:
         producer.send(TOPIC_NAME, dict_data) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
-        # send cin to public and private profile db
-        producer.send(TOPIC2_NAME, value={"CIN":dict_data["CIN"]}) # send data to kafka topic
+        # send uid to public and private profile db
+        producer.send(TOPIC2_NAME, value={"UID":dict_data["UID"]}) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
 
@@ -301,7 +301,7 @@ Raises:
         #     "full_name": dict_data["full_name"],
         #     "password": dict_data["password"],
         #     "phone_number": dict_data["phone_number"],
-        #     "CIN": dict_data["CIN"],
+        #     "UID": dict_data["UID"],
         #     "created_at": dict_data["created_at"]})
         
         # await client.hset(dict_data["phone_number"], mapping={
@@ -309,7 +309,7 @@ Raises:
         #     "full_name": dict_data["full_name"],
         #     "password": dict_data["password"],
         #     "phone_number": dict_data["phone_number"],
-        #     "CIN": dict_data["CIN"],
+        #     "UID": dict_data["UID"],
         #     "created_at": dict_data["created_at"]})
         # await client.expire(dict_data["email"], 300)  # Expire in 5 minutes
         # await client.expire(dict_data["phone_number"], 300)  # Expire in 5 minutes
@@ -333,7 +333,7 @@ Raises:
         #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
         
         # return {"message":f"OTP sent successfully on {form_data['phone_number'][:6]+'x'*6+dict_data['phone_number'][13:]} and {dict_data['email']}"} # Return success message
-        return {"message":f"Account for user created successfully: {dict_data['email']}", "status_code":status.HTTP_201_CREATED, "token_type":"Bearer", "CIN": dict_data["CIN"], "created_at": dict_data["created_at"], "access_token": access_token, "refresh_token": refresh_token}
+        return {"message":f"Account for user created successfully: {dict_data['email']}", "status_code":status.HTTP_201_CREATED, "token_type":"Bearer", "UID": dict_data["UID"], "created_at": dict_data["created_at"], "access_token": access_token, "refresh_token": refresh_token}
 
 
     except Exception as e:
@@ -416,7 +416,7 @@ async def verify_otp_signup(data: models.verify_otp_signup):
             #     "password": otp_stored.get("password"),
             #     "phone_number": otp_stored.get("phone_number"),
             #     "created_at": otp_stored.get("created_at"),
-            #     "CIN": otp_stored.get("CIN")
+            #     "UID": otp_stored.get("UID")
             # }
             # user = await mongo_client.auth.user.find_one({"email": otp_stored.get("email")})
             # if user:
@@ -1175,7 +1175,7 @@ async def logout(data: models.email, response: Response, request: Request):
         #     "password": data.get("password"),
         #     "phone_number": data.get("phone_number"),
         #     "created_at": data.get("created_at"),
-        #     "CIN": data.get("CIN")
+        #     "UID": data.get("UID")
         # }
         # await mongo_client.auth.user.insert_one(mongodb_document)  # Insert into MongoDB
         # print("Access token:", access_token)  # debug
