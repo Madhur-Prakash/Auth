@@ -273,12 +273,12 @@ async def signup(data: models.user, response: Response, request: Request):
         # link = f"http://127.0.0.1:8000/user/verify_email/{token}"
         # otp =  await generate_otp(dict_data["email"])
         
-        # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+        # html_path = "/root/SecureGate/authentication/templates/index.html" # -> for production
         html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
         with open(html_path,'r') as file:
             html_body = file.read()
         # send email verification link
-        email_sent = send_mail_to_mailhog(dict_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        email_sent = send_mail_to_mailhog(dict_data["email"], "Welcome to SecureGate. Lets build your health Profile", html_body, retries=3, delay=5)
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
@@ -323,13 +323,13 @@ async def verify_otp_signup(data: models.verify_otp_signup):
                 <h2 style="color: #2c3e50; margin-bottom: 10px;">Verify Your Email</h2>
                 <p style="color: #7f8c8d; font-size: 14px;">Hi there,</p>
                 <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">
-                    Thank you for signing up with <strong>CuraDocs</strong>! To complete your registration, please verify your email address by using the OTP below.
+                    Thank you for signing up with <strong>SecureGate</strong>! To complete your registration, please verify your email address by using the OTP below.
                 </p>
                 <div style="background-color: #ecf0f1; padding: 15px; border-radius: 4px; display: inline-block;">
                     <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">{otp}</span>
                 </div>
                 <p style="color: #7f8c8d; font-size: 12px; margin-top: 20px;">This OTP is valid for 10 minutes. Please do not share this code with anyone.</p>
-                <p style="color: #bdc3c7; font-size: 12px; margin-top: 40px;">&copy; 2025 CuraDocs. All rights reserved.</p>
+                <p style="color: #bdc3c7; font-size: 12px; margin-top: 40px;">&copy; 2025 SecureGate. All rights reserved.</p>
             </td>
         </tr>
     </table>
@@ -338,7 +338,7 @@ async def verify_otp_signup(data: models.verify_otp_signup):
                             </html>
                             """
             # send email verification link
-            email_sent = (send_email(email, "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5))
+            email_sent = (send_email(email, "Welcome to SecureGate. Lets build your health Profile", html_body, retries=3, delay=5))
             if not email_sent:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
@@ -433,16 +433,16 @@ async def login(data: models.login_otp):
     <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px;">
         <tr>
             <td style="padding: 20px; text-align: center;">
-                <h2 style="color: #2c3e50; margin-bottom: 10px;">Login to CuraDocs</h2>
+                <h2 style="color: #2c3e50; margin-bottom: 10px;">Login to SecureGate</h2>
                 <p style="color: #7f8c8d; font-size: 14px;">Hello,</p>
                 <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">
-                    You requested an OTP to log in to your <strong>CuraDocs</strong> account. Please use the code below to proceed.
+                    You requested an OTP to log in to your <strong>SecureGate</strong> account. Please use the code below to proceed.
                 </p>
                 <div style="background-color: #ecf0f1; padding: 15px; border-radius: 4px; display: inline-block;">
                     <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">{otp}</span>
                 </div>
                 <p style="color: #7f8c8d; font-size: 12px; margin-top: 20px;">This OTP will expire in 10 minutes. For your safety, do not share this code with anyone.</p>
-                <p style="color: #bdc3c7; font-size: 12px; margin-top: 40px;">&copy; 2025 CuraDocs. All rights reserved.</p>
+                <p style="color: #bdc3c7; font-size: 12px; margin-top: 40px;">&copy; 2025 SecureGate. All rights reserved.</p>
             </td>
         </tr>
     </table>
@@ -451,7 +451,7 @@ async def login(data: models.login_otp):
                                     </html>
                                     """
                     # send otp via email
-                    email_sent = (send_email(form_data["email"], "Login to CuraDocs using the provided otp", html_body, retries=3, delay=5))
+                    email_sent = (send_email(form_data["email"], "Login to SecureGate using the provided otp", html_body, retries=3, delay=5))
                     if not email_sent:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
                     create_new_log("info", f"otp sent successfuly on {email_provided}", "/api/backend/Auth")
@@ -839,14 +839,14 @@ async def reset_password(data: models.email):
                     Hello,
                 </p>
                 <p style="color: #606f7b; font-size: 15px; margin-bottom: 20px;">
-                    We received a request to reset the password for your <strong>CuraDocs</strong> account. Please use the below otp for creaing a new password.
+                    We received a request to reset the password for your <strong>SecureGate</strong> account. Please use the below otp for creaing a new password.
                 </p>
                 <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">{otp}</span>
                 <p style="color: #606f7b; font-size: 13px; margin-bottom: 30px;">
                     If you did not request this, you can safely ignore this email.
                 </p>
-                <p style="color: #606f7b; font-size: 12px;">Need help? Contact our support team at <p>support@curadocs.com"</p> style="color: #1d72b8; text-decoration: none;">support@curadocs.com</a></p>
-                <p style="color: #a0aec0; font-size: 12px;">&copy; 2025 CuraDocs | All rights reserved.</p>
+                <p style="color: #606f7b; font-size: 12px;">Need help? Contact our support team at <p>support@SecureGate.com"</p> style="color: #1d72b8; text-decoration: none;">support@SecureGate.com</a></p>
+                <p style="color: #a0aec0; font-size: 12px;">&copy; 2025 SecureGate | All rights reserved.</p>
             </td>
         </tr>
     </table>

@@ -78,11 +78,11 @@ async def send_otp_sns_during_login(phone_number: str):
         response = sns_client.publish(
             PhoneNumber = phone_number,
             Message = (f"Your OTP for login is {otp_sent}." 
-                        " Enter this code to access your CuraDocs account."  
+                        " Enter this code to access your SecureGate account."  
                         " Do not share this OTP with anyone."
                         " The code will expire in 10 minutes."),
             MessageAttributes={
-            'AWS.SNS.SMS.SenderID': {'DataType': 'String', 'StringValue': 'CuraDocs'},
+            'AWS.SNS.SMS.SenderID': {'DataType': 'String', 'StringValue': 'SecureGate'},
             'AWS.SNS.SMS.SMSType': {'DataType': 'String', 'StringValue': 'Transactional'}
         }
         )
@@ -111,7 +111,7 @@ async def send_otp_sns_during_signup(phone_number: str):
                         "Do not share this OTP with anyone."
                         "This code is valid for 10 minutes only.")
         #     MessageAttributes={
-        #     'AWS.SNS.SMS.SenderID': {'DataType': 'String', 'StringValue': 'CuraDocs'},
+        #     'AWS.SNS.SMS.SenderID': {'DataType': 'String', 'StringValue': 'SecureGate'},
         #     'AWS.SNS.SMS.SMSType': {'DataType': 'String', 'StringValue': 'Transactional'}
         # }
         )

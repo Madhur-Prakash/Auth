@@ -214,12 +214,12 @@ async def user_google_signup_callback(request: Request, response: Response):
                                                             "session_id":encrypyted_session_id})
         await client.expire(f"user:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
-        # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+        # html_path = "/root/SecureGate_Auth/authentication/templates/index.html" # -> for production
         html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
         with open(html_path,'r') as file:
             html_body = file.read()
         # send email verification link
-        email_sent = send_email(user_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        email_sent = send_email(user_data["email"], "Welcome to SecureGate. Lets build your health Profile", html_body, retries=3, delay=5)
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
@@ -350,12 +350,12 @@ async def user_phone_number_signup(data:models.google_login, request: Request, r
                                                             "session_id":encrypyted_session_id})
         await client.expire(f"user:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
-        # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+        # html_path = "/root/SecureGate_Auth/authentication/templates/index.html" # -> for production
         html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
         with open(html_path,'r') as file:
             html_body = file.read()
         # send email verification link
-        email_sent = send_email(user_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        email_sent = send_email(user_data["email"], "Welcome to SecureGate. Lets build your health Profile", html_body, retries=3, delay=5)
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
@@ -498,12 +498,12 @@ async def user_phone_number_login(data: models.google_login, request: Request, r
                                                             "session_id":encrypyted_session_id})
         await client.expire(f"user:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
-        # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+        # html_path = "/root/SecureGate_Auth/authentication/templates/index.html" # -> for production
         html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
         with open(html_path,'r') as file:
             html_body = file.read()
         # send email verification link
-        email_sent = send_email(new_user["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+        email_sent = send_email(new_user["email"], "Welcome to SecureGate. Lets build your health Profile", html_body, retries=3, delay=5)
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
@@ -644,12 +644,12 @@ async def user_google_login_callback(request: Request, response: Response):
             await client.set(f"user:auth:2_factor_login:{cache_key}", cache_key, ex=3600) # expire in 1 hour
             await client.set(f"user:auth:2_factor_login:{phone_number}", phone_number, ex=3600) # expire in 1 hour
 
-            # html_path = "/root/CuraDocs_Auth/authentication/templates/index.html" # -> for production
+            # html_path = "/root/SecureGate_Auth/authentication/templates/index.html" # -> for production
             html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
             with open(html_path,'r') as file:
                 html_body = file.read()
             # send email verification link
-            email_sent = send_email(user_data["email"], "Welcome to CuraDocs. Lets build your health Profile", html_body, retries=3, delay=5)
+            email_sent = send_email(user_data["email"], "Welcome to SecureGate. Lets build your health Profile", html_body, retries=3, delay=5)
             if not email_sent:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
