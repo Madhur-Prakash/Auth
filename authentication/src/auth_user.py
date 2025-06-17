@@ -611,9 +611,8 @@ async def verify(data: models.otp_phone, response: Response, request: Request):
 
 
 # ********************************************************************* login with email/phone_number and password ************************************
-@auth_user.post("/user/login", status_code=status.HTTP_200_OK) # login using email and password
-
 # @limiter.limit("5/minute")  #******************************* Rate limit *********************************************************************
+@auth_user.post("/user/login", status_code=status.HTTP_200_OK) # login using email and password
 async def login(data: models.login, response: Response, request: Request):
     try:
         form_data = dict(data)
