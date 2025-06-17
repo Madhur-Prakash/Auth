@@ -1,30 +1,37 @@
 # Authentication
 
-**A FastAPI-Based Authentication System**
+**A Full-Fledged Authentication System with Production-Level Concepts**
 
 ## Overview
-This repository implements a robust authentication system using FastAPI and MongoDB. It supports three types of authentication:
-- **Email and Password**
-- **Username and Password**
-- **Phone Number and Password**
-
-The system securely hashes passwords before storing them in the database, ensuring the confidentiality of user credentials.
+This repository implements a robust authentication system using FastAPI, incorporating production-level concepts such as caching with Redis, message queuing with Kafka, and database storage with MongoDB. It utilizes bloom filters for fast lookup, a technique employed by tech giants like Google, Amazon, and Facebook. The system implements JWT authentication and access tokens, ensuring secure and efficient user authentication.
 
 ---
 
 ## Features
-- **Multiple Authentication Methods**: Choose between email, username, or phone number for authentication.
+- **Multiple Authentication Methods**: Supports email-password, username-password, and phone number-password combinations.
 - **Secure Password Handling**: Implements password hashing using industry-standard algorithms.
 - **Fast and Scalable**: Built with FastAPI for high performance and scalability.
 - **MongoDB Integration**: Stores user credentials and data in a reliable NoSQL database.
+- **Redis Caching**: Enhances performance with caching using Redis.
+- **Kafka Message Queue**: Utilizes Kafka for efficient message queuing.
+- **Bloom Filters**: Employs bloom filters for fast lookup, as used by tech giants like Google, Amazon, and Facebook.
+- **JWT Authentication**: Implements JWT authentication for secure and efficient user authentication.
+- **Access Tokens**: Utilizes access tokens for secure authentication.
+- **OTP Service**: Offers OTP service via mail and SMS, with support for AWS SNS and AWS SMS.
+- **Refresh Token**: Implements refresh token logic for password-less login.
+- **Google OAuth2**: Supports Google OAuth2 for user signup and login through their Google account.
 
 ---
 
 ## Technology Stack
 - **Backend Framework**: FastAPI
 - **Database**: MongoDB
-- **Password Hashing**: [bcrypt or any other hashing library used]
+- **Caching**: Redis
+- **Message Queue**: Kafka
+- **Password Hashing**: Industry-standard algorithms
 - **Programming Language**: Python
+- **OTP Service**: Supports mail and SMS, with AWS SNS and AWS SMS integration
+- **Google OAuth2**: Supports user signup and login through Google account
 
 ---
 
@@ -78,15 +85,6 @@ The system securely hashes passwords before storing them in the database, ensuri
    http://127.0.0.1:8000/docs
    ```
 3. Use the API to register, log in, and manage users with email-password, username-password, or phone number-password combinations.
-
----
-
-## API Endpoints
-
-### Authentication Endpoints
-- **POST /signup**: Register a new user.
-- **POST /login**: Log in an existing user.
-
 ---
 
 ## Project Structure
@@ -133,8 +131,6 @@ Auth/
 │   │   └── google_auth.py
 │   └── templates
 │       ├── create_new_password.html
-│       ├── doctor.html
-│       ├── doctor_signup.html
 │       ├── google_login.html
 │       ├── index.html
 │       ├── login.html
@@ -161,8 +157,7 @@ Auth/
 ---
 
 ## Future Enhancements
-- Add support for two-factor authentication (2FA).
-- Implement OAuth2 for social login (e.g., Google, Facebook).
+- Implement OAuth2 for social login (e.g., Github, Facebook).
 - Enhance rate-limiting for login attempts to prevent brute-force attacks.
 
 ---
