@@ -9,9 +9,9 @@ client = TestClient(app)
 
   
 
-def test_patient_signup():
-    response = client.post("/patient/signup", json={
-        "email": "madhurprakash2005@gmail.com",
+def test_user_signup():
+    response = client.post("/user/signup", json={
+        "email": "Jhon@gmail.com",
         "password": "123456",
         "first_name": "Madhur",
         "last_name": "Prakash",
@@ -19,9 +19,9 @@ def test_patient_signup():
         "country_code": "+91"})
     assert response.status_code == 201
 
-# def test_patient_login():
-#     response = client.post("/patient/login", json={
-#         "email": "madhurprakash2005@gmail.com",
+# def test_user_login():
+#     response = client.post("/user/login", json={
+#         "email": "Jhon@gmail.com",
 #         "password": "123456"
 #     })
 #     assert response.status_code == 200

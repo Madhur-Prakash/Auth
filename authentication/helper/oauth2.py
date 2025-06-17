@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordBearer
 from typing import Optional
 from ..helper.utils import setup_logging, create_new_log  # Import setup_logging from utils
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/patient/mpm/logout")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/user/jhon/logout")
 logger = setup_logging() # initialize logger
 
 # this is the route/url from fastapi will be able to fetch the token
@@ -21,16 +21,16 @@ def get_current_user(data: str = Depends(oauth2_scheme)):
     return auth_token.verify_token(data, credentials_exception)
 
 
-class OAuth2PatientRequestForm:
+class OAuth2UserRequestForm:
     def __init__(
         self,
-        patient_user_name: str = Form(...),  # Use patient_user_name instead of username
+        email: str = Form(...),  # Use email instead of username
         password: str = Form(...),
         scope: str = Form(""),
         client_id: Optional[str] = Form(None),
         client_secret: Optional[str] = Form(None),
     ):
-        self.patient_user_name = patient_user_name
+        self.email = email
         self.password = password
         self.scope = scope
         self.client_id = client_id

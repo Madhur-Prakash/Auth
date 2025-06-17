@@ -458,7 +458,7 @@ async def verify_otp_signup(data: models.verify_otp_signup):
     
 
 
-# async def login(response: Response, request: Request, form_data: OAuth2userRequestForm = Depends(), auth_token: OAuth2PasswordBearer = Depends(oauth2.oauth2_scheme)): -> for locking the route use this instead of below
+# async def login(response: Response, request: Request, form_data: OAuth2UserRequestForm = Depends(), auth_token: OAuth2PasswordBearer = Depends(oauth2.oauth2_scheme)): -> for locking the route use this instead of below
 
 # ***************** login through email/phone_number and otp ****************************************************
 @auth_user.post("/user/login_otp", status_code=status.HTTP_200_OK) # login using email 

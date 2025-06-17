@@ -1,7 +1,7 @@
 from locust import HttpUser, task, between
 from pymongo import MongoClient
 import logging
-import os
+import matplotlib.pyplot as plt
 import time
 import psutil
 import requests
@@ -22,14 +22,14 @@ class APILoadTest(HttpUser):
     def on_start(self):
         """Setup run before starting tests"""
         self.login_data = {
-            "patient_user_name": "madhur_prakash",
+            "email": "Jhon@mail.com",
             "password": "123456"
         }
     
     @task(1)
     def test_login(self):
         """Test login endpoint"""
-        with self.client.post("http://34.229.135.184/patient/login", 
+        with self.client.post("http://34.229.135.184/user/login", 
                             data=self.login_data, 
                             catch_response=True) as response:
             if response.status_code == 200:
@@ -76,7 +76,7 @@ class MongoDBStressTest:
 
 class GradualLoadTester:
     """Implements gradual load increase with monitoring"""
-    def __init__(self, base_url="34.229.135.184/patient/login"):
+    def __init__(self, base_url="34.229.135.184/user/login"):
         self.base_url = base_url
         self.session = requests.Session()
         
@@ -132,8 +132,8 @@ class GradualLoadTester:
     def send_test_request(self):
         """Send a single test request"""
         try:
-            response = self.session.post(f"{self.base_url}/patient/login",
-                                       json={"patient_user_name": "madhur_prakash",
+            response = self.session.post(f"{self.base_url}/user/login",
+                                       json={"email": "Jhon@mail.com",
                                             "password": "123456"})
             return response.status_code
         except Exception as e:
@@ -153,8 +153,6 @@ def run_comprehensive_test():
     
     # 3. Clean up
     mongo_tester.cleanup()
-
-import matplotlib.pyplot as plt
 
 def plot_system_metrics():
     """Continuously plot system usage"""

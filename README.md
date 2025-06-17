@@ -122,11 +122,9 @@ Auth/
 │   │   ├── database.py
 │   │   ├── kafka1_config.py
 │   │   ├── kafka2_config.py
-│   │   ├── kafka3_config.py
 │   │   ├── rate_limiting.py
 │   │   └── redis_config.py
-│   ├── fake_doctor.py
-│   ├── fake_patient.py
+│   ├── fake_user.py
 │   ├── helper
 │   │   ├── __init__.py  # initializes package
 │   │   ├── auth_token.py
@@ -150,22 +148,21 @@ Auth/
 │       ├── index.html
 │       ├── login.html
 │       ├── otp.html
-│       ├── patient.html
-│       ├── patient_login.html
 │       ├── phone_number.html
 │       ├── reset_password.html
 │       ├── signup.html
-│       └── success.html
+│       ├── success.html
+│       ├── user.html
+│       └── user_login.html
 ├── credentials.json
 ├── docker-compose.yml
 ├── requirements.txt
 ├── run.sh
 ├── test_api
 │   ├── __init__.py  # initializes package
-│   ├── doctor_hit_api.py
 │   ├── locust.py
-│   ├── patient_api_hit.py
-│   └── test_login.py
+│   ├── test_login.py
+│   └── user_api_hit.py
 └── token.pickle
 ```
 

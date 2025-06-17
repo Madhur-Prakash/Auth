@@ -13,14 +13,6 @@ class user(BaseModel):
     password: str = Field(..., title="Password")
  
 
-class doctor(BaseModel):
-    first_name: str = Field(..., title="First Name of the User")
-    last_name: str = Field(..., title="Last Name of the User")
-    email: EmailStr = Field(..., title="Email Address")
-    phone_number: str = Field(..., min_length=10, title="Phone Number")
-    country_code: str = Field(..., title="Country Code")
-    password: str = Field(..., title="Password")
-
 class verify_otp_signup(BaseModel):
     email: Optional[EmailStr] = Field(None, title="Email Address")
     phone_number: Optional[str] = Field(None, min_length=10, title="Phone Number")
@@ -89,7 +81,6 @@ class reset_password(BaseModel):
     confirm_password: str = Field(..., title="Confirm Password")
 
 class TokenData(BaseModel):
-    user_user_name: Optional[str] = None
     email: Optional[str] = None
 
 class Login(BaseModel):
@@ -106,5 +97,3 @@ class Token(BaseModel):
 class UserInDB(user):
     hashed_password: str
 
-class UserInDB(doctor):
-    hashed_password: str

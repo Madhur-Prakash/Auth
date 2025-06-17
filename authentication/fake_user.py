@@ -10,8 +10,8 @@ fake = Faker()
 # Connect to MongoDB
 client = MongoClient("mongodb://ec2-98-80-166-39.compute-1.amazonaws.com:27017/")  # Change this if your MongoDB is hosted elsewhere
 
-# Function to generate a fake patient
-def generate_fake_patient():
+# Function to generate a fake user
+def generate_fake_user():
     first_name = fake.first_name()
     last_name = fake.last_name()
     email = fake.email()
@@ -39,14 +39,14 @@ def generate_fake_patient():
         "country_name": country_name
     }
 
-# Number of patients to insert
-num_patients = 10  # Change this as needed
+# Number of users to insert
+num_users = 10  # Change this as needed
 
-# Generate and insert patients
-fake_patients = [generate_fake_patient() for _ in range(num_patients)]
-client.auth.doctor.insert_many(fake_patients)
+# Generate and insert users
+fake_users = [generate_fake_user() for _ in range(num_users)]
+client.auth.user.insert_many(fake_users)
 
-print(f"Inserted {num_patients} fake patients into MongoDB.")
+print(f"Inserted {num_users} fake users into MongoDB.")
 
 # Close the connection
 client.close()

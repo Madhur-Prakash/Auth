@@ -28,10 +28,10 @@ def create_refresh_token(data: dict):
 def verify_token(token:str,credentials_exception):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        patient_user_name: str = payload.get("sub")
-        if patient_user_name is None:
+        email: str = payload.get("sub")
+        if email is None:
             raise credentials_exception
-        token_data = models.TokenData(patient_user_name=patient_user_name)
+        token_data = models.TokenData(email=email)
         return token_data
     except JWTError:
         raise credentials_exception

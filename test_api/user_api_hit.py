@@ -2,11 +2,11 @@ import requests
 import concurrent.futures
 
 # API endpoint
-url = "http://127.0.0.1:8000/doctor/login"
+url = "http://127.0.0.1:8000/user/login"
 
 # Login data
 data = {
-    "patient_user_name": "rag",
+    "email": "Jhon@mail.com",
     "password": "123456"
 }
 
