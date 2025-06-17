@@ -39,7 +39,7 @@ google_user_email_bloom_filter = CountingBloomFilter(capacity=1000000, error_rat
 google_user_phone_bloom_filter = CountingBloomFilter(capacity=1000000, error_rate=0.01)
 
 # initialize logger
-logger = setup_logging() 
+logger = setup_logging()  
 
 # OAuth Setup
 oauth = OAuth()
