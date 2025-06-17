@@ -55,6 +55,19 @@ oauth.register(
 )
 
 async def cache_without_password(data: str):
+    """
+    Asynchronously retrieves user authentication data from cache or database without requiring a password.
+    Args:
+        data (str): The identifier for the user (typically an email address).
+    Returns:
+        dict or str or None: Returns cached data (if present), user data from the database (if found), or None if the user does not exist.
+    Side Effects:
+        - Logs cache hits and invalid login attempts.
+        - Caches user data for 5 days if found in the database.
+    Raises:
+        None
+    """
+
     CachedData = await client.get(f'user:auth:2_factor_login:{data}')
     if CachedData:
         print("Data is cached") # debug
@@ -89,6 +102,30 @@ async def user_google_signup(request: Request):
 
 @google_user_auth.get("/user/google_signup/callback")
 async def user_google_signup_callback(request: Request, response: Response):
+    """
+    Handles the Google OAuth2 signup callback for a user.
+    This asynchronous function performs the following steps:
+    1. Authorizes the Google access token from the OAuth2 flow.
+    2. Retrieves basic user information and phone number from Google APIs.
+    3. Checks for the existence of the user's email and phone number in Bloom filters, Redis cache, and MongoDB to prevent duplicate signups.
+    4. If the phone number is missing, redirects the user to provide their phone number.
+    5. Prepares user data, including generating a CIN, setting verification status, and determining the user's country.
+    6. Sends user data to Kafka topics for further processing.
+    7. Caches user data in Redis and sets up two-factor login keys.
+    8. Generates and stores refresh and access tokens, setting them as cookies in the response.
+    9. Sends a welcome email to the user.
+    10. Logs all significant events and errors for monitoring and debugging.
+    Args:
+        request (Request): The incoming HTTP request object.
+        response (Response): The outgoing HTTP response object.
+    Returns:
+        dict: A dictionary containing a success message, status code, token type, CIN, creation timestamp, access token, and refresh token.
+        OR
+        RedirectResponse: If the user's phone number is missing, redirects to the phone number input page.
+    Raises:
+        HTTPException: If authentication fails, or if the email or phone number already exists, or if sending the welcome email fails.
+    """
+
     try:
         token = await oauth.google_user.authorize_access_token(request)
 
@@ -239,6 +276,28 @@ async def user_google_signup_callback(request: Request, response: Response):
 
 @google_user_auth.post("/user/phone_number/signup")
 async def user_phone_number_signup(data:models.google_login, request: Request, response: Response):
+    """
+    Handles user signup using phone number after Google authentication.
+    This asynchronous function performs the following steps:
+    - Extracts phone number and country code from the provided data.
+    - Retrieves email and name from the session.
+    - Checks for existing users by email and phone number using Bloom filters, Redis, and MongoDB.
+    - Prepares user data and sends it to Kafka topics for further processing.
+    - Caches user data in Redis and sets up two-factor authentication keys.
+    - Generates and sets refresh and access tokens as cookies in the response.
+    - Sends a welcome email with a verification link to the user.
+    - Logs all significant actions and errors.
+    Args:
+        data (models.google_login): The input data containing phone number and country code.
+        request (Request): The incoming HTTP request object, used to access session data.
+        response (Response): The HTTP response object, used to set cookies.
+    Returns:
+        dict: A dictionary containing a success message, status code, token type, CIN, creation timestamp, access token, and refresh token.
+    Raises:
+        HTTPException: If required fields are missing, session is expired, email or phone number already exists, or if there is an error sending the email.
+        Exception: For any other unexpected errors, returns a 400 status code with a generic error message.
+    """
+
     try:
         form_data = dict(data)
         phone_number = form_data.get("phone_number")
@@ -391,6 +450,28 @@ async def phone_number_page_login(request: Request):
 
 @google_user_auth.post("/user/phone_number/login")
 async def user_phone_number_login(data: models.google_login, request: Request, response: Response):
+    """
+    Handles user login or signup using phone number after Google authentication.
+    This asynchronous function performs the following steps:
+    1. Extracts phone number and country code from the provided data.
+    2. Retrieves user's email and name from the session.
+    3. Validates the presence of required fields and session data.
+    4. Checks for existing users by email and phone number using Bloom filters, Redis cache, and MongoDB.
+    5. If the user does not exist, creates a new user object and sends it to Kafka topics for further processing.
+    6. Stores user data in Redis for caching and instant login.
+    7. Generates and sets refresh and access tokens as HTTP cookies.
+    8. Sends a welcome email with a verification link to the user.
+    9. Logs all significant events and errors for monitoring and debugging.
+    Args:
+        data (models.google_login): The input data containing phone number and country code.
+        request (Request): The HTTP request object, used to access session data.
+        response (Response): The HTTP response object, used to set cookies.
+    Returns:
+        dict: A dictionary containing a success message, status code, token type, CIN, creation time, access token, and refresh token.
+    Raises:
+        HTTPException: If required fields are missing, session is expired, user already exists, or an internal error occurs.
+    """
+
     try:
         form_data = dict(data)
         phone_number = form_data.get("phone_number")
@@ -524,6 +605,27 @@ async def user_phone_number_login(data: models.google_login, request: Request, r
 
 @google_user_auth.get("/user/google_login/callback")
 async def user_google_login_callback(request: Request, response: Response):
+    """
+    Handles the Google OAuth2 login callback for user authentication and registration.
+    This async function processes the OAuth2 callback from Google, performing the following steps:
+    1. Authorizes the access token using the OAuth2 client.
+    2. Retrieves user information from Google's userinfo endpoint.
+    3. Checks if the user already exists in the system:
+        - If the user exists, logs them in by generating access and refresh tokens, setting cookies, and updating session data.
+        - If the user does not exist, attempts to retrieve the user's phone number from the Google People API.
+            - If a phone number is found, checks for duplicate email/phone in Bloom filters, Redis, and MongoDB.
+                - If no duplicates are found, auto-registers the user, sends a verification email, and logs them in.
+            - If no phone number is found, redirects the user to a phone number collection page.
+    4. Handles errors and logs relevant events.
+    Args:
+        request (Request): The incoming HTTP request object.
+        response (Response): The outgoing HTTP response object.
+    Returns:
+        dict or RedirectResponse: A JSON response with login/registration details and tokens, or a redirect to the phone number collection page.
+    Raises:
+        HTTPException: If authentication fails, or if duplicate email/phone is detected, or if email sending fails.
+    """
+    
     try:
         token = await oauth.google_user.authorize_access_token(request)
         user_info = await oauth.google_user.get("https://openidconnect.googleapis.com/v1/userinfo", token=token)

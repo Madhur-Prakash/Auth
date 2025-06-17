@@ -32,6 +32,20 @@ producer = KafkaProducer(
 
 # implemeting cahing using redis
 async def cache(data: str, plain_password):
+    """
+    Asynchronously verifies user credentials by checking multiple sources in order of speed and recency.
+    The function attempts to authenticate a user by:
+    1. Checking a Redis cache for existing user authentication data.
+    2. Checking a Redis cache for newly created accounts.
+    3. Querying a MongoDB database if the user is not found in the cache.
+    If the credentials are verified at any stage, relevant logs are created and the function returns the user identifier or user object.
+    Args:
+        data (str): The user identifier, which can be an email or phone number.
+        plain_password: The plain text password to verify.
+    Returns:
+        str or dict or None: Returns the user identifier (str) if found in cache, the user object (dict) if found in the database, or None if authentication fails.
+    """
+
     CachedData = await client.hgetall(f'user:auth:{data}')
     new_account = await client.hgetall(f'user:new_account:{data}')
     if CachedData:
@@ -71,6 +85,19 @@ async def cache(data: str, plain_password):
     return None
 
 async def cache_without_password(data: str):
+    """
+    Retrieve user authentication data from cache or database without password.
+    This asynchronous function attempts to fetch user authentication data (excluding the password)
+    from a cache using the provided identifier (email or phone number). If the data is not found
+    in the cache, it queries the MongoDB database. On a successful database hit, it caches the
+    identifier for future requests. The function also logs cache hits and invalid login attempts.
+    Args:
+        data (str): The user's email or phone number used as an identifier.
+    Returns:
+        dict or str or None: Returns cached data (if found), user document from the database (if found),
+        or None if no matching user is found.
+    """
+
     CachedData = await client.get(f'user:auth:2_factor_login:{data}')
     if CachedData:
         print("Data is cached") # debug
@@ -115,6 +142,24 @@ user_phone_bloom_filter = CountingBloomFilter(capacity=100000, error_rate=0.01)
 
 @auth_user.post("/user/signup", status_code=status.HTTP_201_CREATED)
 async def signup(data: models.user, response: Response, request: Request):
+    """Handles user signup by validating input data, checking for duplicate email and phone number using Bloom filters, Redis, and MongoDB, and performing various data processing steps. 
+Steps performed:
+- Validates required fields and data formats (email, phone number, password, names).
+- Checks for existing email and phone number in Bloom filters, Redis cache, and MongoDB.
+- Hashes the user's password.
+- Generates and sets refresh and access tokens as cookies.
+- Stores user data temporarily in Redis for instant login and further processing.
+- Sends user data to Kafka topics for asynchronous processing and profile creation.
+- Sends a welcome email to the user.
+- Logs all significant events and errors.
+Args:
+    data (models.user): The user signup data model containing user details.
+    response (Response): The FastAPI response object for setting cookies.
+    request (Request): The FastAPI request object for extracting device fingerprint.
+Returns:
+    dict: A dictionary containing a success message, status code, token type, CIN, creation timestamp, access token, and refresh token.
+Raises:
+    HTTPException: For various validation errors, duplicate entries, or internal server errors."""
     try:
         form_data = dict(data)
         dict_data = dict(form_data)
@@ -303,6 +348,20 @@ async def signup(data: models.user, response: Response, request: Request):
 
 @auth_user.post("/verify_otp_signup", status_code=status.HTTP_200_OK) # verify otp
 async def verify_otp_signup(data: models.verify_otp_signup):
+    """Asynchronously verifies OTP (One-Time Password) for user signup via email or phone number.
+    Depending on the provided data, this function either:
+    - Generates an OTP for the given email, sends a verification email with the OTP, and returns an encrypted OTP.
+    - Sends an OTP to the provided phone number (with country code), and returns an encrypted OTP.
+    Args:
+        data (models.verify_otp_signup): The signup data containing either 'email' or 'phone_number' (and 'country_code' if phone number is used).
+    Returns:
+        dict: A dictionary containing a success message, HTTP status code, and the encrypted OTP.
+    Raises:
+        HTTPException: If sending the OTP (via email or SMS) fails, or if any other error occurs during the process.
+    Side Effects:
+        - Sends an email or SMS with the OTP.
+        - Logs success or error messages."""
+
     try:
         form_data = dict(data)
         email = form_data.get("email")
@@ -404,6 +463,20 @@ async def verify_otp_signup(data: models.verify_otp_signup):
 # ***************** login through email/phone_number and otp ****************************************************
 @auth_user.post("/user/login_otp", status_code=status.HTTP_200_OK) # login using email 
 async def login(data: models.login_otp):
+    """Endpoint to log in a user using OTP (One-Time Password) via email or phone number.
+Accepts a POST request with either an email or a phone number (and country code for phone).
+- If an email is provided and found in the cache, generates an OTP, sends it via email, and returns a success message.
+- If a phone number is provided and found in the cache, generates an OTP, sends it via SMS, and returns a success message.
+- If neither is provided, or credentials are invalid, returns an appropriate error.
+Args:
+    data (models.login_otp): The login data containing either 'email' or 'phone_number' (with 'country_code').
+Returns:
+    dict: A message indicating OTP was sent successfully, or raises an HTTPException on error.
+Raises:
+    HTTPException: 
+        - 400 if neither email nor phone number is provided.
+        - 401 if credentials are invalid.
+        - 500 if there is an error sending OTP or any other internal error."""
     try:
         form_data = dict(data)
 
@@ -498,6 +571,25 @@ async def login(data: models.login_otp):
 
 @auth_user.post("/user/verify_otp_login_email", status_code=status.HTTP_200_OK) 
 async def verify_otp(data: models.otp_email, response: Response, request: Request):
+    """
+    Asynchronously verifies a one-time password (OTP) for user authentication.
+    Args:
+        data (models.otp_email): The OTP and email data submitted by the user.
+        response (Response): The HTTP response object for setting cookies.
+        request (Request): The HTTP request object for accessing cookies, headers, and query parameters.
+    Raises:
+        HTTPException: 
+            - 400 if the OTP is missing or invalid in format.
+            - 401 if the OTP does not match the stored value.
+            - 500 for any other internal errors.
+    Returns:
+        dict: A dictionary containing a success message, HTTP status code, token type, email, access token, and refresh token.
+    Side Effects:
+        - Sets and deletes access and refresh tokens as HTTP-only cookies.
+        - Stores encrypted refresh token and device fingerprint in Redis.
+        - Logs authentication events and errors.
+    """
+    
     try:
         form_data = dict(data)
         email = form_data.get("email")
@@ -552,6 +644,25 @@ async def verify_otp(data: models.otp_email, response: Response, request: Reques
     
 @auth_user.post("/user/verify_otp_login_phone", status_code=status.HTTP_200_OK)
 async def verify(data: models.otp_phone, response: Response, request: Request):
+    """
+    Verifies the OTP (One-Time Password) for a user's phone number and manages authentication tokens.
+    Args:
+        data (models.otp_phone): The OTP and phone number data submitted by the user.
+        response (Response): The HTTP response object for setting cookies.
+        request (Request): The HTTP request object for accessing cookies, headers, and query parameters.
+    Raises:
+        HTTPException: 
+            - 400 if the OTP is missing or invalid.
+            - 401 if the OTP does not match the stored value.
+            - 500 for any other internal errors.
+    Returns:
+        dict: A dictionary containing a success message, status code, token type, phone number, access token, and refresh token.
+    Side Effects:
+        - Sets and deletes authentication cookies (access_token, refresh_token).
+        - Stores and deletes refresh tokens in Redis.
+        - Logs authentication events and errors.
+    """
+
     try:
         form_data = dict(data)
         phone_number = form_data.get("phone_number")
@@ -614,6 +725,25 @@ async def verify(data: models.otp_phone, response: Response, request: Request):
 # @limiter.limit("5/minute")  #******************************* Rate limit *********************************************************************
 @auth_user.post("/user/login", status_code=status.HTTP_200_OK) # login using email and password
 async def login(data: models.login, response: Response, request: Request):
+    """
+    Handles user login via email or phone number and password.
+    This asynchronous function authenticates a user based on provided credentials (email or phone number and password). 
+    On successful authentication, it generates and sets access and refresh tokens as cookies, manages device fingerprinting, 
+    handles session management, and logs login attempts. It also interacts with a cache and Redis for token/session storage.
+    Args:
+        data (models.login): The login data containing email or phone number and password.
+        response (Response): The HTTP response object for setting cookies.
+        request (Request): The HTTP request object for extracting cookies, headers, and generating device fingerprint.
+    Returns:
+        dict: A dictionary containing a success message, status code, token type, user identifier (email or phone number), 
+              access token, and refresh token.
+    Raises:
+        HTTPException: 
+            - 400 if required fields (password, email/phone number) are missing.
+            - 401 if credentials are invalid.
+            - 500 for any unexpected errors during the login process.
+    """
+
     try:
         form_data = dict(data)
 
@@ -732,6 +862,30 @@ async def login(data: models.login, response: Response, request: Request):
 
 @auth_user.post("/user/refresh_token", status_code=status.HTTP_200_OK)
 async def refresh_token(request: Request, response: Response):
+    """
+    Handles the refresh token process for user authentication.
+    This endpoint verifies the provided refresh token (from cookies, headers, or query parameters),
+    checks its validity against stored values in Redis, and issues new access and refresh tokens if valid.
+    It also validates the device fingerprint and session ID to ensure the request's authenticity.
+    Steps:
+        1. Extracts the incoming refresh token from the request.
+        2. Decodes the token to retrieve the session ID and device fingerprint.
+        3. Retrieves the corresponding stored refresh token data from Redis.
+        4. Validates the refresh token, device fingerprint, and session ID.
+        5. If valid, deletes the old refresh token from Redis, generates new tokens, and stores them.
+        6. Sets the new tokens as cookies in the response.
+        7. Logs the process and returns a success response with the new tokens.
+    Args:
+        request (Request): The incoming HTTP request containing the refresh token.
+        response (Response): The HTTP response object to set new cookies.
+    Returns:
+        dict: A dictionary containing the status code, message, token type, user data, 
+              new access token, and new refresh token.
+    Raises:
+        HTTPException: If the refresh token is missing, expired, invalid, or if any validation fails.
+        HTTPException: If an unexpected error occurs during the process.
+    """
+    
     try:
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -814,6 +968,20 @@ async def refresh_token(request: Request, response: Response):
     
 @auth_user.post("/user/reset_password", status_code=status.HTTP_200_OK)
 async def reset_password(data: models.email):
+    """Asynchronously handles password reset requests by generating and emailing a one-time password (OTP) to the user.
+    Args:
+        data (models.email): An object containing the user's email address.
+    Raises:
+        HTTPException: 
+            - 400 if the email is not provided.
+            - 404 if the user with the given email is not found.
+            - 500 if there is an error sending the email or any other internal error occurs.
+    Returns:
+        dict: A dictionary containing a success message, HTTP status code, and the hashed OTP.
+    Side Effects:
+        - Sends an OTP to the user's email address for password reset.
+        - Logs the outcome of the operation (success or error)."""
+
     try:
         form_data = dict(data)
         email = form_data.get("email")
@@ -878,6 +1046,23 @@ async def reset_password(data: models.email):
 
 @auth_user.post("/user/create_new_password", status_code=status.HTTP_200_OK) 
 async def create_new_password(data: models.reset_password):
+    """
+    Asynchronously resets a user's password after validating the provided data.
+    Args:
+        data (models.reset_password): An object containing the user's email, new password, and password confirmation.
+    Raises:
+        HTTPException: 
+            - 404 if the user is not found.
+            - 400 if required fields are missing, passwords do not match, password is too short, or the new password matches the last used password.
+            - 500 for any unexpected errors during the process.
+    Returns:
+        dict: A dictionary with a success message and HTTP status code upon successful password update.
+    Side Effects:
+        - Updates the user's password in the MongoDB database.
+        - Updates the user's password in the Redis cache.
+        - Logs the password reset event or any errors encountered.
+    """
+
     try:
         # token_data = decode_verification_token(token)
         # email = token_data["email"]
@@ -927,6 +1112,20 @@ async def create_new_password(data: models.reset_password):
 
 @auth_user.post("/user/logout", status_code=status.HTTP_200_OK)
 async def logout(data: models.email, response: Response, request: Request):
+    """
+    Logs out a user by deleting their refresh and access tokens from cookies and cache.
+    Args:
+        data (models.email): The email data of the user requesting logout.
+        response (Response): The HTTP response object to modify cookies.
+        request (Request): The HTTP request object to extract tokens.
+    Returns:
+        dict: A dictionary containing a success message and HTTP status code.
+    Side Effects:
+        - Deletes the user's refresh token from the cache if present.
+        - Removes 'access_token' and 'refresh_token' cookies from the response.
+        - Logs the logout event for auditing and debugging purposes.
+    """
+
     incoming_refresh_token = request.cookies.get("refresh_token") or request.headers.get("refresh_token") or request.query_params.get("refresh_token")
     form_data = dict(data)
     email = form_data.get("email")
