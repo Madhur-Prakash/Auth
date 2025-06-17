@@ -68,9 +68,27 @@ This repository implements a robust authentication system using FastAPI, incorpo
 7. Set up Kafka:
 ```bash
    # Use docker compose to setup Kafka
+   # use this command 👉 docker compose up -d
 ```
+8. Set up external logging service:
+   - Clone the repository:
+      ```bash
+      git clone https://github.com/Madhur-Prakash/centralized-logging.git
+      ```
+   - Navigate to the project directory:
+      ```bash
+      cd centralized-logging
+      ```
+   - Create docker image:
+      ```bash
+      docker build -t logging .
+      ```
+   - Run docker:
+      ```bash
+      docker run -d --name logging -p 8000:8000 logging
 
-8. Set up .env:
+
+9. Set up .env:
 ```plaintext
 SECRET_KEY = "YOUR_SECRET_KEY"
 ALGORITHM = "YOUR_ALGORITHM"
@@ -92,7 +110,7 @@ AUTH_TOKEN = "YOUR_TWILIO_AUTH_TOKEN"
 
 1. Start the FastAPI server:
    ```bash
-   uvicorn app:app --reload
+   uvicorn app:app --port 8020 --reload
    ```
 2. Access the API documentation at:
    ```
