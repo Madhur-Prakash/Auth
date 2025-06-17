@@ -55,34 +55,49 @@ This repository implements a robust authentication system using FastAPI, incorpo
    pip install -r requirements.txt
    ```
 5. Set up MongoDB:
-   - Install MongoDB and start the service.
-   - Configure the MongoDB URI in the `.env` file.
+```bash
+   # Install MongoDB and start the service.
+   # Configure the MongoDB URI in the `.env` file.
+   ```
 
-6. Set up .env:
-- SECRET_KEY = "YOUR_SECRET_KEY"
-- ALGORITHM = "YOUR_ALGORITHM"
-- ACCESS_TOKEN_EXPIRE_MINUTES = "30" 
-- REFRESH_TOKEN_EXPIRE_DAYS = "7"
-- GOOGLE_CLIENT_SECRET = "YOUR_GOOGLE_CLIENT_SECRET"
-- GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
-- SESSION_SECRET_KEY = "YOUR_SESSION_SECRET_KEY"
-- AWS_ACCESS_KEY_ID = "YOUR_AWS_ACCESS_KEY_ID"
-- AWS_SECRET_ACCESS_KEY = "YOUR_AWS_SECRET_ACCESS_KEY"
-- AWS_REGION = "YOUR_AWS_REGION"
-- NO_REPLY_EMAIL = "YOUR_NO_REPLY_EMAIL"
-- ACCOUNT_SID = "YOUR_TWILIO_ACCOUNT_SID"
-- AUTH_TOKEN = "YOUR_TWILIO_AUTH_TOKEN"
+6. Set up Redis:
+```bash
+   # Make sure Redis is running on localhost:6379
+   ```
+
+7. Set up Kafka:
+```bash
+   # Use docker compose to setup Kafka
+```
+
+8. Set up .env:
+```plaintext
+SECRET_KEY = "YOUR_SECRET_KEY"
+ALGORITHM = "YOUR_ALGORITHM"
+ACCESS_TOKEN_EXPIRE_MINUTES = "30" 
+REFRESH_TOKEN_EXPIRE_DAYS = "7"
+GOOGLE_CLIENT_SECRET = "YOUR_GOOGLE_CLIENT_SECRET"
+GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
+SESSION_SECRET_KEY = "YOUR_SESSION_SECRET_KEY"
+AWS_ACCESS_KEY_ID = "YOUR_AWS_ACCESS_KEY_ID"
+AWS_SECRET_ACCESS_KEY = "YOUR_AWS_SECRET_ACCESS_KEY"
+AWS_REGION = "YOUR_AWS_REGION"
+NO_REPLY_EMAIL = "YOUR_NO_REPLY_EMAIL"
+ACCOUNT_SID = "YOUR_TWILIO_ACCOUNT_SID"
+AUTH_TOKEN = "YOUR_TWILIO_AUTH_TOKEN"
+```
 ---
 
 ## Usage
 
 1. Start the FastAPI server:
    ```bash
-   uvicorn main:app --reload
+   uvicorn app:app --reload
    ```
 2. Access the API documentation at:
    ```
    http://127.0.0.1:8000/docs
+   # for detailed docs visit 👉 http://127.0.0.1:8000/scalar
    ```
 3. Use the API to register, log in, and manage users with email-password, username-password, or phone number-password combinations.
 ---
