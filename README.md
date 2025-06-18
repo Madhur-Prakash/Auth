@@ -121,7 +121,6 @@ AUTH_TOKEN = "YOUR_TWILIO_AUTH_TOKEN"
 ---
 ## For deeper understanding of the code visit
 [What I Learned by Building a Full Auth System from Scratch - Medium](https://medium.com/@madhurprakash2005/what-i-learned-by-building-a-full-auth-system-from-scratch-654de5b8fb37)
-
 ---
 
 ## Project Structure
