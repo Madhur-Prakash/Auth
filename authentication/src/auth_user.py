@@ -462,7 +462,7 @@ async def verify_otp_signup(data: models.verify_otp_signup):
 
 # ***************** login through email/phone_number and otp ****************************************************
 @auth_user.post("/user/login_otp", status_code=status.HTTP_200_OK) # login using email 
-async def login(data: models.login_otp):
+async def login_otp(data: models.login_otp):
     """Endpoint to log in a user using OTP (One-Time Password) via email or phone number.
 Accepts a POST request with either an email or a phone number (and country code for phone).
 - If an email is provided and found in the cache, generates an OTP, sends it via email, and returns a success message.
@@ -570,7 +570,7 @@ Raises:
 
 
 @auth_user.post("/user/verify_otp_login_email", status_code=status.HTTP_200_OK) 
-async def verify_otp(data: models.otp_email, response: Response, request: Request):
+async def verify_otp_email(data: models.otp_email, response: Response, request: Request):
     """
     Asynchronously verifies a one-time password (OTP) for user authentication.
     Args:
@@ -643,7 +643,7 @@ async def verify_otp(data: models.otp_email, response: Response, request: Reques
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 @auth_user.post("/user/verify_otp_login_phone", status_code=status.HTTP_200_OK)
-async def verify(data: models.otp_phone, response: Response, request: Request):
+async def verify_otp_phone(data: models.otp_phone, response: Response, request: Request):
     """
     Verifies the OTP (One-Time Password) for a user's phone number and manages authentication tokens.
     Args:

@@ -117,7 +117,10 @@ AUTH_TOKEN = "YOUR_TWILIO_AUTH_TOKEN"
    http://127.0.0.1:8020/docs
    # for detailed docs visit 👉 http://127.0.0.1:8020/scalar
    ```
-3. Use the API to register, log in, and manage users with email-password, username-password, or phone number-password combinations.
+
+---
+## For deeper understanding of the code visit
+[What I Learned by Building a Full Auth System from Scratch - Medium](https://medium.com/@madhurprakash2005/what-i-learned-by-building-a-full-auth-system-from-scratch-654de5b8fb37)
 ---
 
 ## Project Structure
