@@ -114,8 +114,8 @@ AUTH_TOKEN = "YOUR_TWILIO_AUTH_TOKEN"
    ```
 2. Access the API documentation at:
    ```
-   http://127.0.0.1:8000/docs
-   # for detailed docs visit 👉 http://127.0.0.1:8000/scalar
+   http://127.0.0.1:8020/docs
+   # for detailed docs visit 👉 http://127.0.0.1:8020/scalar
    ```
 3. Use the API to register, log in, and manage users with email-password, username-password, or phone number-password combinations.
 ---
