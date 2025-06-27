@@ -871,7 +871,7 @@ async def login(data: models.login, response: Response, request: Request):
    
 # ************ this still needs to be done ********************************************************************************************************************
 
-@auth_user.post("/user/refresh_token", status_code=status.HTTP_200_OK)
+@auth_user.get("/user/refresh_token", status_code=status.HTTP_200_OK)
 async def refresh_token(request: Request, response: Response):
     """
     Handles the refresh token process for user authentication.
