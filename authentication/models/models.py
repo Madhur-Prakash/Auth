@@ -54,6 +54,9 @@ class refresh_token(BaseModel):
     session_id: str = Field(None, title="Session ID")
     device_fingerprint: str = Field(None, title="Device Fingerprint")
 
+class logout(BaseModel):
+    data: str = Field(..., title="Data to be logged out")
+
 class email(BaseModel):
     email: EmailStr = Field(..., title="Email Address")
 
