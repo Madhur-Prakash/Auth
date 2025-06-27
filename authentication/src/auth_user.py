@@ -182,7 +182,6 @@ Raises:
         if not user_email_bloom_filter.contains(dict_data["email"]): # Check if email is definitely not present (Bloom filter)
             print("Email not in Bloom filter — safe to continue")
             # continue with signup
-            return
         else:
             print("Bloom filter indicates possible existence — verifying with Redis and DB")
 
@@ -206,11 +205,9 @@ Raises:
         print("Email is new — proceed with account creation") # At this point, email is confirmed to be new — proceed with signup
 
         # Phone number validation (Bloom Filter → Redis → MongoDB)
-
         if not user_phone_bloom_filter.contains(dict_data["phone_number"]):  # Bloom filter first check
             print("Phone number not in Bloom filter — safe to continue")
             # continue with signup
-            return
         else:
             print("Bloom filter indicates possible existence — verifying with Redis and DB")
 
