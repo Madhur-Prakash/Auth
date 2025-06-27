@@ -1136,18 +1136,23 @@ async def logout(data: models.email, response: Response, request: Request):
         - Removes 'access_token' and 'refresh_token' cookies from the response.
         - Logs the logout event for auditing and debugging purposes.
     """
-
-    incoming_refresh_token = request.cookies.get("refresh_token") or request.headers.get("refresh_token") or request.query_params.get("refresh_token")
-    form_data = dict(data)
-    email = form_data.get("email")
-    if incoming_refresh_token:
-        await client.delete(f"user:refresh_token:{incoming_refresh_token[:106]}")
-    response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token")
-    create_new_log("info", f"{email} logged out successfully", "/api/backend/Auth")
-    logger.info(f"{email} logged out successfully") # log the cache hit
-    print(f"{email} logged out successfully") # debug
-    return {"message":f"{email} logged out successfully", "status":status.HTTP_200_OK}  # Return success message
+    try:
+        incoming_refresh_token = request.cookies.get("refresh_token") or request.headers.get("refresh_token") or request.query_params.get("refresh_token")
+        form_data = dict(data)
+        email = form_data.get("email")
+        if incoming_refresh_token:
+            await client.delete(f"user:refresh_token:{incoming_refresh_token[:106]}")
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
+        create_new_log("info", f"{email} logged out successfully", "/api/backend/Auth")
+        logger.info(f"{email} logged out successfully") # log the cache hit
+        print(f"{email} logged out successfully") # debug
+        return {"message":f"{email} logged out successfully", "status":status.HTTP_200_OK}  # Return success message
+    except Exception as e:
+        print(f"Error logging out: {str(e)}")
+        formatted_error = traceback.format_exc()
+        create_new_log("error", f"Error logging out: {formatted_error}", "/api/backend/Auth")
+        logger.error(f"Error logging out: {str(e)}")
 
 
 
