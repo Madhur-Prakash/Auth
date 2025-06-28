@@ -1034,7 +1034,7 @@ async def reset_password(data: models.email):
                     """
         
         # send email verification link
-        email_sent = (send_email(email, "Password Reset Request", html_body, retries=3, delay=5))
+        email_sent = (send_mail_to_mailhog(email, "Password Reset Request", html_body, retries=3, delay=5))
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
         create_new_log("info", f"Password reset otp sent successfully to {email}", "/api/backend/Auth")
