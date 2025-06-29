@@ -126,7 +126,7 @@ async def send_otp_sns_during_signup(phone_number: str):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
     except Exception as e:
         logging.error(f"Error sending OTP: {str(e)}")
-        print(f"Error: {traceback.format_exc()}")
+        print(f"Error: {traceback.format_exc()}") 
         print(f"Error sending OTP: {str(e)}")
 
 
