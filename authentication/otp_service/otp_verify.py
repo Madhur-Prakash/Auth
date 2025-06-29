@@ -12,8 +12,7 @@ from ..config.database import mongo_client
 # Twilio Credentials (Get these from Twilio Console)
 ACCOUNT_SID = os.getenv("ACCOUNT_SID")
 AUTH_TOKEN = os.getenv("AUTH_TOKEN")
-
-TWILIO_PHONE_NUMBER = "+1 978 737 8540"  # Get this from Twilio Console
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 
 logging = setup_logging()
 
