@@ -57,18 +57,18 @@ This repository implements a robust authentication system using FastAPI, incorpo
 5. Set up MongoDB:
 ```bash
    # Install MongoDB and start the service.
-   # Configure the MongoDB URI in the `.env` file.
    ```
 
 6. Set up Redis:
 ```bash
-   # Make sure Redis is running on localhost:6379
+   # Run this command to start Redis Stack in detached mode:
+   docker run -d --name redis-stack -p 6379:6379 -p 8001:8001 redis/redis-stack:latest
    ```
 
 7. Set up Kafka:
 ```bash
-   # Use docker compose to setup Kafka
-   # use this command 👉 docker compose up -d
+   # From the root directory of the project, run:
+   docker-compose up -d
 ```
 8. Set up external logging service:
    - Clone the repository:
