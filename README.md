@@ -86,6 +86,7 @@ This repository implements a robust authentication system using FastAPI, incorpo
    - Run docker:
       ```bash
       docker run -d --name logging -p 8000:8000 logging
+      ```
 
 
 9. Set up .env:
