@@ -9,7 +9,7 @@ class Hash():
         hashed_password = bcrypt.hashpw(password=pwd_bytes, salt=salt)
         hashed_password_str = hashed_password.decode('utf-8')
         return hashed_password_str
-
+ 
     async def verify(hashed_password, plain_password):
         # Ensure plain_password is encoded
         if isinstance(plain_password, str):
