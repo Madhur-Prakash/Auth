@@ -2,7 +2,6 @@
 
 **A Full-Fledged Authentication System with Production-Level Concepts**
 
----
 ## ⚠️ **Repository Transition Notice**  
 This is the **new and current main repository** for the Authentication system.  
 The original repository faced structural issues due to an unintended `git rebase`, which disrupted the commit history and overall stability.  
