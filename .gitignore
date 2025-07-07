@@ -1,0 +1,13 @@
+__pycache__
+auth
+logs
+python=3.11
+.DS_Store
+.env
+*.pickle
+*.json
+auth.log
+.__auth.log
+*.pytest_cache
+.vscode
+.python-version

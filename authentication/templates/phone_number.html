@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Enter Phone Number</title>
+    <script>
+        async function submitPhoneNumber() {
+            const phoneNumber = document.getElementById("phone_number").value;
+            // Get the user type from the URL parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const userType = urlParams.get('type'); // Default to user if not specified
+            
+            const endpoint = `/${userType}/phone_number/signup`;
+            
+            const response = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ phone_number: phoneNumber })
+            });
+
+            const result = await response.json();
+            if (response.status === 200) {
+                window.location.href = "/dashboard"; // Redirect to dashboard after successful signup
+            } else {
+                alert(result.detail);
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Enter Your Phone Number</h1>
+    <input type="text" id="phone_number" placeholder="Enter phone number">
+    <button onclick="submitPhoneNumber()">Submit</button>
+</body>
+</html>

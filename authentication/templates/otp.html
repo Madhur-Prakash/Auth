@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enter OTP</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+        .otp-container {
+            text-align: center;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+        }
+        .otp-input {
+            width: 40px;
+            height: 50px;
+            font-size: 24px;
+            text-align: center;
+            margin: 5px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+        }
+        .otp-input:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        .btn-submit {
+            margin-top: 15px;
+            padding: 10px 20px;
+            font-size: 18px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .btn-submit:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+<div class="otp-container">
+    <h2>Enter OTP</h2>
+    <p>We have sent a 6-digit OTP to your phone.</p>
+    <form id="otpForm" method="post" action="/verify_otp_signup">
+        <input type="text" class="otp-input" maxlength="1" oninput="moveNext(this, 0)" required>
+        <input type="text" class="otp-input" maxlength="1" oninput="moveNext(this, 1)" required>
+        <input type="text" class="otp-input" maxlength="1" oninput="moveNext(this, 2)" required>
+        <input type="text" class="otp-input" maxlength="1" oninput="moveNext(this, 3)" required>
+        <input type="text" class="otp-input" maxlength="1" oninput="moveNext(this, 4)" required>
+        <input type="text" class="otp-input" maxlength="1" oninput="moveNext(this, 5)" required>
+    
+        <input  hidden ="otp" name="otp">
+        
+        <br>
+        <button type="submit" class="btn">Verify otp</button>
+    </form>
+    
+</div>

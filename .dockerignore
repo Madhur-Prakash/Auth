@@ -1,0 +1,6 @@
+auth
+.vscode
+logs
+.pytest_cache
+__pycache__
+test_api
