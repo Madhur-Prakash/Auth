@@ -2,6 +2,7 @@
 
 **A Full-Fledged Authentication System with Production-Level Concepts**
 
+---
 ## ⚠️ **Repository Transition Notice**  
 This is the **new and current main repository** for the Authentication system.  
 The original repository faced structural issues due to an unintended `git rebase`, which disrupted the commit history and overall stability.  
@@ -9,7 +10,7 @@ To maintain a clean and reliable development environment, the project has been m
  
 The old repository has been renamed to **Auth-Dev** and will be kept **private** as a backup and reference only.  
 All future development and updates will occur in this repository.
----
+--- ---
 
 ## Overview
 This repository implements a robust authentication system using FastAPI, incorporating production-level concepts such as caching with Redis, message queuing with Kafka, and database storage with MongoDB. It utilizes bloom filters for fast lookup, a technique employed by tech giants like Google, Amazon, and Facebook. The system implements JWT authentication and access tokens, ensuring secure and efficient user authentication.
