@@ -11,7 +11,6 @@ The old repository has been renamed to **Auth-Dev** and will be kept **private**
 All future development and updates will occur in this repository.
 ---
 
----
 ## Overview
 This repository implements a robust authentication system using FastAPI, incorporating production-level concepts such as caching with Redis, message queuing with Kafka, and database storage with MongoDB. It utilizes bloom filters for fast lookup, a technique employed by tech giants like Google, Amazon, and Facebook. The system implements JWT authentication and access tokens, ensuring secure and efficient user authentication.
 
