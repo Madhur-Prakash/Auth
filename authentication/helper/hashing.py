@@ -1,7 +1,5 @@
 import bcrypt
 
-
-
 class Hash():
     def bcrypt(password: str):
         pwd_bytes = password.encode('utf-8')
