@@ -80,7 +80,13 @@ This repository implements a robust authentication system using FastAPI, incorpo
    # From the root directory of the project, run:
    docker-compose up -d
 ```
-8. Set up external logging service:
+8. Set up Mailhog:
+```bash
+   # Run this command to start Mailhog in detached mode:
+   docker run -d --name mailhog -p 1025:1025 -p 8025:8025 mailhog/mailhog
+   # access Mailhog at 👉 http://localhost:8025
+```
+9. Set up external logging service:
    - Clone the repository:
       ```bash
       git clone https://github.com/Madhur-Prakash/centralized-logging.git
@@ -99,7 +105,7 @@ This repository implements a robust authentication system using FastAPI, incorpo
       ```
 
 
-9. Set up .env:
+10. Set up .env:
 ```plaintext
 SECRET_KEY = "YOUR_SECRET_KEY"
 ALGORITHM = "YOUR_ALGORITHM"
