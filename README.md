@@ -226,7 +226,7 @@ Contributions are welcome! To contribute:
 ---
 
 ## License
-This project is distributed under the "Open Source License — Madhur Prakash", based on the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details. 
 
 ---
 
