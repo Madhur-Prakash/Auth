@@ -15,3 +15,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Celery + Mailhog for async mail
 - Complete HTML templates for auth flow
 - Basic load testing with Locust
+
+## [1.0.1] - 2025-08-10
+### Changed
+- Improved `.env` configuration guidance for setting up environment variables.
