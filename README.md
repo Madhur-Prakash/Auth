@@ -65,8 +65,8 @@ This repository implements a robust authentication system using FastAPI, incorpo
    pip install -r requirements.txt
    ```
 5. Set up MongoDB:
-```bash
-   # Install MongoDB and start the service.
+   ```bash
+      # Install MongoDB and start the service.
    ```
 
 6. Set up Redis:
@@ -109,9 +109,9 @@ This repository implements a robust authentication system using FastAPI, incorpo
 
 10. Set up .env:
 
-``` bash
-# Copy the .env.sample file to .env and fill in the required values.
-```
+      ``` bash
+      # Copy the .env.sample file to .env and fill in the required values.
+      ```
 ---
 
 ## Usage
