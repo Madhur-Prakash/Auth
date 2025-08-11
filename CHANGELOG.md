@@ -19,3 +19,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ## [1.0.1] - 2025-08-10
 ### Changed
 - Improved `.env` configuration guidance for setting up environment variables.
+
+## [1.0.2] - 2025-08-11
+### Changed
+- Updated Readme for clear instructions.
