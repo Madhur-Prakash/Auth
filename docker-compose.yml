@@ -1,14 +1,13 @@
 version: '3.8'
 services:
-
   mongo:
-    image: mongo:6.0  # pin version to avoid surprises
+    image: mongo:6.0
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: example
     volumes:
-      - mongo-data:/data/db  # persist data
+      - mongo-data:/data/db
 
   mongo-express:
     image: mongo-express:1.0.0
@@ -32,6 +31,7 @@ services:
       KAFKA_BROKERCONNECT: "localhost:29092"
     depends_on:
       - "kafka"
+
   kafka:
     image: obsidiandynamics/kafka
     restart: "no"
@@ -74,17 +74,18 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - "8005:8005"
+    network_mode: host  # Key addition
+    # ports:  # Comment out or remove
+    #   - "8005:8005"
     volumes:
       - .:/authentication
     depends_on:
       - kafka
       - redis
       - mongo
-      # add other environment variables from your .env here or mount .env file below
     env_file:
-      - .env   # make sure your env file is in the same dir or adjust path
+      - .env
+
 
 volumes:
   mongo-data:
