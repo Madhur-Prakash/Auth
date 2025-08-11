@@ -12,7 +12,7 @@ import time
 # Kafka Consumer
 consumer = KafkaConsumer(
     'user_signups',
-    bootstrap_servers=['localhost:9092'],
+    bootstrap_servers=['localhost:9092'], # if want to dockerize use kafka:9092
     group_id='user_signup_worker',
     auto_offset_reset='earliest',
     enable_auto_commit=False,  # We'll commit manually after success

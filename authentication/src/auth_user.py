@@ -26,7 +26,7 @@ logger = setup_logging() # initialize logger
 
 # Kafka Producer
 producer = KafkaProducer(
-    bootstrap_servers=['localhost:9092'],
+    bootstrap_servers=['localhost:9092'], # if want to dockerize use kafka:9092
     value_serializer=lambda v: json.dumps(v).encode('utf-8')
 )
 

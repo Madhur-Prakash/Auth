@@ -12,7 +12,7 @@ from helper.utils import create_new_log, setup_logging
 # Kafka Consumer
 consumer_2 = KafkaConsumer(
     'user_CIN',
-    bootstrap_servers=['localhost:9092'],
+    bootstrap_servers=['localhost:9092'], # if want to dockerize use kafka:9092
     group_id='user_CIN_worker',    
     auto_offset_reset='earliest',
     enable_auto_commit=False,  # We'll commit manually after success

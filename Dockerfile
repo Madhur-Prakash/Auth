@@ -1,10 +1,9 @@
-    FROM python:3.10-slim
+FROM python:3.9 
 
-    WORKDIR /authentication
+WORKDIR /authentication
+COPY requirements.txt requirements.txt
+RUN pip install -r requirements.txt
+COPY . .
+EXPOSE 8005
 
-    COPY requirements.txt requirements.txt
-    RUN pip install -r requirements.txt
-    COPY . .
-    EXPOSE 8005
-    
-    CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8005"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8005"]
