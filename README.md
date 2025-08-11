@@ -70,24 +70,24 @@ This repository implements a robust authentication system using FastAPI, incorpo
    ```
 
 6. Set up Redis:
-```bash
-   # Run this command to start Redis Stack in detached mode:
-   docker run -d --name redis-stack -p 6379:6379 -p 8001:8001 redis/redis-stack:latest
-   # access Redis Stack at 👉 http://localhost:8001
+   ```bash
+      # Run this command to start Redis Stack in detached mode:
+      docker run -d --name redis-stack -p 6379:6379 -p 8001:8001 redis/redis-stack:latest
+      # access Redis Stack at 👉 http://localhost:8001
    ```
 
 7. Set up Kafka:
-```bash
-   # From the root directory of the project, run:
-   docker-compose up -d
-   # access Kafka at 👉 http://localhost:9000
-```
+   ```bash
+      # From the root directory of the project, run:
+      docker-compose up -d
+      # access Kafka at 👉 http://localhost:9000
+   ```
 8. Set up Mailhog:
-```bash
-   # Run this command to start Mailhog in detached mode:
-   docker run -d --name mailhog -p 1025:1025 -p 8025:8025 mailhog/mailhog
-   # access Mailhog at 👉 http://localhost:8025
-```
+   ```bash
+      # Run this command to start Mailhog in detached mode:
+      docker run -d --name mailhog -p 1025:1025 -p 8025:8025 mailhog/mailhog
+      # access Mailhog at 👉 http://localhost:8025
+   ```
 9. Set up external logging service:
    - Clone the repository:
       ```bash
