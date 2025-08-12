@@ -110,7 +110,12 @@ services:
       - kafka-setup
       - redis
       - mongo
-    command: ["python", "authentication/config/kafka1_config.py"]
+    command: >
+      bash -c "
+        echo 'Waiting 3 minutes for Kafka to be fully ready...' &&
+        sleep 180 &&
+        python authentication/config/kafka1_config.py
+      "
 
   kafka-config2:
     build:
@@ -122,7 +127,12 @@ services:
       - kafka-setup
       - redis
       - mongo
-    command: ["python", "authentication/config/kafka2_config.py"]
+    command: >
+      bash -c "
+        echo 'Waiting 3 minutes for Kafka to be fully ready...' &&
+        sleep 180 &&
+        python authentication/config/kafka2_config.py
+      "
 
 volumes:
   mongo-data:
