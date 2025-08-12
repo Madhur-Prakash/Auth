@@ -34,7 +34,7 @@ DEVELOPMENT_ENV = os.getenv("DEVELOPMENT_ENV", "local")  # Default to 'local' if
 
 if DEVELOPMENT_ENV == "docker":
     producer = KafkaProducer(
-        bootstrap_servers=['kafka:9092'],
+        bootstrap_servers=['kafka:29092'], # when using docker, it internally connects to 29092 and externally to 9092, so we need to connect to 29092
         value_serializer=lambda v: json.dumps(v).encode('utf-8')
     )
 else:
