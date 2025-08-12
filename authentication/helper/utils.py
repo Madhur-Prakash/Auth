@@ -95,10 +95,10 @@ def generate_fingerprint_hash(request: Request):
 def create_new_log(log_type: str, message: str, head: str):
     DEVELOPMENT_ENV = os.getenv("DEVELOPMENT_ENV", "local")
 
-    if DEVELOPMENT_ENV == "local":
-        url ="http://127.0.0.1:8000/backend/create_new_logs"
-    else:
+    if DEVELOPMENT_ENV == "docker":
         url = "http://logging:8000/backend/create_new_logs"
+    else:
+        url ="http://127.0.0.1:8000/backend/create_new_logs"
 
     log = {
          "log_type": log_type,

@@ -8,10 +8,10 @@ load_dotenv()
 
 DEVELOPMENT_ENV = os.getenv("DEVELOPMENT_ENV", "local")
 
-if DEVELOPMENT_ENV == "local":
-    MONGO_URI = "mongodb://localhost:27017/auth" # --> for local testing
-else:
+if DEVELOPMENT_ENV == "docker":
     MONGO_URI = "mongodb://root:example@mongo:27017/" # -> for docker testing
+else:
+    MONGO_URI = "mongodb://localhost:27017/auth" # --> for local testing
 
 # connect to MongoDB
 mongo_client = AsyncIOMotorClient(MONGO_URI)
