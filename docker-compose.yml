@@ -50,14 +50,6 @@ services:
       KAFKA_RESTART_DELAY: "5"
       ZOOKEEPER_AUTOPURGE_PURGE_INTERVAL: "0"
 
-  # kafka:
-  #   image: hatakekakashihk/kafka:latest
-  #   ports:
-  #     - "2181:2181"
-  #     - "9092:9092"
-  #   environment:
-  #     - KAFKA_HOST=${KAFKA_HOST:-localhost}
-
   redis:
     image: redis/redis-stack:latest
     restart: unless-stopped
