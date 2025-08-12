@@ -98,8 +98,7 @@ services:
       - kafka
       - redis
       - mongo
-    command: ["/authentication/waitforkafka.sh", "kafka", "29092", "python", "authentication/config/kafka1_config.py"]
-
+    command: ["python", "authentication/config/kafka1_config.py"]
 
 
   kafka-config2:
@@ -110,7 +109,8 @@ services:
       - kafka
       - redis
       - mongo
-    command: ["/authentication/waitforkafka.sh", "kafka", "29092", "python", "authentication/config/kafka2_config.py"]
+    command: ["python", "authentication/config/kafka1_config.py"]
+
 
 
 

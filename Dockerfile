@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN chmod +x waitforkafka.sh
+# RUN chmod +x waitforkafka.sh
 
 EXPOSE 8005
 
