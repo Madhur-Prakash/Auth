@@ -8,16 +8,31 @@ import json
 from helper.utils import create_new_log, setup_logging
 import traceback
 import time
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Kafka Consumer
-consumer = KafkaConsumer(
-    'user_signups',
-    bootstrap_servers=['localhost:9092'], # if want to dockerize use kafka:9092
-    group_id='user_signup_worker',
-    auto_offset_reset='earliest',
-    enable_auto_commit=False,  # We'll commit manually after success
-    value_deserializer=lambda m: json.loads(m.decode('utf-8'))
-)
+DEVELOPMENT_ENV = os.getenv("DEVELOPMENT_ENV", "local")
+
+if DEVELOPMENT_ENV == "docker":
+    consumer = KafkaConsumer(
+        'user_signups',
+        bootstrap_servers=['kafka:9092'],
+        group_id='user_signup_worker',
+        auto_offset_reset='earliest',
+        enable_auto_commit=False,  # We'll commit manually after success
+        value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+    )
+else:
+    consumer = KafkaConsumer(
+        'user_signups',
+        bootstrap_servers=['localhost:9092'],
+        group_id='user_signup_worker',
+        auto_offset_reset='earliest',
+        enable_auto_commit=False,  # We'll commit manually after success
+        value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+    )
 
 
 logger = setup_logging()

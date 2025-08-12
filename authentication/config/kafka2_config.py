@@ -8,16 +8,31 @@ import json
 import time
 import traceback
 from helper.utils import create_new_log, setup_logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Kafka Consumer
-consumer_2 = KafkaConsumer(
-    'user_CIN',
-    bootstrap_servers=['localhost:9092'], # if want to dockerize use kafka:9092
-    group_id='user_CIN_worker',    
-    auto_offset_reset='earliest',
-    enable_auto_commit=False,  # We'll commit manually after success
-    value_deserializer=lambda m: json.loads(m.decode('utf-8'))
-)
+DEVELOPMENT_ENV = os.getenv("DEVELOPMENT_ENV", "local")
+
+if DEVELOPMENT_ENV == "docker":
+    consumer_2 = KafkaConsumer(
+        'user_UID',
+        bootstrap_servers=['kafka:9092'],
+        group_id='user_UID_worker',
+        auto_offset_reset='earliest',
+        enable_auto_commit=False,  # We'll commit manually after success
+        value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+    )
+else:
+    consumer_2 = KafkaConsumer(
+        'user_UID',
+        bootstrap_servers=['localhost:9092'],
+        group_id='user_UID_worker',
+        auto_offset_reset='earliest',
+        enable_auto_commit=False,  # We'll commit manually after success
+        value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+    )
 
 
 logging = setup_logging()
@@ -55,19 +70,19 @@ print("Worker started, waiting for signup...")
 
 # Google Signup Consumer
 async def run_kafka():
-    user_CIN_BATCH_SIZE = 2   # Insert 100 users at once
-    user_CIN_BATCH = []  # Temporary storage for batch
+    user_UID_BATCH_SIZE = 2   # Insert 100 users at once
+    user_UID_BATCH = []  # Temporary storage for batch
 
     try:
         for val in consumer_2:
             user_data = val.value
-            user_CIN_BATCH.append(user_data)
+            user_UID_BATCH.append(user_data)
 
-            if len(user_CIN_BATCH) >= user_CIN_BATCH_SIZE:
-                success = await insert_batch(user_CIN_BATCH)
+            if len(user_UID_BATCH) >= user_UID_BATCH_SIZE:
+                success = await insert_batch(user_UID_BATCH)
                 if success:
                     consumer_2.commit()  # Only commit Kafka offset after successful DB write
-                    user_CIN_BATCH = []  # Clear batch
+                    user_UID_BATCH = []  # Clear batch
 
     except KeyboardInterrupt:
         print("Shutting down worker...")

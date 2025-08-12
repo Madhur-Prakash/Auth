@@ -30,10 +30,18 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 templates = Jinja2Templates(directory="authentication/templates")
 
 # Kafka Producer
-producer = KafkaProducer(
-    bootstrap_servers=['localhost:9092'], # if want to dockerize use kafka:9092
-    value_serializer=lambda v: json.dumps(v).encode('utf-8')
-)
+DEVELOPMENT_ENV = os.getenv("DEVELOPMENT_ENV", "local")  # Default to 'local' if not set
+
+if DEVELOPMENT_ENV == "docker":
+    producer = KafkaProducer(
+        bootstrap_servers=['kafka:9092'],
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+else:
+    producer = KafkaProducer(
+        bootstrap_servers=['localhost:9092'],
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
 
 google_user_email_bloom_filter = CountingBloomFilter(capacity=1000000, error_rate=0.01)
 google_user_phone_bloom_filter = CountingBloomFilter(capacity=1000000, error_rate=0.01)
@@ -86,7 +94,7 @@ async def cache_without_password(data: str):
     return None
 
 TOPIC_NAME = 'user_signups'
-TOPIC2_NAME = "user_CIN"
+TOPIC2_NAME = "user_UID"
 # ---- user Signup ----
 
 
