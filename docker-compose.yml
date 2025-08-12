@@ -8,8 +8,8 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: example
-    ports:
-      - "27018:27017"  # Maps host port 27018 to container's internal port 27017 (avoids conflict with local Compass on 27017)
+    # ports:
+    #   - "27018:27017"  # No need for this 
 
   mongo-express:
     image: mongo-express
