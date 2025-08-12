@@ -8,6 +8,8 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - "27018:27017"  # Maps host port 27018 to container's internal port 27017 (avoids conflict with local Compass on 27017)
 
   mongo-express:
     image: mongo-express
@@ -17,7 +19,7 @@ services:
     environment:
       ME_CONFIG_MONGODB_ADMINUSERNAME: root
       ME_CONFIG_MONGODB_ADMINPASSWORD: example
-      ME_CONFIG_MONGODB_URL: mongodb://root:example@mongo:27017/
+      ME_CONFIG_MONGODB_URL: mongodb://root:example@mongo:27017/  # Internal connection remains the same
       ME_CONFIG_BASICAUTH: false
     depends_on:
       - mongo
@@ -87,6 +89,30 @@ services:
       # add other environment variables from your .env here or mount .env file below
     env_file:
       - .env   # make sure your env file is in the same dir or adjust path
+
+  kafka-config1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - kafka
+      - redis
+      - mongo
+    command: ["/authentication/waitforkafka.sh", "kafka", "29092", "python", "authentication/config/kafka1_config.py"]
+
+
+
+  kafka-config2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - kafka
+      - redis
+      - mongo
+    command: ["/authentication/waitforkafka.sh", "kafka", "29092", "python", "authentication/config/kafka2_config.py"]
+
+
 
 volumes:
   mongo-data:

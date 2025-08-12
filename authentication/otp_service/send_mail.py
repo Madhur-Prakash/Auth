@@ -17,6 +17,7 @@ load_dotenv()
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION_NAME = os.getenv("AWS_REGION_NAME", default="us-east-1")
+DEVELOPMENT_ENV = os.getenv("DEVELOPMENT_ENV", "local")
 
 # aws client
 client = boto3.client(
@@ -112,8 +113,12 @@ def send_mail_to_mailhog(to_email, subject, body, retries=3, delay=5):
             msg["From"] = NO_REPLY_EMAIL
             msg["To"] = to_email
 
-            with smtplib.SMTP("localhost", 1025) as server:
-                server.sendmail(NO_REPLY_EMAIL, [to_email], msg.as_string())
+            if DEVELOPMENT_ENV == "docker":
+                with smtplib.SMTP("mailhog:1025") as server:
+                    server.sendmail(NO_REPLY_EMAIL, [to_email], msg.as_string())
+            else:
+                with smtplib.SMTP("localhost", 1025) as server:
+                    server.sendmail(NO_REPLY_EMAIL, [to_email], msg.as_string())
 
             print(f"Email sent to {to_email} via MailHog!")
             return {"status": "success", "to": to_email}
