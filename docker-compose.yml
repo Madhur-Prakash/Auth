@@ -22,6 +22,7 @@ services:
       ME_CONFIG_BASICAUTH: false
     depends_on:
       - mongo
+
   redis:
     image: redis/redis-stack:latest
     restart: unless-stopped
