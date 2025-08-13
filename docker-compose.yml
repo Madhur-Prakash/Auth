@@ -10,6 +10,8 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: example
     # ports:
     #   - "27018:27017"  # No need for this 
+    volumes:
+      - ./mongo-data:/data/db   # Persist Mongo data to local folder
 
   mongo-express:
     image: mongo-express
@@ -56,14 +58,14 @@ services:
     ports:
       - "6379:6379"
       - "8001:8001"
-    volumes:
-      - redis-data:/data
 
   logging:
     image: madhurprakash/fastapi_logging:latest
     restart: unless-stopped
     ports:
       - "8000:8000"
+    volumes:
+      - ./logs:/logs
 
   mailhog:
     image: mailhog/mailhog
@@ -116,10 +118,3 @@ services:
       - KAFKA_HOST=kafka
       - KAFKA_PORT=29092
     command: ["/authentication/waitforkafka.sh", "python", "authentication/config/kafka2_config.py"]
-
-
-
-
-volumes:
-  mongo-data:
-  redis-data:

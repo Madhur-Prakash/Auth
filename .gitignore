@@ -11,3 +11,4 @@ auth.log
 *.pytest_cache
 .vscode
 .python-version
+mongo-data

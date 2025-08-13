@@ -191,55 +191,67 @@ Raises:
         # data validation
         if not user_email_bloom_filter.contains(dict_data["email"]): # Check if email is definitely not present (Bloom filter)
             print("Email not in Bloom filter — safe to continue")
+            logger.info("Email not in Bloom filter — safe to continue")
             # continue with signup
         else:
             print("Bloom filter indicates possible existence — verifying with Redis and DB")
+            logger.warning("Bloom filter indicates possible existence — verifying with Redis and DB")
 
             # Double-check in Redis (temporary store, e.g., for recent signups or pending activation)
             email_in_redis = await client.hgetall(f"user:new_account:{dict_data['email']}")
             if email_in_redis:
                 print("Email found in Redis")
+                logger.warning("Email found in Redis")
                 create_new_log("warning", f"Signup attempt with existing email: {dict_data['email']}", "/api/backend/Auth")
                 logger.warning(f"Signup attempt with existing email: {dict_data['email']}")
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
             else:
                 print("Email not found in Redis — checking MongoDB")
+                logger.info("Email not found in Redis — checking MongoDB")
                 # Check in MongoDB (source of truth)
                 email = await mongo_client.auth.user.find_one({"email": dict_data["email"]})
                 if email:
                     print("Email found in MongoDB")
+                    logger.warning("Email found in MongoDB")
                     create_new_log("warning", f"Signup attempt with existing email: {dict_data['email']}", "/api/backend/Auth")
                     logger.warning(f"Signup attempt with existing email: {dict_data['email']}")
                     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
         
         print("Email is new — proceed with account creation") # At this point, email is confirmed to be new — proceed with signup
+        logger.info("Email is new — proceed with account creation")
 
         # Phone number validation (Bloom Filter → Redis → MongoDB)
         if not user_phone_bloom_filter.contains(dict_data["phone_number"]):  # Bloom filter first check
             print("Phone number not in Bloom filter — safe to continue")
+            logger.info("Phone number not in Bloom filter — safe to continue")
             # continue with signup
         else:
             print("Bloom filter indicates possible existence — verifying with Redis and DB")
+            logger.warning("Bloom filter indicates possible existence — verifying with Redis and DB")
 
             # Check Redis for recent or pending signups
             phone_number_in_redis = await client.hgetall(f"user:new_account:{dict_data['phone_number']}")
             if phone_number_in_redis:
                 print("Phone number found in Redis")
+                logger.warning("Phone number found in Redis")
                 create_new_log("warning", f"Signup attempt with existing phone number: {dict_data['phone_number']}", "/api/backend/Auth")
                 logger.warning(f"Signup attempt with existing phone number: {dict_data['phone_number']}")
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone number already in use")
             else:
                 print("Phone number not found in Redis — checking MongoDB")
+                logger.warning("Phone number not found in Redis — checking MongoDB")
 
                 # Check in MongoDB (source of truth)
                 phone_number = await mongo_client.auth.user.find_one({"phone_number": dict_data["phone_number"]})
                 if phone_number:
                     print("Phone number found in MongoDB")
+                    logger.warning("Phone number found in MongoDB")
                     create_new_log("warning", f"Signup attempt with existing phone number: {dict_data['phone_number']}", "/api/backend/Auth")
                     logger.warning(f"Signup attempt with existing phone number: {dict_data['phone_number']}")
                     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone number already in use")
 
         print("Phone number is new — proceed with account creation")  # Safe to proceed
+        logger.info("Phone number is new — proceed with account creation")
 
         if not (form_data["phone_number"].__len__() == 10):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be 10 digits long")
