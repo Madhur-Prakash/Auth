@@ -46,55 +46,115 @@ This repository implements a robust authentication system using FastAPI, incorpo
 ---
 
 ## Installation
+You can get the project up and running using either **Docker Compose** (the easiest method) or by setting it up **manually** for more  control.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Madhur-Prakash/Auth.git
-   ```
-2. Navigate to the project directory:
-   ```bash
-   cd Auth
-   ```
-3. Create and activate a virtual environment:
+---
+
+## Method 1: Using Docker Compose (Recommended) 🐳
+
+This is the simplest method and handles all service dependencies automatically. It will build the necessary images and start all services in one go.
+
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/Madhur-Prakash/Auth.git
+    cd Auth
+    ```
+2. **Set up environment variables**:
+      ``` bash
+      # Copy the .env.sample file to .env and fill in the required values.
+      ```
+> Note: When using docker make sure to comment out `DEVELOPMENT_ENV = "docker"` in `.env` file to switch to docker mode.
+
+3.  **Start Services**
+    Use Docker Compose to launch the entire stack in detached mode (`-d`).
+    ```bash
+    docker-compose up -d --build
+    ```
+
+4.  **Access Services**
+    Once running, you can access the different components at these endpoints:
+
+      | Service | URL | Purpose |
+      | :--- | :--- | :--- |
+      |  FastAPI App | [`http://localhost:8005`](http://localhost:8005) | The main FastAPI application. |
+      | Logging Service | [`http://localhost:8000`](http://localhost:8000) | Centralized request/response logs. |
+      | Redis Stack UI | [`http://localhost:8001`](http://localhost:8001) | In-memory cache and message broker UI. |
+      | Mailhog | [`http://localhost:8025`](http://localhost:8025) | Catches outgoing emails for testing. |
+      | Kafka UI (Kafdrop) | [`http://localhost:9000`](http://localhost:9000) | Web UI for managing Kafka topics. |
+      | MongoDB (Admin) | [`http://localhost:8081`](http://localhost:8081) | Database administration interface. |
+
+---
+
+
+## Method 2: Manual Installation 🛠️
+
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/Madhur-Prakash/Auth.git
+    cd Auth
+    ```
+2. Create and activate a virtual environment:
    ```bash
    python -m venv venv
    source venv/bin/activate   # On Windows: venv\Scripts\activate
    ```
-4. Install dependencies:
+3. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-5. Set up MongoDB:
+4. Set up MongoDB:
    ```bash
       # Install MongoDB and start the service.
    ```
 
-6. Set up Redis:
+5. Set up Redis:
    ```bash
       # Run this command to start Redis Stack in detached mode:
       docker run -d --name redis-stack -p 6379:6379 -p 8001:8001 redis/redis-stack:latest
       # access Redis Stack at 👉 http://localhost:8001
    ```
 
-7. Set up Kafka:
+6. Set up Kafka and Zookeeper:
+   ### For kafka + zookeeper setup run the following command:
    ```bash
-      # From the root directory of the project, run:
-      docker-compose up -d
-      # access Kafka at 👉 http://localhost:9000
+      docker run -d \
+         --name kafka \
+         -p 2181:2181 \
+         -p 9092:9092 \
+         -e KAFKA_LISTENERS="INTERNAL://:29092,EXTERNAL://:9092" \
+         -e KAFKA_ADVERTISED_LISTENERS="INTERNAL://kafka:29092,EXTERNAL://localhost:9092" \
+         -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP="INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT" \
+         -e KAFKA_INTER_BROKER_LISTENER_NAME="INTERNAL" \
+         -e KAFKA_ZOOKEEPER_SESSION_TIMEOUT="6000" \
+         -e KAFKA_RESTART_ATTEMPTS="10" \
+         -e KAFKA_RESTART_DELAY="5" \
+         -e ZOOKEEPER_AUTOPURGE_PURGE_INTERVAL="0" \
+         obsidiandynamics/kafka
    ```
-8. Set up Mailhog:
+
+   ### Optional: Kafka Web UI
+   ```bash
+      docker run -d \
+         --name kafdrop \
+         -p 9000:9000 \
+         --link kafka:kafka \
+         -e KAFKA_BROKERCONNECT="kafka:29092" \
+         obsidiandynamics/kafdrop
+
+      # access Kafka at 👉 http://localhost:9000
+      # --link kafka:kafka ensures Kafdrop can see the Kafka container by hostname kafka
+   ```
+
+7. Set up Mailhog:
    ```bash
       # Run this command to start Mailhog in detached mode:
       docker run -d --name mailhog -p 1025:1025 -p 8025:8025 mailhog/mailhog
       # access Mailhog at 👉 http://localhost:8025
    ```
-9. Set up external logging service:
+8. Set up external logging service:
    - Clone the repository:
       ```bash
       git clone https://github.com/Madhur-Prakash/centralized-logging.git
-      ```
-   - Navigate to the project directory:
-      ```bash
       cd centralized-logging
       ```
    - Create docker image:
@@ -106,8 +166,7 @@ This repository implements a robust authentication system using FastAPI, incorpo
       docker run -d --name logging -p 8000:8000 logging
       ```
 
-
-10. Set up .env:
+9. Set up environment variables:
 
       ``` bash
       # Copy the .env.sample file to .env and fill in the required values.
@@ -118,12 +177,12 @@ This repository implements a robust authentication system using FastAPI, incorpo
 
 1. Start the FastAPI server:
    ```bash
-   uvicorn app:app --port 8020 --reload
+   uvicorn app:app --port 8005 --reload
    ```
 2. Access the API documentation at:
    ```
-   http://127.0.0.1:8020/docs
-   # for detailed docs visit 👉 http://127.0.0.1:8020/scalar
+   http://127.0.0.1:8005/docs
+   # for detailed docs visit 👉 http://127.0.0.1:8005/scalar
    ```
 
 ---
@@ -137,9 +196,13 @@ This repository implements a robust authentication system using FastAPI, incorpo
 ```plaintext
 Auth/
 ├── .dockerignore
-├── .env
+├── .env.sample
 ├── .gitignore  # gitignore file for GitHub
-├── Dockerfile
+├── CHANGELOG.md
+├── Dockerfile.auth
+├── Dockerfile.kafka1
+├── Dockerfile.kafka2
+├── LICENSE
 ├── README.md  # Project documentation
 ├── __init__.py  # initializes package
 ├── app.py  # main FastAPI app
@@ -149,7 +212,7 @@ Auth/
 │   │   ├── __init__.py  # initializes package
 │   │   ├── bloom_filter.py
 │   │   ├── celery_app.py
-│   │   ├── database.py
+│   │   ├── database.py  # database configuration
 │   │   ├── kafka1_config.py
 │   │   ├── kafka2_config.py
 │   │   ├── rate_limiting.py
@@ -160,7 +223,7 @@ Auth/
 │   │   ├── auth_token.py
 │   │   ├── hashing.py
 │   │   ├── oauth2.py
-│   │   └── utils.py
+│   │   └── utils.py  # utility functions
 │   ├── models
 │   │   ├── __init__.py  # initializes package
 │   │   └── models.py  # models
@@ -187,13 +250,13 @@ Auth/
 ├── credentials.json
 ├── docker-compose.yml
 ├── requirements.txt
-├── run.sh
 ├── test_api
 │   ├── __init__.py  # initializes package
 │   ├── locust.py
 │   ├── test_login.py
 │   └── user_api_hit.py
-└── token.pickle
+├── token.pickle
+└── waitforkafka.sh
 ```
 
 ---
