@@ -76,8 +76,8 @@ This is the simplest method and handles all service dependencies automatically. 
 
       | Service | URL | Purpose |
       | :--- | :--- | :--- |
-      |  FastAPI App | [`http://localhost:8005`](http://localhost:8005) | The main FastAPI application. |
-      | Logging Service | [`http://localhost:8000`](http://localhost:8000) | Centralized request/response logs. |
+      |  FastAPI App | [`http://localhost:8005/docs`](http://localhost:8005/docs) | The main FastAPI application. |
+      | Logging Service | [`http://localhost:8000/docs`](http://localhost:8000/docs) | Centralized request/response logs. |
       | Redis Stack UI | [`http://localhost:8001`](http://localhost:8001) | In-memory cache and message broker UI. |
       | Mailhog | [`http://localhost:8025`](http://localhost:8025) | Catches outgoing emails for testing. |
       | Kafka UI (Kafdrop) | [`http://localhost:9000`](http://localhost:9000) | Web UI for managing Kafka topics. |
@@ -164,6 +164,7 @@ This is the simplest method and handles all service dependencies automatically. 
    - Run docker:
       ```bash
       docker run -d --name logging -p 8000:8000 logging
+      # access the logging service at 👉 `http://localhost:8000/docs`
       ```
 
 9. Set up environment variables:
