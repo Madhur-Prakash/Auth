@@ -18,7 +18,7 @@ DEVELOPMENT_ENV = os.getenv("DEVELOPMENT_ENV", "local")
 if DEVELOPMENT_ENV == "docker":
     consumer = KafkaConsumer(
         'user_signups',
-        bootstrap_servers=['kafka:9092'], # try using kafka:29092 and remove command from docker compose
+        bootstrap_servers=['kafka:29092'], # try using kafka:29092 and remove command from docker compose
         group_id='user_signup_worker',
         auto_offset_reset='earliest',
         enable_auto_commit=False,  # We'll commit manually after success

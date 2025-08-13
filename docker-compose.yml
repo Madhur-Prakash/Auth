@@ -75,7 +75,7 @@ services:
   authentication:
     build: 
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.auth
     restart: unless-stopped
     ports:
       - "8005:8005"
@@ -93,23 +93,29 @@ services:
   kafka-config1:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.kafka1
     depends_on:
       - kafka
       - redis
       - mongo
-    command: ["python", "authentication/config/kafka1_config.py"]
+    environment:
+      - KAFKA_HOST=kafka
+      - KAFKA_PORT=29092
+    command: ["/authentication/waitforkafka.sh", "python", "authentication/config/kafka1_config.py"]
 
 
   kafka-config2:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.kafka2
     depends_on:
       - kafka
       - redis
       - mongo
-    command: ["python", "authentication/config/kafka1_config.py"]
+    environment:
+      - KAFKA_HOST=kafka
+      - KAFKA_PORT=29092
+    command: ["/authentication/waitforkafka.sh", "python", "authentication/config/kafka2_config.py"]
 
 
 

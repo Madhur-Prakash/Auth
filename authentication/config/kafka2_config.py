@@ -18,7 +18,7 @@ DEVELOPMENT_ENV = os.getenv("DEVELOPMENT_ENV", "local")
 if DEVELOPMENT_ENV == "docker":
     consumer_2 = KafkaConsumer(
         'user_UID',
-        bootstrap_servers=['kafka:9092'], # try using kafka:29092 and remove command from docker compose
+        bootstrap_servers=['kafka:29092'], # try using kafka:29092 and remove command from docker compose
         group_id='user_UID_worker',
         auto_offset_reset='earliest',
         enable_auto_commit=False,  # We'll commit manually after success
@@ -52,7 +52,7 @@ async def insert_batch(batch):
             await mongo_client.public_profile_data.user.insert_many(batch, ordered=False)
             print(f"✅ Inserted batch of {len(batch)} users UID.")
             # Log the successful insert
-            logging.info(f"Inserted batch of {len(batch)} users.")
+            logging.info(f"Inserted batch of {len(batch)} users UID.")
             create_new_log("info", f"Inserted batch of {len(batch)} users UID.", "/api/backend/Auth")
             return True
         except Exception as e:

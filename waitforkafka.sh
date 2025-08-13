@@ -1,15 +1,15 @@
-#!/bin/bash
+#!/bin/sh
 # wait-for-kafka.sh
 
-set -e
+KAFKA_HOST=${KAFKA_HOST:-kafka}
+KAFKA_PORT=${KAFKA_PORT:-29092}
 
-host="$1"
-port="$2"
+echo "⏳ Waiting for Kafka at $KAFKA_HOST:$KAFKA_PORT..."
 
-until nc -z "$host" "$port"; do
-  echo "Waiting for Kafka at $host:$port..."
-  sleep 3
+while ! nc -z "$KAFKA_HOST" "$KAFKA_PORT"; do
+  sleep 1
 done
 
-echo "Kafka is up - executing command"
-exec "${@:3}"
+echo "✅ Kafka is up and running!"
+
+exec "$@"
