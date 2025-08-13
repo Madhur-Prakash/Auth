@@ -68,6 +68,8 @@ def generate_random_string():
         return generate_random_string()
 
 def get_country_name(phone_number: str):
+    if not(phone_number.startswith("+")):
+        phone_number = "+" + phone_number
     pn = phonenumbers.parse(phone_number)
 
     country = pycountry.countries.get(alpha_2 = region_code_for_number(pn))

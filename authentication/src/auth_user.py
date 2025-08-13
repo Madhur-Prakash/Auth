@@ -241,9 +241,8 @@ Raises:
 
         print("Phone number is new — proceed with account creation")  # Safe to proceed
 
-        if(form_data["phone_number"].__len__() < 10 or form_data["phone_number"].__len__() > 10):
+        if not (form_data["phone_number"].__len__() == 10):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be 10 digits long")
-        
         if not(form_data["phone_number"].isdigit()):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be digits only")
         if(form_data["password"].__len__() < 6):
