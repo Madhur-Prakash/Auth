@@ -48,7 +48,14 @@ This repository implements a robust authentication system using FastAPI, incorpo
 ## Installation
 You can get the project up and running using either **Docker Compose** (the easiest method) or by setting it up **manually** for more  control.
 
+> 📌 **Important:**  
+> - For Docker setup, set `DEVELOPMENT_ENV = "docker"` in your `.env` file.  
+> - For local development, either set `DEVELOPMENT_ENV = "local"` or comment out the line entirely.  
+>  
+> This ensures the application loads the correct configuration and prevents environment-related issues.
+
 ---
+
 
 ## Method 1: Using Docker Compose (Recommended) 🐳
 
@@ -63,7 +70,6 @@ This is the simplest method and handles all service dependencies automatically. 
       ``` bash
       # Copy the .env.sample file to .env and fill in the required values.
       ```
-> Note: When running in Docker, set `DEVELOPMENT_ENV = "docker"` in the `.env` file. For local development, either set `DEVELOPMENT_ENV = "local"` or comment out the `DEVELOPMENT_ENV` line entirely.
 
 3.  **Start Services**
     Use Docker Compose to launch the entire stack in detached mode (`-d`).

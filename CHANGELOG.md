@@ -24,7 +24,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ### Changed
 - Updated Readme for clear instructions.
 
-## [1.1.0] - 2025-08-13
+## [1.1.0] - 2025-08-14
 
 ### Added
 - **Complete Dockerization** of the authentication service for streamlined containerized deployment:
