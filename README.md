@@ -110,52 +110,52 @@ This is the simplest method and handles all service dependencies automatically. 
    ```
 4. Set up MongoDB:
    ```bash
-      # Install MongoDB and start the service.
+   # Install MongoDB and start the service.
    ```
 
 5. Set up Redis:
    ```bash
-      # Run this command to start Redis Stack in detached mode:
-      docker run -d --name redis-stack -p 6379:6379 -p 8001:8001 redis/redis-stack:latest
-      # access Redis Stack at 👉 http://localhost:8001
+   # Run this command to start Redis Stack in detached mode:
+   docker run -d --name redis-stack -p 6379:6379 -p 8001:8001 redis/redis-stack:latest
+   # access Redis Stack at 👉 http://localhost:8001
    ```
 
 6. Set up Kafka and Zookeeper:
    ### For kafka + zookeeper setup run the following command:
    ```bash
-      docker run -d \
-         --name kafka \
-         -p 2181:2181 \
-         -p 9092:9092 \
-         -e KAFKA_LISTENERS="INTERNAL://:29092,EXTERNAL://:9092" \
-         -e KAFKA_ADVERTISED_LISTENERS="INTERNAL://kafka:29092,EXTERNAL://localhost:9092" \
-         -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP="INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT" \
-         -e KAFKA_INTER_BROKER_LISTENER_NAME="INTERNAL" \
-         -e KAFKA_ZOOKEEPER_SESSION_TIMEOUT="6000" \
-         -e KAFKA_RESTART_ATTEMPTS="10" \
-         -e KAFKA_RESTART_DELAY="5" \
-         -e ZOOKEEPER_AUTOPURGE_PURGE_INTERVAL="0" \
-         obsidiandynamics/kafka
+   docker run -d \
+      --name kafka \
+      -p 2181:2181 \
+      -p 9092:9092 \
+      -e KAFKA_LISTENERS="INTERNAL://:29092,EXTERNAL://:9092" \
+      -e KAFKA_ADVERTISED_LISTENERS="INTERNAL://kafka:29092,EXTERNAL://localhost:9092" \
+      -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP="INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT" \
+      -e KAFKA_INTER_BROKER_LISTENER_NAME="INTERNAL" \
+      -e KAFKA_ZOOKEEPER_SESSION_TIMEOUT="6000" \
+      -e KAFKA_RESTART_ATTEMPTS="10" \
+      -e KAFKA_RESTART_DELAY="5" \
+      -e ZOOKEEPER_AUTOPURGE_PURGE_INTERVAL="0" \
+      obsidiandynamics/kafka
    ```
 
    ### Optional: Kafka Web UI
    ```bash
-      docker run -d \
-         --name kafdrop \
-         -p 9000:9000 \
-         --link kafka:kafka \
-         -e KAFKA_BROKERCONNECT="kafka:29092" \
-         obsidiandynamics/kafdrop
+   docker run -d \
+      --name kafdrop \
+      -p 9000:9000 \
+      --link kafka:kafka \
+      -e KAFKA_BROKERCONNECT="kafka:29092" \
+      obsidiandynamics/kafdrop
 
-      # access Kafka at 👉 http://localhost:9000
-      # --link kafka:kafka ensures Kafdrop can see the Kafka container by hostname kafka
+   # access Kafka at 👉 http://localhost:9000
+   # --link kafka:kafka ensures Kafdrop can see the Kafka container by hostname kafka
    ```
 
 7. Set up Mailhog:
    ```bash
-      # Run this command to start Mailhog in detached mode:
-      docker run -d --name mailhog -p 1025:1025 -p 8025:8025 mailhog/mailhog
-      # access Mailhog at 👉 http://localhost:8025
+   # Run this command to start Mailhog in detached mode:
+   docker run -d --name mailhog -p 1025:1025 -p 8025:8025 mailhog/mailhog
+   # access Mailhog at 👉 http://localhost:8025
    ```
 8. Set up external logging service:
    - Clone the repository:
