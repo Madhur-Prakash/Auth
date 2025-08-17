@@ -188,7 +188,7 @@ This is the simplest method and handles all service dependencies automatically. 
    ```
 2. Start the kafka worker:
    ```bash
-   python .\authentication\config\kafka1_config.py
+   python authentication/config/kafka1_config.py
    ```
 3. Access the API documentation at:
    ```
