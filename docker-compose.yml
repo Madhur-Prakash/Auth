@@ -92,7 +92,7 @@ services:
     env_file:
       - .env   # make sure your env file is in the same dir or adjust path
 
-  kafka-config1:
+  kafka-config:
     build:
       context: .
       dockerfile: Dockerfile.kafka1
@@ -105,16 +105,3 @@ services:
       - KAFKA_PORT=29092
     command: ["/authentication/waitforkafka.sh", "python", "authentication/config/kafka1_config.py"]
 
-
-  kafka-config2:
-    build:
-      context: .
-      dockerfile: Dockerfile.kafka2
-    depends_on:
-      - kafka
-      - redis
-      - mongo
-    environment:
-      - KAFKA_HOST=kafka
-      - KAFKA_PORT=29092
-    command: ["/authentication/waitforkafka.sh", "python", "authentication/config/kafka2_config.py"]

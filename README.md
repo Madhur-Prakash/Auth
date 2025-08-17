@@ -186,7 +186,11 @@ This is the simplest method and handles all service dependencies automatically. 
    ```bash
    uvicorn app:app --port 8005 --reload
    ```
-2. Access the API documentation at:
+2. Start the kafka worker:
+   ```bash
+   python .\authentication\config\kafka1_config.py
+   ```
+3. Access the API documentation at:
    ```
    http://127.0.0.1:8005/docs
    # for detailed docs visit 👉 http://127.0.0.1:8005/scalar

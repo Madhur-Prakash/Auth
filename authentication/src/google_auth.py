@@ -94,7 +94,6 @@ async def cache_without_password(data: str):
     return None
 
 TOPIC_NAME = 'user_signups'
-TOPIC2_NAME = "user_UID"
 # ---- user Signup ----
 
 
@@ -234,8 +233,6 @@ async def user_google_signup_callback(request: Request, response: Response):
 
         # ****************send data to kafka topic *****************
         producer.send(TOPIC_NAME, user_data) # send data to kafka topic
-        producer.flush() # flush the producer to ensure data is sent
-        producer.send(TOPIC2_NAME, value={"UID":user_data["UID"]}) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
         # await mongo_client.auth.user.insert_one(user_data)  # this is done when kafka topic is consumed
@@ -408,8 +405,6 @@ async def user_phone_number_signup(data:models.google_login, request: Request, r
 
         # ****************send data to kafka topic *****************
         producer.send(TOPIC_NAME, user_data) # send data to kafka topic
-        producer.flush() # flush the producer to ensure data is sent
-        producer.send(TOPIC2_NAME, value={"UID":user_data["UID"]}) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
         # await mongo_client.auth.user.insert_one(user_data) # this is done when kafka topic is consumed
@@ -588,8 +583,6 @@ async def user_phone_number_login(data: models.google_login, request: Request, r
 
         # ****************send data to kafka topic *****************
         producer.send(TOPIC_NAME, new_user) # send data to kafka topic
-        producer.flush() # flush the producer to ensure data is sent
-        producer.send(TOPIC2_NAME, value={"UID":new_user["UID"]}) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
         # await mongo_client.auth.user.insert_one(new_user)  # this is done when kafka topic is consumed
@@ -797,8 +790,6 @@ async def user_google_login_callback(request: Request, response: Response):
 
         # ****************send data to kafka topic *****************
             producer.send(TOPIC_NAME, user_doc) # send data to kafka topic
-            producer.flush() # flush the producer to ensure data is sent
-            producer.send(TOPIC2_NAME, value={"UID":user_doc["UID"]}) # send data to kafka topic
             producer.flush() # flush the producer to ensure data is sent
 
             # await mongo_client.auth.user.insert_one(user_doc)  # this is done when kafka topic is consumed

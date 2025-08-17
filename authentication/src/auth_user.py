@@ -143,7 +143,6 @@ async def cache_without_password(data: str):
 #     return templates.TemplateResponse("login.html", {"request": request, "user": new_user}) 
     
 TOPIC_NAME = 'user_signups'
-TOPIC2_NAME = "user_UID"
 
 # Initialize bloom filters
 user_email_bloom_filter = CountingBloomFilter(capacity=100000, error_rate=0.01)
@@ -310,10 +309,6 @@ Raises:
 
         # ****************send data to kafka topic *****************
         producer.send(TOPIC_NAME, dict_data) # send data to kafka topic
-        producer.flush() # flush the producer to ensure data is sent
-
-        # send uid to public and private profile db
-        producer.send(TOPIC2_NAME, value={"UID":dict_data["UID"]}) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
 
