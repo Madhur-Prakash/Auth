@@ -4,27 +4,7 @@ All notable changes to the **Auth** repo will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [v1.0.0] - 2025-07-01
-
-### Added
-- FastAPI app setup with Docker and env configs
-- JWT and Google OAuth2 authentication
-- MongoDB integration with Pydantic models
-- Redis support for caching, OTP, and Bloom filter
-- Kafka producer and consumer integration
-- Celery + Mailhog for async mail
-- Complete HTML templates for auth flow
-- Basic load testing with Locust
-
-## [1.0.1] - 2025-08-10
-### Changed
-- Improved `.env` configuration guidance for setting up environment variables.
-
-## [1.0.2] - 2025-08-11
-### Changed
-- Updated Readme for clear instructions.
-
-## [1.1.0] - 2025-08-17
+## [1.1.0](https://github.com/Madhur-Prakash/Auth/compare/v1.0.2...v1.1.0) - 2025-08-17
 
 ### Added
 - **Complete Dockerization** of the authentication service for streamlined containerized deployment:
@@ -50,4 +30,22 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - This release significantly improves **deployability, scalability, and reliability**, allowing the authentication service to run consistently across different environments.
 - Developers can now rely on the Docker workflow for all setups, testing, and deployment.
 
+## [1.0.2](https://github.com/Madhur-Prakash/Auth/compare/v1.0.1...v1.0.2) - 2025-08-11
+### Changed
+- Updated Readme for clear instructions.
 
+## [1.0.1](https://github.com/Madhur-Prakash/Auth/compare/v1.0.0...v1.0.1) - 2025-08-10
+### Changed
+- Improved `.env` configuration guidance for setting up environment variables.
+
+## [1.0.0](https://github.com/Madhur-Prakash/Auth/releases/tag/v1.0.0) - 2025-07-01
+
+### Added
+- FastAPI app setup with Docker and env configs
+- JWT and Google OAuth2 authentication
+- MongoDB integration with Pydantic models
+- Redis support for caching, OTP, and Bloom filter
+- Kafka producer and consumer integration
+- Celery + Mailhog for async mail
+- Complete HTML templates for auth flow
+- Basic load testing with Locust
