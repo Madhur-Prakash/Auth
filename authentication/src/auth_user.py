@@ -127,21 +127,6 @@ async def cache_without_password(data: str):
     create_new_log("warning", f"login attempt with invalid credentials: {data}", "/api/backend/Auth")
     logger.warning(f"login attempt with invalid credentials: {data}") # log the cache hit
     return None
-
-# @auth_user.get("/", response_class=HTMLResponse)
-# async def read(request: Request):
-#     user = mongo_client.auth.user.find()
-#     new_user = []
-#     # for i in user:
-#     #     new_user.append({
-#     #         "id": i["_id"],
-#     #         "full_name": i["full_name"],
-#     #         "user_user_name": i["user_user_name"],
-#     #         "email": i["email"],
-#     #         "phone_number": i["phone_number"],
-#     #         "disabled": i["disabled"]
-#     #     })
-#     return templates.TemplateResponse("login.html", {"request": request, "user": new_user}) 
     
 TOPIC_NAME = 'user_signups'
 
