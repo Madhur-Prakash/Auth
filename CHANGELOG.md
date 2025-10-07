@@ -1,9 +1,3 @@
-
----
-
-### 🧾 **`CHANGELOG.md` (new section for version 1.2.0)**
-
-```markdown
 # Change Log
 
 All notable changes to this project will be documented in this file.
@@ -37,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Notes
 - This release strengthens the overall **security posture** of the authentication system.
 - The project is now more **resilient**, **maintainable**, and **ready for production deployment** with improved developer experience.
+
 
 ## [1.1.0](https://github.com/Madhur-Prakash/Auth/compare/v1.0.2...v1.1.0) - 2025-08-17
 
