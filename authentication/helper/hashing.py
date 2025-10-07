@@ -5,8 +5,8 @@ class Hash():
         try:
             if not password or len(password.strip()) == 0:
                 raise ValueError("Password cannot be empty")
-            pwd_bytes = password.encode('utf-8')
-            salt = bcrypt.gensalt(rounds=12)  # Increased rounds for better security
+            pwd_bytes = password.encode('utf-8')[:72] # bcrypt limit
+            salt = bcrypt.gensalt()  # Increased rounds for better security
             hashed_password = bcrypt.hashpw(password=pwd_bytes, salt=salt)
             hashed_password_str = hashed_password.decode('utf-8')
             return hashed_password_str
