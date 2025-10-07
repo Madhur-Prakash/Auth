@@ -19,6 +19,7 @@ from datetime import datetime
 from ..otp_service.send_mail import send_email_ses, send_email,send_mail_to_mailhog
 from ..helper import oauth2, auth_token
 from config.bloom_filter import CountingBloomFilter
+from ..config.security import validate_password, validate_email, sanitize_input, validate_phone_number, get_secure_cookie_settings
 
 auth_user = APIRouter(tags=["user Authentication"]) # create a router for user
 templates = Jinja2Templates(directory="authentication/templates")
@@ -61,8 +62,8 @@ async def cache(data: str, plain_password):
     if CachedData:
         hashed_password = await Hash.verify(CachedData["password"], plain_password)
         if hashed_password:
-            print("Data is cached") # debug
-            print(CachedData) # debug
+            logger.debug("Data is cached")
+            # Removed sensitive data logging
             create_new_log("info", f"cache hit and credential verified for {data}", "/api/backend/Auth")
             logger.info(f"cache hit and credential verified for {data}") # log the cache hit
             return data
@@ -70,8 +71,8 @@ async def cache(data: str, plain_password):
     elif new_account:
         hashed_password = await Hash.verify(new_account["password"], plain_password)
         if hashed_password:
-            print("Data is cached in new_account") # debug
-            print(new_account) # debug
+            logger.debug("Data is cached in new_account")
+            # Removed sensitive data logging
             create_new_log("info", f"cache hit and credential verified for {data}", "/api/backend/Auth")
             logger.info(f"cache hit and credential verified for {data}") # log the cache hit
             return data
@@ -83,7 +84,7 @@ async def cache(data: str, plain_password):
     if user:
         hashed_password = await Hash.verify(user["password"], plain_password)
         if hashed_password:
-            print("searching inside db") # debug
+            logger.debug("searching inside db")
             await client.hset(f"user:auth:{data}",mapping={
                 "data":data,
                 "password":user['password']
@@ -110,8 +111,8 @@ async def cache_without_password(data: str):
 
     CachedData = await client.get(f'user:auth:2_factor_login:{data}')
     if CachedData:
-        print("Data is cached") # debug
-        print(CachedData) # debug
+        logger.debug("Data is cached")
+        # Removed sensitive data logging
         create_new_log("info", f"cache hit for {data}", "/api/backend/Auth")
         logger.info(f"cache hit for {data}") # log the cache hit
         return CachedData
@@ -120,7 +121,7 @@ async def cache_without_password(data: str):
         "email": data}, 
         {"phone_number": data}]})
     if user:
-        print("searching inside db") # debug
+        logger.debug("searching inside db")
         await client.set(f"user:auth:2_factor_login:{data}",data, ex=432000) # expire in 5 days
         return user
     create_new_log("warning", f"login attempt with invalid credentials: {data}", "/api/backend/Auth")
@@ -252,18 +253,19 @@ Raises:
         print("Phone number is new — proceed with account creation")  # Safe to proceed
         logger.info("Phone number is new — proceed with account creation")
 
-        if not (form_data["phone_number"].__len__() == 10):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be 10 digits long")
-        if not(form_data["phone_number"].isdigit()):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Phone number must be digits only")
-        if(form_data["password"].__len__() < 6):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Password must be at least 6 characters long")
-        if(form_data["email"].__contains__("@") == False):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Invalid email address")
-        if(form_data["first_name"].__len__() < 2):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "First name must be greater than 1 character")
-        if(form_data["last_name"].__len__() < 2):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail = "Last name must be greater than 1 character")
+        # Use security module for validation
+        validate_phone_number(form_data["phone_number"])
+        validate_password(form_data["password"])
+        validate_email(form_data["email"])
+        
+        # Sanitize names
+        form_data["first_name"] = sanitize_input(form_data["first_name"])
+        form_data["last_name"] = sanitize_input(form_data["last_name"])
+        
+        if len(form_data["first_name"]) < 2 or not form_data["first_name"].replace(' ', '').isalpha():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="First name must be at least 2 characters and contain only letters")
+        if len(form_data["last_name"]) < 2 or not form_data["last_name"].replace(' ', '').isalpha():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Last name must be at least 2 characters and contain only letters")
         if(form_data["email"].__len__() < 4):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email must be greater than 3 characters") 
 
@@ -279,11 +281,12 @@ Raises:
                                                                 "sub": session_id,
                                                                 "data": device_fingerprint})
         response.delete_cookie("refresh_token")  # Remove old token
-        response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
+        cookie_settings = get_secure_cookie_settings()
+        response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, **cookie_settings) # refresh token expires in 7 days
         encrypted_refresh_token = Hash.bcrypt(refresh_token)
         encrypyted_session_id = Hash.bcrypt(session_id)
         encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint)
-        print(encrypted_refresh_token) # debug
+        # Removed debug print for security
 
         await client.hset(f"user:refresh_token:{refresh_token[:106]}",mapping={
                                                             "refresh_token": encrypted_refresh_token,
@@ -320,7 +323,7 @@ Raises:
         
         access_token = auth_token.create_access_token(data={"sub": dict_data['email']})
         response.delete_cookie("access_token")  # Remove old token
-        response.set_cookie(key="access_token", value=access_token, max_age=3600)
+        response.set_cookie(key="access_token", value=access_token, max_age=3600, **cookie_settings)
 
 
         # await client.hset(dict_data["email"], mapping={
@@ -622,11 +625,11 @@ async def verify_otp_email(data: models.otp_email, response: Response, request: 
         email = form_data.get("email")
         otp_entered = form_data.get("otp")
         incoming_refresh_token = request.cookies.get("refresh_token") or request.headers.get("refresh_token") or request.query_params.get("refresh_token") 
-        print(otp_entered) # debug
+        # Removed sensitive OTP logging
         if not otp_entered or len(otp_entered) != 6:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
         otp_stored = await client.hgetall(f"otp:{email}")
-        print(otp_stored) # debug
+        # Removed sensitive OTP logging
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
         
@@ -636,9 +639,10 @@ async def verify_otp_email(data: models.otp_email, response: Response, request: 
         encrypyted_session_id = Hash.bcrypt(session_id) # encrypting session id
         # access_token
         access_token = auth_token.create_access_token(data={"sub": email})
-        print("Access token:", access_token)  # debug
+        # Removed access token logging for security
         response.delete_cookie("access_token")  # Remove old token
-        response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
+        cookie_settings = get_secure_cookie_settings()
+        response.set_cookie(key="access_token", value=access_token, max_age=3600, **cookie_settings)
 
         # refresh token
         refresh_token = auth_token.create_refresh_token(data={
@@ -713,9 +717,10 @@ async def verify_otp_phone(data: models.otp_phone, response: Response, request: 
 
         # access_token
         access_token = auth_token.create_access_token(data={"sub": phone_number})
-        print("Access token:", access_token)  # debug
+        # Removed access token logging for security
         response.delete_cookie("access_token")  # Remove old token
-        response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
+        cookie_settings = get_secure_cookie_settings()
+        response.set_cookie(key="access_token", value=access_token, max_age=3600, **cookie_settings)
 
         # refresh token
         refresh_token = auth_token.create_refresh_token(data={
@@ -802,7 +807,8 @@ async def login(data: models.login, response: Response, request: Request):
                     # access token
                     access_token = auth_token.create_access_token(data={"sub": email_provided})
                     response.delete_cookie("access_token")  # Remove old token
-                    response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
+                    cookie_settings = get_secure_cookie_settings()
+                    response.set_cookie(key="access_token", value=access_token, max_age=3600, **cookie_settings)
 
                     # refresh token
                     refresh_token = auth_token.create_refresh_token(data={
@@ -828,8 +834,8 @@ async def login(data: models.login, response: Response, request: Request):
                     return {"message":f"{email_provided} logged in succesfully", "status_code":status.HTTP_200_OK, "token_type": "Bearer", "email":email_provided, "access_token": access_token, "refresh_token": refresh_token}  # Return success message
 
                 print("cache data returned none") # debug
-                create_new_log("warning", f"login attempt with invalid Invalid credentials: {form_data['email']} ; {form_data['password']}", "/api/backend/Auth")
-                logger.warning(f"login attempt with invalid Invalid credentials: {form_data['email']} ; {form_data['password']}") # log the cache hit
+                create_new_log("warning", f"login attempt with invalid credentials for email: {form_data['email']}", "/api/backend/Auth")
+                logger.warning(f"login attempt with invalid credentials for email: {form_data['email']}") # log without password
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
             # login using phone_number and password
@@ -871,8 +877,8 @@ async def login(data: models.login, response: Response, request: Request):
                     return {"message":f"{phone_number_provided[:4]+'x'*6+phone_number_provided[11:]} logged in succesfully", "status_code":status.HTTP_200_OK, "token_type": "Bearer", "phone_number": phone_number_provided, "access_token": access_token, "refresh_token": refresh_token}  # Return success message
 
                 print("cache data returned none") # debug
-                create_new_log("warning", f"login attempt with invalid credentials: {form_data['phone_number']} ; {form_data['password']}", "/api/backend/Auth")
-                logger.warning(f"login attempt with invalid credentials: {form_data['phone_number']} ; {form_data['password']}") # log the cache hit
+                create_new_log("warning", f"login attempt with invalid credentials for phone: {form_data['phone_number']}", "/api/backend/Auth")
+                logger.warning(f"login attempt with invalid credentials for phone: {form_data['phone_number']}") # log without password
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
             
     except Exception as e:
@@ -1109,8 +1115,7 @@ async def create_new_password(data: models.reset_password):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password and confirm password are required")
         if password != confirm_password:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match")
-        if len(password) < 6:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 6 characters long")
+        validate_password(password)
         if last_used_password:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password cannot be the same as the last one")
         

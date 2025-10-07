@@ -83,28 +83,32 @@ def create_session_id():
 
 
 def generate_fingerprint_hash(request: Request):
-    user_agaent = request.headers.get('user-agent')
-    print("user_agent coming from generate_fingerprint_hash function:",user_agaent) # debug
+    user_agent = request.headers.get('user-agent', 'unknown')
+    # Removed debug prints for security
     digits = string.digits
     num = ''.join(random.choices(digits, k=7))
-    print("random number:",num)
-    raw_fingerprint = f"{num}:{user_agaent}"
-    fingreprint_hash = Hash.bcrypt(raw_fingerprint)
-    return str(fingreprint_hash)
+    raw_fingerprint = f"{num}:{user_agent}"
+    fingerprint_hash = Hash.bcrypt(raw_fingerprint)
+    return str(fingerprint_hash)
 
 def create_new_log(log_type: str, message: str, head: str):
-    DEVELOPMENT_ENV = os.getenv("DEVELOPMENT_ENV", "local")
+    try:
+        DEVELOPMENT_ENV = os.getenv("DEVELOPMENT_ENV", "local")
 
-    if DEVELOPMENT_ENV == "docker":
-        url = "http://logging:8000/backend/create_new_logs"
-    else:
-        url ="http://127.0.0.1:8000/backend/create_new_logs"
+        if DEVELOPMENT_ENV == "docker":
+            url = "http://logging:8000/backend/create_new_logs"
+        else:
+            url ="http://127.0.0.1:8000/backend/create_new_logs"
 
-    log = {
-         "log_type": log_type,
-         "message": message}
-    headers = {
-        "X-Source-Endpoint": head}
-            
-    resp = requests.post(url, json=log, headers=headers)
-    return resp
+        log = {
+             "log_type": log_type,
+             "message": message}
+        headers = {
+            "X-Source-Endpoint": head}
+                
+        resp = requests.post(url, json=log, headers=headers, timeout=5)
+        return resp
+    except Exception as e:
+        # Fallback to local logging if external service fails
+        logger.error(f"Failed to send log to external service: {str(e)}")
+        return None

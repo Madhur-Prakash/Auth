@@ -27,34 +27,38 @@ def create_refresh_token(data: dict):
 
 def verify_token(token:str,credentials_exception):
     try:
+        if not token or not SECRET_KEY:
+            raise credentials_exception
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
         token_data = models.TokenData(email=email)
         return token_data
-    except JWTError:
+    except (JWTError, ValueError, TypeError):
         raise credentials_exception
     
 def decode_token(token:str, credentials_exception):
     try:
+        if not token or not SECRET_KEY:
+            raise credentials_exception
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         data: str = payload.get("sub")
         if data is None:
             raise credentials_exception
         return data
-    
-    except JWTError:
+    except (JWTError, ValueError, TypeError):
         raise credentials_exception
 
 def decode_token_data(token:str, credentials_exception):
     try:
+        if not token or not SECRET_KEY:
+            raise credentials_exception
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         data: str = payload.get("data")
         if data is None:
             raise credentials_exception
         return data
-    
-    except JWTError:
+    except (JWTError, ValueError, TypeError):
         raise credentials_exception
         
