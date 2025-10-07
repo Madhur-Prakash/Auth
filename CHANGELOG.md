@@ -1,9 +1,42 @@
+
+---
+
+### 🧾 **`CHANGELOG.md` (new section for version 1.2.0)**
+
+```markdown
 # Change Log
 
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.2.0](https://github.com/Madhur-Prakash/Auth/compare/v1.1.0...v1.2.0) - 2025-10-07
+
+### Added
+- **XSS Protection:**
+  - Implemented input sanitization functions (`sanitize_input`) to prevent malicious script injections.
+  - Enhanced form data and request body validation layers for safer user interactions.
+- **Comprehensive Error Handling:**
+  - Added centralized exception handling with descriptive HTTP response structures.
+  - Improved validation feedback for better developer and API client debugging.
+
+### Changed
+- Refined password, email, and phone validation logic for stricter security compliance.
+- Improved code quality by removing unused imports and redundant logic across modules.
+- Updated security configurations for cookies, sessions, and rate-limiting to align with production standards.
+- Ensured code adheres to **PEP8** and **secure coding best practices**.
+
+### Fixed
+- Minor inconsistencies in validation error messages.
+- Occasional input parsing issues during form submissions.
+
+### Removed
+- Deprecated functions and unused imports that no longer align with the current architecture.
+
+### Notes
+- This release strengthens the overall **security posture** of the authentication system.
+- The project is now more **resilient**, **maintainable**, and **ready for production deployment** with improved developer experience.
 
 ## [1.1.0](https://github.com/Madhur-Prakash/Auth/compare/v1.0.2...v1.1.0) - 2025-08-17
 
