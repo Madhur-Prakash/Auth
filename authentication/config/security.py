@@ -17,14 +17,6 @@ class SecurityConfig:
     REQUIRE_NUMBERS = False
     REQUIRE_SPECIAL_CHARS = False
     
-    # Rate limiting
-    MAX_LOGIN_ATTEMPTS = 5
-    LOGIN_ATTEMPT_WINDOW = 300  # 5 minutes
-    
-    # Session security
-    SESSION_TIMEOUT = 3600  # 1 hour
-    REFRESH_TOKEN_TIMEOUT = 604800  # 7 days
-    
     # Cookie security
     COOKIE_SECURE = os.getenv("ENVIRONMENT") == "production"
     COOKIE_SAMESITE = "strict"
@@ -47,6 +39,11 @@ def validate_password(password: str) -> bool:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Password must be at least {SecurityConfig.MIN_PASSWORD_LENGTH} characters long"
+        )
+    if len(password) > 15:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must not exceed 15 characters"
         )
     
     if SecurityConfig.REQUIRE_UPPERCASE and not re.search(r'[A-Z]', password):

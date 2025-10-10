@@ -172,7 +172,22 @@ Raises:
         for field in required_fields:
             if field not in dict_data:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
-
+        
+        # Sanitize user inputs to prevent XSS attacks
+        form_data["first_name"] = sanitize_input(form_data["first_name"])
+        form_data["last_name"] = sanitize_input(form_data["last_name"])
+        form_data["email"] = sanitize_input(form_data["email"])
+        form_data["phone_number"] = sanitize_input(form_data["phone_number"])
+        form_data["country_code"] = sanitize_input(form_data["country_code"])
+        form_data["password"] = sanitize_input(form_data["password"])
+        
+        # Validate email format
+        validate_email(dict_data["email"])
+        # Validate phone number format
+        validate_phone_number(dict_data["phone_number"])
+        # Validate password strength
+        validate_password(dict_data["password"])
+                
         # data validation
         if not user_email_bloom_filter.contains(dict_data["email"]): # Check if email is definitely not present (Bloom filter)
             print("Email not in Bloom filter — safe to continue")
@@ -237,15 +252,6 @@ Raises:
 
         print("Phone number is new — proceed with account creation")  # Safe to proceed
         logger.info("Phone number is new — proceed with account creation")
-
-        # Use security module for validation
-        validate_phone_number(form_data["phone_number"])
-        validate_password(form_data["password"])
-        validate_email(form_data["email"])
-        
-        # Sanitize names
-        form_data["first_name"] = sanitize_input(form_data["first_name"])
-        form_data["last_name"] = sanitize_input(form_data["last_name"])
         
         if len(form_data["first_name"]) < 2 or not form_data["first_name"].replace(' ', '').isalpha():
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="First name must be at least 2 characters and contain only letters")
