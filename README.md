@@ -178,7 +178,7 @@ This is the simplest method and handles all service dependencies automatically. 
    python authentication/config/kafka1_config.py
    ```
 3. Access the API documentation at:
-   ```
+   ```bash
    http://127.0.0.1:8005/docs
    # for detailed docs visit 👉 http://127.0.0.1:8005/scalar
    ```
