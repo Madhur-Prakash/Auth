@@ -343,17 +343,12 @@ Raises:
         html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
         with open(html_path,'r') as file:
             html_body = file.read()
+
         # send email verification link
         email_sent = send_mail_to_mailhog(dict_data["email"], "Welcome to SecureGate. Lets build your health Profile", html_body, retries=3, delay=5)
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
-        # dict_data["phone_number"] = "+91" + dict_data["phone_number"] # adding country code
-        # otp = await send_otp_sns(dict_data["phone_number"])
-        # if not otp:
-        #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
-        
-        # return {"message":f"OTP sent successfully on {form_data['phone_number'][:6]+'x'*6+dict_data['phone_number'][13:]} and {dict_data['email']}"} # Return success message
         return {"message":f"Account for user created successfully: {dict_data['email']}", "status_code":status.HTTP_201_CREATED, "token_type":"Bearer", "UID": dict_data["UID"], "created_at": dict_data["created_at"], "access_token": access_token, "refresh_token": refresh_token}
 
 
@@ -397,24 +392,24 @@ async def verify_otp_signup(data: models.verify_otp_signup):
                             <html>
                             <body style="font-family: Arial, sans-serif; background-color: #f5f7fa; padding: 20px;">
 
-    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px;">
-        <tr>
-            <td style="padding: 20px; text-align: center;">
-                <h2 style="color: #2c3e50; margin-bottom: 10px;">Verify Your Email</h2>
-                <p style="color: #7f8c8d; font-size: 14px;">Hi there,</p>
-                <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">
-                    Thank you for signing up with <strong>SecureGate</strong>! To complete your registration, please verify your email address by using the OTP below.
-                </p>
-                <div style="background-color: #ecf0f1; padding: 15px; border-radius: 4px; display: inline-block;">
-                    <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">{otp}</span>
-                </div>
-                <p style="color: #7f8c8d; font-size: 12px; margin-top: 20px;">This OTP is valid for 10 minutes. Please do not share this code with anyone.</p>
-                <p style="color: #bdc3c7; font-size: 12px; margin-top: 40px;">&copy; 2025 SecureGate. All rights reserved.</p>
-            </td>
-        </tr>
-    </table>
+                                    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px;">
+                                        <tr>
+                                            <td style="padding: 20px; text-align: center;">
+                                                <h2 style="color: #2c3e50; margin-bottom: 10px;">Verify Your Email</h2>
+                                                <p style="color: #7f8c8d; font-size: 14px;">Hi there,</p>
+                                                <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">
+                                                    Thank you for signing up with <strong>SecureGate</strong>! To complete your registration, please verify your email address by using the OTP below.
+                                                </p>
+                                                <div style="background-color: #ecf0f1; padding: 15px; border-radius: 4px; display: inline-block;">
+                                                    <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">{otp}</span>
+                                                </div>
+                                                <p style="color: #7f8c8d; font-size: 12px; margin-top: 20px;">This OTP is valid for 10 minutes. Please do not share this code with anyone.</p>
+                                                <p style="color: #bdc3c7; font-size: 12px; margin-top: 40px;">&copy; 2025 SecureGate. All rights reserved.</p>
+                                            </td>
+                                        </tr>
+                                    </table>
 
-</body>
+                                </body>
                             </html>
                             """
             # send email verification link
@@ -422,33 +417,6 @@ async def verify_otp_signup(data: models.verify_otp_signup):
             if not email_sent:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
-            # otp_entered = form_data.get("otp")
-            # if not otp_entered or len(otp_entered) != 6:
-            #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
-            # otp_stored = await client.hgetall(email)
-            # print(otp_stored) # debug
-            # if not otp_stored or (otp_stored.get('otp') != otp_entered):
-            #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
-            # access_token = auth_token.create_access_token(data={"sub": email})
-            # print("Access token:", access_token)  # debug
-            # mongodb_document = {
-            #     "full_name": otp_stored.get("full_name"),
-            #     "email": otp_stored.get("email"),
-            #     "password": otp_stored.get("password"),
-            #     "phone_number": otp_stored.get("phone_number"),
-            #     "created_at": otp_stored.get("created_at"),
-            #     "UID": otp_stored.get("UID")
-            # }
-            # user = await mongo_client.auth.user.find_one({"email": otp_stored.get("email")})
-            # if user:
-            #     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
-            # # Insert into MongoDB
-            # await mongo_client.auth.user.insert_one(mongodb_document)
-
-
-            # response.delete_cookie("access_token")  # Remove old token
-            # response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
-            # print(f"{email} signed up succesfully as user")  # Return success message
             print("otp sent successfuly")
             create_new_log("info", f"otp sent successfuly on {email}", "/api/backend/Auth")
             logger.info(f"otp sent successfuly on {email}") # log the cache hit
@@ -522,26 +490,26 @@ Raises:
 
                     html_body = f"""
                                     <html>
-<body style="font-family: Arial, sans-serif; background-color: #f5f7fa; padding: 20px;">
+                                        <body style="font-family: Arial, sans-serif; background-color: #f5f7fa; padding: 20px;">
 
-    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px;">
-        <tr>
-            <td style="padding: 20px; text-align: center;">
-                <h2 style="color: #2c3e50; margin-bottom: 10px;">Login to SecureGate</h2>
-                <p style="color: #7f8c8d; font-size: 14px;">Hello,</p>
-                <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">
-                    You requested an OTP to log in to your <strong>SecureGate</strong> account. Please use the code below to proceed.
-                </p>
-                <div style="background-color: #ecf0f1; padding: 15px; border-radius: 4px; display: inline-block;">
-                    <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">{otp}</span>
-                </div>
-                <p style="color: #7f8c8d; font-size: 12px; margin-top: 20px;">This OTP will expire in 10 minutes. For your safety, do not share this code with anyone.</p>
-                <p style="color: #bdc3c7; font-size: 12px; margin-top: 40px;">&copy; 2025 SecureGate. All rights reserved.</p>
-            </td>
-        </tr>
-    </table>
+                                            <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px;">
+                                                <tr>
+                                                    <td style="padding: 20px; text-align: center;">
+                                                        <h2 style="color: #2c3e50; margin-bottom: 10px;">Login to SecureGate</h2>
+                                                        <p style="color: #7f8c8d; font-size: 14px;">Hello,</p>
+                                                        <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">
+                                                            You requested an OTP to log in to your <strong>SecureGate</strong> account. Please use the code below to proceed.
+                                                        </p>
+                                                        <div style="background-color: #ecf0f1; padding: 15px; border-radius: 4px; display: inline-block;">
+                                                            <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">{otp}</span>
+                                                        </div>
+                                                        <p style="color: #7f8c8d; font-size: 12px; margin-top: 20px;">This OTP will expire in 10 minutes. For your safety, do not share this code with anyone.</p>
+                                                        <p style="color: #bdc3c7; font-size: 12px; margin-top: 40px;">&copy; 2025 SecureGate. All rights reserved.</p>
+                                                    </td>
+                                                </tr>
+                                            </table>
 
-</body>
+                                        </body>
                                     </html>
                                     """
                     # send otp via email
@@ -1020,30 +988,29 @@ async def reset_password(data: models.email):
         hashed_otp = Hash.bcrypt(otp)
         html_body = f"""
                     <html>
-<body style="font-family: Arial, sans-serif; background-color: #f0f2f5; padding: 30px;">
+                        <body style="font-family: Arial, sans-serif; background-color: #f0f2f5; padding: 30px;">
 
-    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #dcdfe6; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-        <tr>
-            <td style="padding: 30px; text-align: center;">
-                <h1 style="color: #2c3e50; font-size: 24px; margin-bottom: 10px;">Reset Your Password</h1>
-                <p style="color: #606f7b; font-size: 15px; margin-bottom: 25px;">
-                    Hello,
-                </p>
-                <p style="color: #606f7b; font-size: 15px; margin-bottom: 20px;">
-                    We received a request to reset the password for your <strong>SecureGate</strong> account. Please use the below otp for creaing a new password.
-                </p>
-                <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">{otp}</span>
-                <p style="color: #606f7b; font-size: 13px; margin-bottom: 30px;">
-                    If you did not request this, you can safely ignore this email.
-                </p>
-                <p style="color: #606f7b; font-size: 12px;">Need help? Contact our support team at <p>support@SecureGate.com"</p> style="color: #1d72b8; text-decoration: none;">support@SecureGate.com</a></p>
-                <p style="color: #a0aec0; font-size: 12px;">&copy; 2025 SecureGate | All rights reserved.</p>
-            </td>
-        </tr>
-    </table>
-</body>
-
-</html>
+                            <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #dcdfe6; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                                <tr>
+                                    <td style="padding: 30px; text-align: center;">
+                                        <h1 style="color: #2c3e50; font-size: 24px; margin-bottom: 10px;">Reset Your Password</h1>
+                                        <p style="color: #606f7b; font-size: 15px; margin-bottom: 25px;">
+                                            Hello,
+                                        </p>
+                                        <p style="color: #606f7b; font-size: 15px; margin-bottom: 20px;">
+                                            We received a request to reset the password for your <strong>SecureGate</strong> account. Please use the below otp for creaing a new password.
+                                        </p>
+                                        <span style="font-size: 24px; font-weight: bold; color: #2c3e50;">{otp}</span>
+                                        <p style="color: #606f7b; font-size: 13px; margin-bottom: 30px;">
+                                            If you did not request this, you can safely ignore this email.
+                                        </p>
+                                        <p style="color: #606f7b; font-size: 12px;">Need help? Contact our support team at <p>support@SecureGate.com"</p> style="color: #1d72b8; text-decoration: none;">support@SecureGate.com</a></p>
+                                        <p style="color: #a0aec0; font-size: 12px;">&copy; 2025 SecureGate | All rights reserved.</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </body>
+                    </html>
                     """
         
         # send email verification link
