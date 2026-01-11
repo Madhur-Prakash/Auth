@@ -362,8 +362,8 @@ Raises:
 # ***********************************************************************************************************************************************
 
 
-@auth_user.post("/verify_otp_signup", status_code=status.HTTP_200_OK) # verify otp
-async def verify_otp_signup(data: models.verify_otp_signup):
+@auth_user.post("/user/signup/send_otp", status_code=status.HTTP_200_OK) # verify otp
+async def send_otp_signup(data: models.verify_otp_signup):
     """Asynchronously verifies OTP (One-Time Password) for user signup via email or phone number.
     Depending on the provided data, this function either:
     - Generates an OTP for the given email, sends a verification email with the OTP, and returns an encrypted OTP.
@@ -386,7 +386,6 @@ async def verify_otp_signup(data: models.verify_otp_signup):
         if email:
             otp =  await generate_otp(email)
             otp = str(otp)
-            encrypted_otp = Hash.bcrypt(otp)
         
             html_body = f"""
                             <html>
@@ -420,7 +419,7 @@ async def verify_otp_signup(data: models.verify_otp_signup):
             print("otp sent successfuly")
             create_new_log("info", f"otp sent successfuly on {email}", "/api/backend/Auth")
             logger.info(f"otp sent successfuly on {email}") # log the cache hit
-            return ({"message":f"otp sent successfuly on {email}", "status_code": status.HTTP_200_OK, "otp": encrypted_otp})
+            return ({"message":f"otp sent successfuly on {email}", "status_code": status.HTTP_200_OK})
         elif phone_number:
             phone_number = country_code + phone_number # adding country code
 
@@ -429,11 +428,10 @@ async def verify_otp_signup(data: models.verify_otp_signup):
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
             otp = str(res)
 
-            encrypted_otp = Hash.bcrypt(otp)
             print("otp sent successfuly")
             create_new_log("info", f"otp sent successfuly on {phone_number}", "/api/backend/Auth")
             logger.info(f"otp sent successfuly on {phone_number}") # log the cache hit
-            return ({"message":f"otp sent successfuly on {phone_number}", "status_code": status.HTTP_200_OK, "otp": encrypted_otp})
+            return ({"message":f"otp sent successfuly on {phone_number}", "status_code": status.HTTP_200_OK})
         
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -447,11 +445,89 @@ async def verify_otp_signup(data: models.verify_otp_signup):
     
 
 
-# async def login(response: Response, request: Request, form_data: OAuth2UserRequestForm = Depends(), auth_token: OAuth2PasswordBearer = Depends(oauth2.oauth2_scheme)): -> for locking the route use this instead of below
+@auth_user.post("/user/signup/email_verify_otp", status_code=status.HTTP_200_OK) # verify otp during signup
+async def verify_otp_signup_email(data: models.otp_email):
+    """
+    Endpoint to verify OTP (One-Time Password) during user signup via email.
+    Accepts a POST request with email and OTP.
+    Args:
+        data (models.otp_email): The OTP data containing 'email' and 'otp'.
+    Returns:
+        dict: A message indicating OTP was verified successfully, or raises an HTTPException on error.
+    Raises:
+        HTTPException: If the OTP is invalid or any other error occurs during verification.
+    """
 
+    try:
+        form_data = dict(data)
+        email = form_data.get("email")
+        otp_entered = form_data.get("otp")
+        
+        # Removed sensitive OTP logging
+        if not otp_entered or len(otp_entered) != 6:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
+        otp_stored = await client.hgetall(f"otp:{email}")
+        # Removed sensitive OTP logging
+        if not otp_stored or (otp_stored.get('otp') != otp_entered):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
+        
+        create_new_log("info", f"OTP verified successfully from {email}", "/api/backend/Auth")
+        logger.info(f"OTP verified successfully from {email}")
+        return {"message":f"OTP verified successfully from {email}", "status_code":status.HTTP_200_OK, "email": email}
+                         
+    except Exception as e:
+        print(f"Error verifying OTP: {str(e)}")
+        formatted_error = traceback.format_exc()
+        create_new_log("error", f"Error verifying OTP: {formatted_error}", "/api/backend/Auth")
+        logger.error(f"Error verifying OTP: {str(e)}") # log the cache hit
+        print(f"Error: {traceback.format_exc()}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@auth_user.post("/user/signup/phone_verify_otp", status_code=status.HTTP_200_OK) # verify otp during signup
+async def verify_otp_signup_phone(data: models.otp_phone):
+    """
+    Endpoint to verify OTP (One-Time Password) during user signup via phone number.
+    Accepts a POST request with phone number, country code, and OTP.
+    ARGS:
+        data (models.otp_phone): The OTP data containing 'phone_number', 'country_code', and 'otp'.
+    Returns:
+        dict: A message indicating OTP was verified successfully, or raises an HTTPException on error.
+    Raises:
+        HTTPException: If the OTP is invalid or any other error occurs during verification.
+    """
+    try:
+        form_data = dict(data)
+        phone_number = form_data.get("phone_number")
+        country_code = form_data.get("country_code")
+
+        phone_number = country_code + phone_number # adding country code
+        otp_entered = form_data.get("otp")
+        print(otp_entered)
+        if not otp_entered or len(otp_entered) != 6:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
+        otp_stored = await client.hgetall(f"otp:{phone_number}")
+        print(otp_stored)
+        if not otp_stored or (otp_stored.get('otp') != otp_entered):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
+        
+        create_new_log("info", f"OTP verified successfully from {phone_number}", "/api/backend/Auth")
+        logger.info(f"OTP verified successfully from {phone_number}") # log the cache hit
+        return {"message":f"OTP verified successfully from {phone_number}", "status_code":status.HTTP_200_OK, "phone_number": phone_number}
+
+    except Exception as e:
+        print(f"Error verifying OTP: {str(e)}")
+        formatted_error = traceback.format_exc()
+        create_new_log("error", f"Error verifying OTP: {formatted_error}", "/api/backend/Auth")
+        logger.error(f"Error verifying OTP: {str(e)}") # log the cache hit
+        print(f"Error: {traceback.format_exc()}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+# async def login(response: Response, request: Request, form_data: OAuth2UserRequestForm = Depends(), auth_token: OAuth2PasswordBearer = Depends(oauth2.oauth2_scheme)): -> for locking the route use this instead of below
 # ***************** login through email/phone_number and otp ****************************************************
-@auth_user.post("/user/login_otp", status_code=status.HTTP_200_OK) # login using email 
-async def login_otp(data: models.login_otp):
+@auth_user.post("/user/login/send_otp", status_code=status.HTTP_200_OK) # login using email 
+async def send_otp_login(data: models.login_otp):
     """Endpoint to log in a user using OTP (One-Time Password) via email or phone number.
 Accepts a POST request with either an email or a phone number (and country code for phone).
 - If an email is provided and found in the cache, generates an OTP, sends it via email, and returns a success message.
@@ -556,10 +632,8 @@ Raises:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***************************************************************************************************************************************************************
 
-
-
-@auth_user.post("/user/verify_otp_login_email", status_code=status.HTTP_200_OK) 
-async def verify_otp_email(data: models.otp_email, response: Response, request: Request):
+@auth_user.post("/user/login/email_verify_otp", status_code=status.HTTP_200_OK) 
+async def verify_otp__login_email(data: models.otp_email, response: Response, request: Request):
     """
     Asynchronously verifies a one-time password (OTP) for user authentication.
     Args:
@@ -632,8 +706,8 @@ async def verify_otp_email(data: models.otp_email, response: Response, request: 
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
-@auth_user.post("/user/verify_otp_login_phone", status_code=status.HTTP_200_OK)
-async def verify_otp_phone(data: models.otp_phone, response: Response, request: Request):
+@auth_user.post("/user/login/phone_verify_otp", status_code=status.HTTP_200_OK)
+async def verify_otp__login_phone(data: models.otp_phone, response: Response, request: Request):
     """
     Verifies the OTP (One-Time Password) for a user's phone number and manages authentication tokens.
     Args:
