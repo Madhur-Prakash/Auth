@@ -15,7 +15,7 @@ aiohttp>=3.8.0  # For async HTTP client in stress tests
 requests>=2.31.0  # For sync HTTP requests
 
 # Mocking
-unittest-mock  # Standard library mock (backup)
+mock  # Standard library mock (backup)
 
 # Stress Testing
 locust>=2.15.0  # For load testing with web UI
