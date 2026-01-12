@@ -1,0 +1,39 @@
+# Test Dependencies for Authentication System
+# Install with: pip install -r test_requirements.txt
+
+# Core Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.0
+pytest-xdist>=3.3.0  # For parallel test execution
+pytest-timeout>=2.1.0  # For test timeouts
+
+# HTTP Testing
+httpx>=0.24.0  # For async HTTP client
+aiohttp>=3.8.0  # For async HTTP client in stress tests
+requests>=2.31.0  # For sync HTTP requests
+
+# Mocking
+unittest-mock  # Standard library mock (backup)
+
+# Stress Testing
+locust>=2.15.0  # For load testing with web UI
+
+# Code Quality
+coverage>=7.2.0  # For code coverage
+flake8>=6.0.0  # For code linting
+black>=23.0.0  # For code formatting
+mypy>=1.4.0  # For type checking
+
+# Reporting
+pytest-html>=4.0.0  # For HTML test reports
+pytest-json-report>=1.5.0  # For JSON test reports
+
+# Performance
+memory-profiler>=0.60.0  # For memory profiling
+line-profiler>=4.0.0  # For line-by-line profiling
+
+# Utilities
+faker>=18.0.0  # For generating fake data
+freezegun>=1.2.0  # For freezing time in tests

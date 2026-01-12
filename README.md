@@ -184,6 +184,39 @@ This is the simplest method and handles all service dependencies automatically. 
    ```
 
 ---
+
+## Testing
+
+The project includes a comprehensive test suite with unit tests, integration tests, and stress testing capabilities.
+
+### Quick Start
+
+```bash
+# Install test dependencies
+pip install -r test_api/test_requirements.txt
+
+# Run all unit tests
+python test_api/run_tests.py --unit
+
+# Run tests with coverage report
+python test_api/run_tests.py --coverage
+
+# Run stress tests (ensure API is running)
+python test_api/stress_test.py --test full --users 50 --concurrent 10
+
+# Run Locust load tests with web UI
+locust -f test_api/locustfile.py --host=http://127.0.0.1:8005
+```
+
+### Test Suite Includes
+- **Unit Tests**: Tests for all endpoints, helpers, models, and security modules
+- **Integration Tests**: End-to-end flow testing
+- **Stress Tests**: Custom async stress testing with detailed metrics
+- **Load Tests**: Locust-based load testing with web UI
+
+For detailed testing documentation, see [test_api/README.md](test_api/README.md).
+
+---
 ## For deeper understanding of the code visit
 [What I Learned by Building a Full Auth System from Scratch - Medium](https://medium.com/@madhurprakash2005/what-i-learned-by-building-a-full-auth-system-from-scratch-654de5b8fb37)
 
@@ -250,9 +283,17 @@ Auth/
 ├── requirements.txt
 ├── test_api
 │   ├── __init__.py  # initializes package
-│   ├── locust.py
-│   ├── test_login.py
-│   └── user_api_hit.py
+│   ├── conftest.py  # pytest fixtures and configuration
+│   ├── test_auth_endpoints.py  # unit tests for auth endpoints
+│   ├── test_helpers.py  # unit tests for helper functions
+│   ├── test_security.py  # unit tests for security module
+│   ├── test_models.py  # unit tests for Pydantic models
+│   ├── test_integration.py  # integration tests
+│   ├── stress_test.py  # custom stress testing script
+│   ├── locustfile.py  # Locust load testing
+│   ├── run_tests.py  # unified test runner
+│   ├── test_requirements.txt  # test dependencies
+│   └── README.md  # testing documentation
 ├── token.pickle
 └── waitforkafka.sh
 ```
