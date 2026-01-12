@@ -8,6 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import requests
 import uuid
 from helper.hashing import Hash 
+from helper.encryption import EncryptionHelper
 import os
 import pycountry, phonenumbers
 from phonenumbers.phonenumberutil import region_code_for_number
@@ -15,7 +16,7 @@ from concurrent_log_handler import ConcurrentRotatingFileHandler
 from dotenv import load_dotenv
 
 load_dotenv()
-
+encryption_helper = EncryptionHelper(os.getenv("DATA_ENCRYPTION_KEY"))
 
 def setup_logging():
     logger = logging.getLogger("auth_log") # create logger
@@ -88,7 +89,7 @@ def generate_fingerprint_hash(request: Request):
     digits = string.digits
     num = ''.join(random.choices(digits, k=7))
     raw_fingerprint = f"{num}:{user_agent}"
-    fingerprint_hash = Hash.bcrypt(raw_fingerprint)
+    fingerprint_hash = Hash.generate_hash(raw_fingerprint)
     return str(fingerprint_hash)
 
 def create_new_log(log_type: str, message: str, head: str):
@@ -112,3 +113,37 @@ def create_new_log(log_type: str, message: str, head: str):
         # Fallback to local logging if external service fails
         logger.error(f"Failed to send log to external service: {str(e)}")
         return None
+    
+
+def encrypt_user_data(user_data: dict):
+    """
+    Encrypt sensitive user data before storing.
+    
+    Args:
+        user_data: Dictionary containing user data
+        
+    Returns:
+        dict: Dictionary with encrypted user data
+    """
+    encrypted_user_data = {}
+    for key, value in user_data.items():
+        if key == "password":
+            # Skip encryption for password as it is already hashed
+            encrypted_user_data[key] = value
+        encrypted_user_data[key] = encryption_helper.encrypt(value) # encrypt other fields
+    return encrypted_user_data
+
+def decrypt_user_data(encrypted_data: dict):
+    """
+    Decrypt sensitive user data after retrieving.
+    
+    Args:
+        encrypted_data: Dictionary containing encrypted user data
+        
+    Returns:
+        dict: Dictionary with decrypted user data
+    """
+    decrypted_user_data = {}
+    for key, value in encrypted_data.items():
+        decrypted_user_data[key] = encryption_helper.decrypt(value)
+    return decrypted_user_data

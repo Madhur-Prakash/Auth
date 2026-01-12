@@ -2,7 +2,9 @@ import boto3
 from twilio.rest import Client
 from fastapi import status
 from fastapi.exceptions import HTTPException
-import random,os
+import random
+import os
+from ..helper.deterministic_hash import generate_deterministic_hash
 from ..config.redis_config import client as redis_client
 import traceback
 from ..helper.utils import setup_logging
@@ -56,12 +58,12 @@ async def send_otp(phone_number: str):
 
         if message:
             print(f"OTP Sent Successfully! Message SID: {message.sid}")
-
-            store_opt =  await redis_client.hset(f"otp:{phone_number}", mapping={
+            hashed_phone_number = generate_deterministic_hash(phone_number)
+            await redis_client.hset(f"otp:{hashed_phone_number}", mapping={
                 "otp": otp_sent,
-                "phone_number": phone_number
+                "phone_number": hashed_phone_number
             })
-            await redis_client.expire(f"otp:{phone_number}", 600)  # Expire in 5 minutes
+            await redis_client.expire(f"otp:{hashed_phone_number}", 600)  # Expire in 5 minutes
             return otp_sent
         print("Error sending OTP")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")

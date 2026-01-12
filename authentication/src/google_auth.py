@@ -258,15 +258,15 @@ async def user_google_signup_callback(request: Request, response: Response):
                                                                 "data": device_fingerprint})
         response.delete_cookie("refresh_token")  # Remove old token
         response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
-        encrypted_refresh_token = Hash.bcrypt(refresh_token)
-        encrypyted_session_id = Hash.bcrypt(session_id)
-        encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint)
+        hashed_refresh_token = Hash.generate_hash(refresh_token)
+        hashed_session_id = Hash.generate_hash(session_id)
+        hashed_refresh_token = Hash.generate_hash(device_fingerprint)
 
         await client.hset(f"user:refresh_token:{refresh_token[:106]}",mapping={
-                                                            "refresh_token": encrypted_refresh_token,
-                                                            "device_fingerprint":encrypyted_device_fingerprint,
+                                                            "refresh_token": hashed_refresh_token,
+                                                            "device_fingerprint":hashed_refresh_token,
                                                             "data":user_data['email'],
-                                                            "session_id":encrypyted_session_id})
+                                                            "session_id":hashed_session_id})
         await client.expire(f"user:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         # html_path = "/root/SecureGate_Auth/authentication/templates/index.html" # -> for production
@@ -427,15 +427,15 @@ async def user_phone_number_signup(data:models.google_login, request: Request, r
                                                                 "data": device_fingerprint})
         response.delete_cookie("refresh_token")  # Remove old token
         response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
-        encrypted_refresh_token = Hash.bcrypt(refresh_token)
-        encrypyted_session_id = Hash.bcrypt(session_id)
-        encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint)
+        hashed_refresh_token = Hash.generate_hash(refresh_token)
+        hashed_session_id = Hash.generate_hash(session_id)
+        hashed_refresh_token = Hash.generate_hash(device_fingerprint)
 
         await client.hset(f"user:refresh_token:{refresh_token[:106]}",mapping={
-                                                            "refresh_token": encrypted_refresh_token,
-                                                            "device_fingerprint":encrypyted_device_fingerprint,
+                                                            "refresh_token": hashed_refresh_token,
+                                                            "device_fingerprint":hashed_refresh_token,
                                                             "data":user_data['email'],
-                                                            "session_id":encrypyted_session_id})
+                                                            "session_id":hashed_session_id})
         await client.expire(f"user:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         # html_path = "/root/SecureGate_Auth/authentication/templates/index.html" # -> for production
@@ -608,12 +608,12 @@ async def user_phone_number_login(data: models.google_login, request: Request, r
                                                                 "data": device_fingerprint})
         response.delete_cookie("refresh_token")  # Remove old token
         response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
-        encrypted_refresh_token = Hash.bcrypt(refresh_token)
-        encrypted_session_id = Hash.bcrypt(session_id)
-        encrypted_device_fingerprint = Hash.bcrypt(device_fingerprint)
+        hashed_refresh_token = Hash.generate_hash(refresh_token)
+        encrypted_session_id = Hash.generate_hash(session_id)
+        encrypted_device_fingerprint = Hash.generate_hash(device_fingerprint)
 
         await client.hset(f"user:refresh_token:{refresh_token[:106]}",mapping={
-                                                            "refresh_token": encrypted_refresh_token,
+                                                            "refresh_token": hashed_refresh_token,
                                                             "device_fingerprint":encrypted_device_fingerprint,
                                                             "data":new_user['email'],
                                                             "session_id":encrypted_session_id})
@@ -691,12 +691,12 @@ async def user_google_login_callback(request: Request, response: Response):
                                                                     "data": device_fingerprint})
             response.delete_cookie("refresh_token")  # Remove old token
             response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
-            encrypted_refresh_token = Hash.bcrypt(refresh_token)
-            encrypted_session_id = Hash.bcrypt(session_id)
-            encrypted_device_fingerprint = Hash.bcrypt(device_fingerprint)
+            hashed_refresh_token = Hash.generate_hash(refresh_token)
+            encrypted_session_id = Hash.generate_hash(session_id)
+            encrypted_device_fingerprint = Hash.generate_hash(device_fingerprint)
 
             await client.hset(f"user:refresh_token:{refresh_token[:106]}",mapping={
-                                                                "refresh_token": encrypted_refresh_token,
+                                                                "refresh_token": hashed_refresh_token,
                                                                 "device_fingerprint":encrypted_device_fingerprint,
                                                                 "data":user_data['email'],
                                                                 "session_id":encrypted_session_id})
@@ -825,15 +825,15 @@ async def user_google_login_callback(request: Request, response: Response):
                                                                     "data": device_fingerprint})
             response.delete_cookie("refresh_token")  # Remove old token
             response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
-            encrypted_refresh_token = Hash.bcrypt(refresh_token)
-            encrypyted_session_id = Hash.bcrypt(session_id)
-            encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint)
+            hashed_refresh_token = Hash.generate_hash(refresh_token)
+            hashed_session_id = Hash.generate_hash(session_id)
+            hashed_refresh_token = Hash.generate_hash(device_fingerprint)
 
             await client.hset(f"user:refresh_token:{refresh_token[:106]}",mapping={
-                                                                "refresh_token": encrypted_refresh_token,
-                                                                "device_fingerprint":encrypyted_device_fingerprint,
+                                                                "refresh_token": hashed_refresh_token,
+                                                                "device_fingerprint":hashed_refresh_token,
                                                                 "data":user_data['email'],
-                                                                "session_id":encrypyted_session_id})
+                                                                "session_id":hashed_session_id})
             await client.expire(f"user:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
             return {"message": f"user auto-registered and logged in: {user_doc['email']}", "status_code": status.HTTP_200_OK, "token_type": "Bearer", "UID": user_doc["UID"], "created_at": user_doc["created_at"], "access_token": access_token, "refresh_token": refresh_token}

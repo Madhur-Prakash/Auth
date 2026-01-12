@@ -1,7 +1,7 @@
 import bcrypt
 
 class Hash():
-    def bcrypt(password: str):
+    def generate_hash(password: str):
         try:
             if not password or len(password.strip()) == 0:
                 raise ValueError("Password cannot be empty")

@@ -5,7 +5,7 @@ import json
 from ..models import models
 from ..otp_service.otp_verify import send_otp, generate_otp, send_otp_sns_during_login, send_otp_sns_during_signup
 from ..config.database import mongo_client
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import Response
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from ..config.redis_config import client
@@ -14,7 +14,8 @@ from dotenv import load_dotenv
 from ..config.rate_limiting import limiter
 from ..helper.oauth2 import create_verification_token, decode_verification_token
 from ..helper.hashing import Hash
-from ..helper.utils import create_session_id, create_new_log, generate_fingerprint_hash, get_country_name, generate_random_string, setup_logging
+from ..helper.utils import create_session_id, create_new_log, generate_fingerprint_hash, get_country_name, generate_random_string, setup_logging, encrypt_user_data
+from ..helper.deterministic_hash import generate_deterministic_hash
 from datetime import datetime
 from ..otp_service.send_mail import send_email_ses, send_email,send_mail_to_mailhog
 from ..helper import oauth2, auth_token
@@ -42,7 +43,7 @@ else:
     )
 
 # implemeting cahing using redis
-async def cache(data: str, plain_password):
+async def cache_with_password(hashed_data: str, plain_password):
     """
     Asynchronously verifies user credentials by checking multiple sources in order of speed and recency.
     The function attempts to authenticate a user by:
@@ -57,45 +58,45 @@ async def cache(data: str, plain_password):
         str or dict or None: Returns the user identifier (str) if found in cache, the user object (dict) if found in the database, or None if authentication fails.
     """
 
-    CachedData = await client.hgetall(f'user:auth:{data}')
-    new_account = await client.hgetall(f'user:new_account:{data}')
+    CachedData = await client.hgetall(f'user:auth:{hashed_data}')
+    new_account = await client.hgetall(f'user:new_account:{hashed_data}')
     if CachedData:
         hashed_password = await Hash.verify(CachedData["password"], plain_password)
         if hashed_password:
             logger.debug("Data is cached")
             # Removed sensitive data logging
-            create_new_log("info", f"cache hit and credential verified for {data}", "/api/backend/Auth")
-            logger.info(f"cache hit and credential verified for {data}") # log the cache hit
-            return data
+            create_new_log("info", f"cache hit and credential verified for {hashed_data}", "/api/backend/Auth")
+            logger.info(f"cache hit and credential verified for {hashed_data}") # log the cache hit
+            return hashed_data
         
     elif new_account:
         hashed_password = await Hash.verify(new_account["password"], plain_password)
         if hashed_password:
             logger.debug("Data is cached in new_account")
             # Removed sensitive data logging
-            create_new_log("info", f"cache hit and credential verified for {data}", "/api/backend/Auth")
-            logger.info(f"cache hit and credential verified for {data}") # log the cache hit
-            return data
+            create_new_log("info", f"cache hit and credential verified for {hashed_data}", "/api/backend/Auth")
+            logger.info(f"cache hit and credential verified for {hashed_data}") # log the cache hit
+            return hashed_data
             
     # user was not cached, searching in db
     user = await mongo_client.auth.user.find_one({"$or": [{
-        "email": data}, 
-        {"phone_number": data}]})
+        "hashed_email": hashed_data}, 
+        {"hashed_phone_number": hashed_data}]})
     if user:
         hashed_password = await Hash.verify(user["password"], plain_password)
         if hashed_password:
             logger.debug("searching inside db")
-            await client.hset(f"user:auth:{data}",mapping={
-                "data":data,
+            await client.hset(f"user:auth:{hashed_data}",mapping={
+                "data":hashed_data,
                 "password":user['password']
             }) 
-            await client.expire(f"user:auth:{data}", 432000) # expire in 5 days
-            create_new_log("info", f"searched inside db and credential verified for:{data}", "/api/backend/Auth")
-            logger.info(f"searched inside db and credential verified for:{data}") # log the cache hit
+            await client.expire(f"user:auth:{hashed_data}", 432000) # expire in 5 days
+            create_new_log("info", f"searched inside db and credential verified for:{hashed_data}", "/api/backend/Auth")
+            logger.info(f"searched inside db and credential verified for:{hashed_data}") # log the cache hit
             return user
     return None
 
-async def cache_without_password(data: str):
+async def cache_without_password(hashed_data: str):
     """
     Retrieve user authentication data from cache or database without password.
     This asynchronous function attempts to fetch user authentication data (excluding the password)
@@ -109,23 +110,23 @@ async def cache_without_password(data: str):
         or None if no matching user is found.
     """
 
-    CachedData = await client.get(f'user:auth:2_factor_login:{data}')
+    CachedData = await client.get(f'user:auth:2_factor_login:{hashed_data}')
     if CachedData:
         logger.debug("Data is cached")
         # Removed sensitive data logging
-        create_new_log("info", f"cache hit for {data}", "/api/backend/Auth")
-        logger.info(f"cache hit for {data}") # log the cache hit
+        create_new_log("info", f"cache hit for {hashed_data}", "/api/backend/Auth")
+        logger.info(f"cache hit for {hashed_data}") # log the cache hit
         return CachedData
   
     user = await mongo_client.auth.user.find_one({"$or": [{
-        "email": data}, 
-        {"phone_number": data}]})
+        "hashed_email": hashed_data}, 
+        {"hashed_phone_number": hashed_data}]})
     if user:
         logger.debug("searching inside db")
-        await client.set(f"user:auth:2_factor_login:{data}",data, ex=432000) # expire in 5 days
+        await client.set(f"user:auth:2_factor_login:{hashed_data}",hashed_data, ex=432000) # expire in 5 days
         return user
-    create_new_log("warning", f"login attempt with invalid credentials: {data}", "/api/backend/Auth")
-    logger.warning(f"login attempt with invalid credentials: {data}") # log the cache hit
+    create_new_log("warning", f"login attempt with invalid credentials: {hashed_data}", "/api/backend/Auth")
+    logger.warning(f"login attempt with invalid credentials: {hashed_data}") # log the cache hit
     return None
     
 TOPIC_NAME = 'user_signups'
@@ -188,6 +189,10 @@ Raises:
         # Validate password strength
         validate_password(dict_data["password"])
                 
+        # hash both email and phone number for bloom filter and redis/db checks
+        hashed_email = generate_deterministic_hash(dict_data["email"]) # hashing email for bloom filter and redis/db checks
+        hashed_phone_number = generate_deterministic_hash(dict_data["phone_number"])
+
         # data validation
         if not user_email_bloom_filter.contains(dict_data["email"]): # Check if email is definitely not present (Bloom filter)
             print("Email not in Bloom filter — safe to continue")
@@ -198,7 +203,7 @@ Raises:
             logger.warning("Bloom filter indicates possible existence — verifying with Redis and DB")
 
             # Double-check in Redis (temporary store, e.g., for recent signups or pending activation)
-            email_in_redis = await client.hgetall(f"user:new_account:{dict_data['email']}")
+            email_in_redis = await client.hgetall(f"user:new_account:{hashed_email}")
             if email_in_redis:
                 print("Email found in Redis")
                 logger.warning("Email found in Redis")
@@ -209,12 +214,12 @@ Raises:
                 print("Email not found in Redis — checking MongoDB")
                 logger.info("Email not found in Redis — checking MongoDB")
                 # Check in MongoDB (source of truth)
-                email = await mongo_client.auth.user.find_one({"email": dict_data["email"]})
+                email = await mongo_client.auth.user.find_one({"hashed_email": hashed_email})
                 if email:
                     print("Email found in MongoDB")
                     logger.warning("Email found in MongoDB")
-                    create_new_log("warning", f"Signup attempt with existing email: {dict_data['email']}", "/api/backend/Auth")
-                    logger.warning(f"Signup attempt with existing email: {dict_data['email']}")
+                    create_new_log("warning", f"Signup attempt with existing email: {hashed_email}", "/api/backend/Auth")
+                    logger.warning(f"Signup attempt with existing email: {hashed_email}")
                     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
         
         print("Email is new — proceed with account creation") # At this point, email is confirmed to be new — proceed with signup
@@ -230,19 +235,19 @@ Raises:
             logger.warning("Bloom filter indicates possible existence — verifying with Redis and DB")
 
             # Check Redis for recent or pending signups
-            phone_number_in_redis = await client.hgetall(f"user:new_account:{dict_data['phone_number']}")
+            phone_number_in_redis = await client.hgetall(f"user:new_account:{hashed_phone_number}")
             if phone_number_in_redis:
                 print("Phone number found in Redis")
                 logger.warning("Phone number found in Redis")
-                create_new_log("warning", f"Signup attempt with existing phone number: {dict_data['phone_number']}", "/api/backend/Auth")
-                logger.warning(f"Signup attempt with existing phone number: {dict_data['phone_number']}")
+                create_new_log("warning", f"Signup attempt with existing phone number: {hashed_phone_number}", "/api/backend/Auth")
+                logger.warning(f"Signup attempt with existing phone number: {hashed_phone_number}")
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone number already in use")
             else:
                 print("Phone number not found in Redis — checking MongoDB")
                 logger.warning("Phone number not found in Redis — checking MongoDB")
 
                 # Check in MongoDB (source of truth)
-                phone_number = await mongo_client.auth.user.find_one({"phone_number": dict_data["phone_number"]})
+                phone_number = await mongo_client.auth.user.find_one({"hashed_phone_number": hashed_phone_number})
                 if phone_number:
                     print("Phone number found in MongoDB")
                     logger.warning("Phone number found in MongoDB")
@@ -260,10 +265,16 @@ Raises:
         if(form_data["email"].__len__() < 4):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email must be greater than 3 characters") 
 
+        # Encrypting user data before storing
+        encrypted_user_data = encrypt_user_data(dict_data)
 
         # hashing the password
-        hashed_password = Hash.bcrypt(dict_data["password"])
-        dict_data["password"] = hashed_password
+        hashed_password = Hash.generate_hash(dict_data["password"])
+        hashed_phone_number = generate_deterministic_hash(dict_data["phone_number"]) # hashing phone number
+        hashed_email = generate_deterministic_hash(dict_data["email"]) # hashing email
+        encrypted_user_data['hashed_phone_number'] = hashed_phone_number # storing hashed phone number in encrypted data
+        encrypted_user_data['hashed_email'] = hashed_email # storing hashed email in encrypted data
+        encrypted_user_data["password"] = hashed_password # replacing plain password with hashed password
         user_email_bloom_filter.add(dict_data["email"])
         user_phone_bloom_filter.add(dict_data["phone_number"])
         device_fingerprint = generate_fingerprint_hash(request)
@@ -274,71 +285,48 @@ Raises:
         response.delete_cookie("refresh_token")  # Remove old token
         cookie_settings = get_secure_cookie_settings()
         response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, **cookie_settings) # refresh token expires in 7 days
-        encrypted_refresh_token = Hash.bcrypt(refresh_token)
-        encrypyted_session_id = Hash.bcrypt(session_id)
-        encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint)
+        hashed_refresh_token = Hash.generate_hash(refresh_token)
+        hashed_session_id = Hash.generate_hash(session_id)
+        hashed_device_fingerprint = Hash.generate_hash(device_fingerprint)
         # Removed debug print for security
 
         await client.hset(f"user:refresh_token:{refresh_token[:106]}",mapping={
-                                                            "refresh_token": encrypted_refresh_token,
-                                                            "device_fingerprint":encrypyted_device_fingerprint,
-                                                            "data":dict_data['email'],
-                                                            "session_id":encrypyted_session_id})
+                                                            "refresh_token": hashed_refresh_token,
+                                                            "device_fingerprint":hashed_device_fingerprint,
+                                                            "data":hashed_email,
+                                                            "session_id":hashed_session_id})
         await client.expire(f"user:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         # Generate a cache during signup with email as key
-        cache_key = dict_data["email"]
-        await client.hset(f"user:new_account:{cache_key}",mapping=dict_data) # store the entire data in redis
+        cache_key = hashed_email # using hashed email as cache key
+        await client.hset(f"user:new_account:{cache_key}",mapping=encrypted_user_data) # store the entire data in redis
         await client.expire(f"user:new_account:{cache_key}", 691200) # expire in 7 days
-        await client.hset(f"user:new_account:{dict_data['phone_number']}", mapping=dict_data)
-        await client.expire(f"user:new_account:{dict_data['phone_number']}", 691200)  # expire in 7 days
+        await client.hset(f"user:new_account:{hashed_phone_number}", mapping=encrypted_user_data)
+        await client.expire(f"user:new_account:{hashed_phone_number}", 691200)  # expire in 7 days
 
         #  for instant loggin in, after signup
         await client.set(f"user:auth:2_factor_login:{cache_key}", cache_key, ex=3600) # expire in 1 hour
-        await client.set(f"user:auth:2_factor_login:{dict_data['phone_number']}", dict_data['phone_number'], ex=3600) # expire in 1 hour
+        await client.set(f"user:auth:2_factor_login:{hashed_phone_number}", hashed_phone_number, ex=3600) # expire in 1 hour
 
         # ************* this was done previously **************
         # await client.hset(f"user:new_account:{cache_key}", mapping=dict_data)
         # await client.expire(f"user:new_account:{cache_key}", 691200)  # expire in 7 days 
 
         # ****************send data to kafka topic *****************
-        producer.send(TOPIC_NAME, dict_data) # send data to kafka topic
+        producer.send(TOPIC_NAME, encrypted_user_data) # send data to kafka topic
         producer.flush() # flush the producer to ensure data is sent
 
 
         # await mongo_client.auth.user.insert_one(dict_data) # this will be done when kafka consumer will consume the data from topic and insert into mongodb
 
 
-        create_new_log("info", f"Account for user created successfully: {dict_data['email']}", "/api/backend/Auth")
-        logger.info(f"Account for user created successfully: {dict_data['email']}") # log the cache hit
+        create_new_log("info", f"Account for user created successfully: {hashed_email}", "/api/backend/Auth")
+        logger.info(f"Account for user created successfully: {hashed_email}") # log the cache hit
         
-        access_token = auth_token.create_access_token(data={"sub": dict_data['email']})
+        access_token = auth_token.create_access_token(data={"sub": hashed_email})
         response.delete_cookie("access_token")  # Remove old token
         response.set_cookie(key="access_token", value=access_token, max_age=3600, **cookie_settings)
 
-
-        # await client.hset(dict_data["email"], mapping={
-        #     "email": dict_data["email"],
-        #     "full_name": dict_data["full_name"],
-        #     "password": dict_data["password"],
-        #     "phone_number": dict_data["phone_number"],
-        #     "UID": dict_data["UID"],
-        #     "created_at": dict_data["created_at"]})
-        
-        # await client.hset(dict_data["phone_number"], mapping={
-        #     "email": dict_data["email"],
-        #     "full_name": dict_data["full_name"],
-        #     "password": dict_data["password"],
-        #     "phone_number": dict_data["phone_number"],
-        #     "UID": dict_data["UID"],
-        #     "created_at": dict_data["created_at"]})
-        # await client.expire(dict_data["email"], 300)  # Expire in 5 minutes
-        # await client.expire(dict_data["phone_number"], 300)  # Expire in 5 minutes
-        
-        # token = create_verification_token({"email":dict_data['email']})
-        # link = f"http://127.0.0.1:8000/user/verify_email/{token}"
-        # otp =  await generate_otp(dict_data["email"])
-        
         # html_path = "/root/SecureGate/authentication/templates/index.html" # -> for production
         html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
         with open(html_path,'r') as file:
@@ -349,7 +337,7 @@ Raises:
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
-        return {"message":f"Account for user created successfully: {dict_data['email']}", "status_code":status.HTTP_201_CREATED, "token_type":"Bearer", "UID": dict_data["UID"], "created_at": dict_data["created_at"], "access_token": access_token, "refresh_token": refresh_token}
+        return {"message":f"Account for user created successfully: {dict_data['email']}", "status_code":status.HTTP_201_CREATED, "UID": dict_data["UID"], "created_at": dict_data["created_at"]}
 
 
     except Exception as e:
@@ -384,7 +372,8 @@ async def send_otp_signup(data: models.verify_otp_signup):
         phone_number = form_data.get("phone_number")
         country_code = form_data.get("country_code")
         if email:
-            otp =  await generate_otp(email)
+            hashed_email = generate_deterministic_hash(email)
+            otp =  await generate_otp(hashed_email)
             otp = str(otp)
         
             html_body = f"""
@@ -412,26 +401,25 @@ async def send_otp_signup(data: models.verify_otp_signup):
                             </html>
                             """
             # send email verification link
-            email_sent = (send_email(email, "Welcome to SecureGate. Lets build your health Profile", html_body, retries=3, delay=5))
+            email_sent = (send_mail_to_mailhog(email, "Welcome to SecureGate. Lets build your health Profile", html_body, retries=3, delay=5))
             if not email_sent:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
 
             print("otp sent successfuly")
-            create_new_log("info", f"otp sent successfuly on {email}", "/api/backend/Auth")
-            logger.info(f"otp sent successfuly on {email}") # log the cache hit
-            return ({"message":f"otp sent successfuly on {email}", "status_code": status.HTTP_200_OK})
+            create_new_log("info", f"otp sent successfuly on {hashed_email}", "/api/backend/Auth")
+            logger.info(f"otp sent successfuly on {hashed_email}") # log the cache hit
+            return ({"message":f"otp sent successfuly on {hashed_email}", "status_code": status.HTTP_200_OK})
         elif phone_number:
             phone_number = country_code + phone_number # adding country code
-
+            hashed_phone_number = generate_deterministic_hash(phone_number)
             res = await send_otp(phone_number)
             if not res:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
-            otp = str(res)
 
             print("otp sent successfuly")
-            create_new_log("info", f"otp sent successfuly on {phone_number}", "/api/backend/Auth")
-            logger.info(f"otp sent successfuly on {phone_number}") # log the cache hit
-            return ({"message":f"otp sent successfuly on {phone_number}", "status_code": status.HTTP_200_OK})
+            create_new_log("info", f"otp sent successfuly on {hashed_phone_number}", "/api/backend/Auth")
+            logger.info(f"otp sent successfuly on {hashed_phone_number}") # log the cache hit
+            return ({"message":f"otp sent successfuly on {hashed_phone_number}", "status_code": status.HTTP_200_OK})
         
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -466,14 +454,15 @@ async def verify_otp_signup_email(data: models.otp_email):
         # Removed sensitive OTP logging
         if not otp_entered or len(otp_entered) != 6:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
-        otp_stored = await client.hgetall(f"otp:{email}")
+        hashed_email = generate_deterministic_hash(email)
+        otp_stored = await client.hgetall(f"otp:{hashed_email}")
         # Removed sensitive OTP logging
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
         
-        create_new_log("info", f"OTP verified successfully from {email}", "/api/backend/Auth")
-        logger.info(f"OTP verified successfully from {email}")
-        return {"message":f"OTP verified successfully from {email}", "status_code":status.HTTP_200_OK, "email": email}
+        create_new_log("info", f"OTP verified successfully from {hashed_email}", "/api/backend/Auth")
+        logger.info(f"OTP verified successfully from {hashed_email}")
+        return {"message":f"OTP verified successfully from {hashed_email}", "status_code":status.HTTP_200_OK}
                          
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -506,14 +495,14 @@ async def verify_otp_signup_phone(data: models.otp_phone):
         print(otp_entered)
         if not otp_entered or len(otp_entered) != 6:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
-        otp_stored = await client.hgetall(f"otp:{phone_number}")
-        print(otp_stored)
+        hashed_phone_number = generate_deterministic_hash(phone_number)
+        otp_stored = await client.hgetall(f"otp:{hashed_phone_number}")
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
         
-        create_new_log("info", f"OTP verified successfully from {phone_number}", "/api/backend/Auth")
-        logger.info(f"OTP verified successfully from {phone_number}") # log the cache hit
-        return {"message":f"OTP verified successfully from {phone_number}", "status_code":status.HTTP_200_OK, "phone_number": phone_number}
+        create_new_log("info", f"OTP verified successfully from {hashed_phone_number}", "/api/backend/Auth")
+        logger.info(f"OTP verified successfully from {hashed_phone_number}") # log the cache hit
+        return {"message":f"OTP verified successfully from {hashed_phone_number}", "status_code":status.HTTP_200_OK}
 
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -557,12 +546,10 @@ Raises:
             # login using email and password
             if email_provided:
                 # Generate a cache key based on login identifier
-                cache_key = email_provided
-                cached_data = await cache_without_password(cache_key)
+                hashed_email = generate_deterministic_hash(email_provided)
+                cached_data = await cache_without_password(hashed_email)
                 if cached_data:
-                    # token = create_verification_token({"email":dict_data['email']})
-                    # link = f"http://127.0.0.1:8000/user/verify_email/{token}"
-                    otp = await generate_otp(email_provided)
+                    otp = await generate_otp(hashed_email)
 
                     html_body = f"""
                                     <html>
@@ -592,9 +579,9 @@ Raises:
                     email_sent = (send_email(form_data["email"], "Login to SecureGate using the provided otp", html_body, retries=3, delay=5))
                     if not email_sent:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
-                    create_new_log("info", f"otp sent successfuly on {email_provided}", "/api/backend/Auth")
-                    logger.info(f"otp sent successfuly on {email_provided}") # log the cache hit
-                    return {"message": f"OTP sent successfully on {email_provided}", "status_code":status.HTTP_200_OK}
+                    create_new_log("info", f"otp sent successfuly on {hashed_email}", "/api/backend/Auth")
+                    logger.info(f"otp sent successfuly on {hashed_email}") # log the cache hit
+                    return {"message": f"OTP sent successfully on {hashed_email}", "status_code":status.HTTP_200_OK}
 
                     
                 print("cache data returned none") # debug
@@ -605,17 +592,16 @@ Raises:
             # login using phone_number and password
             elif phone_number_provided:
                 # Generate a cache key based on login identifier
-                cache_key = phone_number_provided
-                cached_data = await cache_without_password(cache_key)
+                hashed_phone_number = generate_deterministic_hash(phone_number_provided)
+                cached_data = await cache_without_password(hashed_phone_number)
                 if cached_data:
                     print("cache data returned", cached_data) # debug
-                    #  sending otp
                     phone_number_provided = country_code + phone_number_provided # adding country code
-                    res = await send_otp(phone_number_provided)
+                    res = await send_otp(phone_number_provided) #  sending otp
                     if not res:
                         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
-                    create_new_log("info", f"otp sent successfuly on {phone_number_provided}", "/api/backend/Auth")
-                    logger.info(f"otp sent successfuly on {phone_number_provided}") # log the cache hit
+                    create_new_log("info", f"otp sent successfuly on {hashed_phone_number}", "/api/backend/Auth")
+                    logger.info(f"otp sent successfuly on {hashed_phone_number}") # log the cache hit
                     return {"message": f"OTP sent successfully on {phone_number_provided[:5]+'x'*6+phone_number_provided[13:]}", "status_code":status.HTTP_200_OK} # masking the phone number for security
 
                 print("cache data returned none") # debug
@@ -661,17 +647,18 @@ async def verify_otp__login_email(data: models.otp_email, response: Response, re
         # Removed sensitive OTP logging
         if not otp_entered or len(otp_entered) != 6:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
-        otp_stored = await client.hgetall(f"otp:{email}")
+        hashed_email = generate_deterministic_hash(email)
+        otp_stored = await client.hgetall(f"otp:{hashed_email}")
         # Removed sensitive OTP logging
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
         
         device_fingerprint = generate_fingerprint_hash(request)
-        encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint) # encrypting device fingerprint
+        hashed_device_fingerprint = Hash.generate_hash(device_fingerprint) # encrypting device fingerprint
         session_id = create_session_id()
-        encrypyted_session_id = Hash.bcrypt(session_id) # encrypting session id
+        hashed_session_id = Hash.generate_hash(session_id) # encrypting session id
         # access_token
-        access_token = auth_token.create_access_token(data={"sub": email})
+        access_token = auth_token.create_access_token(data={"sub": hashed_email})
         # Removed access token logging for security
         response.delete_cookie("access_token")  # Remove old token
         cookie_settings = get_secure_cookie_settings()
@@ -683,14 +670,14 @@ async def verify_otp__login_email(data: models.otp_email, response: Response, re
                                                                 "data": device_fingerprint})
         response.delete_cookie("refresh_token")  # Remove old token
         response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
-        encrypted_refresh_token = Hash.bcrypt(refresh_token)
+        hashed_refresh_token = Hash.generate_hash(refresh_token)
         if incoming_refresh_token:
             await client.delete(f"user:refresh_token:{incoming_refresh_token[:106]}")
         await client.hset(f"user:refresh_token:{refresh_token[:106]}",mapping={
-                                                            "refresh_token": encrypted_refresh_token,
-                                                            "device_fingerprint":encrypyted_device_fingerprint,
-                                                            "data":email,
-                                                            "session_id":encrypyted_session_id})
+                                                            "refresh_token": hashed_refresh_token,
+                                                            "device_fingerprint":hashed_device_fingerprint,
+                                                            "data":hashed_email,
+                                                            "session_id":hashed_session_id})
         await client.expire(f"user:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         print(f"{email} logged in succesfully")  # Return success message
@@ -735,21 +722,20 @@ async def verify_otp__login_phone(data: models.otp_phone, response: Response, re
 
         phone_number = country_code + phone_number # adding country code
         otp_entered = form_data.get("otp")
-        print(otp_entered)
         if not otp_entered or len(otp_entered) != 6:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
-        otp_stored = await client.hgetall(f"otp:{phone_number}")
-        print(otp_stored)
+        hashed_phone_number = generate_deterministic_hash(phone_number)
+        otp_stored = await client.hgetall(f"otp:{hashed_phone_number}")
         if not otp_stored or (otp_stored.get('otp') != otp_entered):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
         
         device_fingerprint = generate_fingerprint_hash(request)
-        encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint) # encrypting device fingerprint
+        hashed_device_fingerprint = Hash.generate_hash(device_fingerprint) # encrypting device fingerprint
         session_id = create_session_id()
-        encrypyted_session_id = Hash.bcrypt(session_id) # encrypting session id
+        hashed_session_id = Hash.generate_hash(session_id) # encrypting session id
 
         # access_token
-        access_token = auth_token.create_access_token(data={"sub": phone_number})
+        access_token = auth_token.create_access_token(data={"sub": hashed_phone_number})
         # Removed access token logging for security
         response.delete_cookie("access_token")  # Remove old token
         cookie_settings = get_secure_cookie_settings()
@@ -761,14 +747,14 @@ async def verify_otp__login_phone(data: models.otp_phone, response: Response, re
                                                                 "data": device_fingerprint})
         response.delete_cookie("refresh_token")  # Remove old token
         response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
-        encrypted_refresh_token = Hash.bcrypt(refresh_token)
+        hashed_refresh_token = Hash.generate_hash(refresh_token)
         if incoming_refresh_token:
             await client.delete(f"user:refresh_token:{incoming_refresh_token[:106]}") # delete old refresh token from redis -> email
         await client.hset(f"user:refresh_token:{refresh_token[:106]}",mapping={
-                                                            "refresh_token": encrypted_refresh_token,
-                                                            "device_fingerprint":encrypyted_device_fingerprint,
-                                                            "data":phone_number,
-                                                            "session_id":encrypyted_session_id})
+                                                            "refresh_token": hashed_refresh_token,
+                                                            "device_fingerprint":hashed_device_fingerprint,
+                                                            "data":hashed_phone_number,
+                                                            "session_id":hashed_session_id})
         await client.expire(f"user:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
         print(f"{phone_number} logged in succesfully")  # Return success message
@@ -828,17 +814,17 @@ async def login(data: models.login, response: Response, request: Request):
             # login using email and password
             if email_provided:
                 # Generate a cache key based on login identifier
-                cache_key = email_provided
-                cached_data = await cache(cache_key, password_provided)
+                hashed_email = generate_deterministic_hash(email_provided)
+                cached_data = await cache_with_password(hashed_email, password_provided)
                 if cached_data:
                     print("cache data returned", cached_data) # debug
 
                     device_fingerprint = generate_fingerprint_hash(request)
-                    encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint) # encrypting device fingerprint
+                    hashed_device_fingerprint = Hash.generate_hash(device_fingerprint) # encrypting device fingerprint
                     session_id = create_session_id()
-                    encrypyted_session_id = Hash.bcrypt(session_id) # encrypting session id
+                    hashed_session_id = Hash.generate_hash(session_id) # encrypting session id
                     # access token
-                    access_token = auth_token.create_access_token(data={"sub": email_provided})
+                    access_token = auth_token.create_access_token(data={"sub": hashed_email})
                     response.delete_cookie("access_token")  # Remove old token
                     cookie_settings = get_secure_cookie_settings()
                     response.set_cookie(key="access_token", value=access_token, max_age=3600, **cookie_settings)
@@ -847,24 +833,23 @@ async def login(data: models.login, response: Response, request: Request):
                     refresh_token = auth_token.create_refresh_token(data={
                                                                             "sub": session_id,
                                                                             "data": device_fingerprint})
-                    encrypted_refresh_token = Hash.bcrypt(refresh_token)
+                    hashed_refresh_token = Hash.generate_hash(refresh_token)
                     if incoming_refresh_token:
                         await client.delete(f"user:refresh_token:{incoming_refresh_token[:106]}") # delete old refresh token from redis
                     response.delete_cookie("refresh_token")  # Remove old token
                     response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
                     await client.hset(f"user:refresh_token:{refresh_token[:106]}",mapping={
-                                                            "refresh_token": encrypted_refresh_token,
-                                                            "device_fingerprint":encrypyted_device_fingerprint,
-                                                            "data":email_provided,
-                                                            "session_id":encrypyted_session_id})
+                                                            "refresh_token": hashed_refresh_token,
+                                                            "device_fingerprint":hashed_device_fingerprint,
+                                                            "data":hashed_email,
+                                                            "session_id":hashed_session_id})
                     await client.expire(f"user:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
                     # log 
-                    create_new_log("info", f"{email_provided} logged in successfully", "/api/backend/Auth" )
-                    logger.info(f"{email_provided} logged in successfully") 
+                    create_new_log("info", f"{hashed_email} logged in successfully", "/api/backend/Auth" )
+                    logger.info(f"{hashed_email} logged in successfully") 
                     
-                    # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
-                    return {"message":f"{email_provided} logged in succesfully", "status_code":status.HTTP_200_OK, "token_type": "Bearer", "email":email_provided, "access_token": access_token, "refresh_token": refresh_token}  # Return success message
+                    return {"message":f"{hashed_email} logged in succesfully", "status_code":status.HTTP_200_OK, "email":hashed_email}  # Return success message
 
                 print("cache data returned none") # debug
                 create_new_log("warning", f"login attempt with invalid credentials for email: {form_data['email']}", "/api/backend/Auth")
@@ -874,17 +859,17 @@ async def login(data: models.login, response: Response, request: Request):
             # login using phone_number and password
             elif phone_number_provided:
                 # Generate a cache key based on login identifier
-                cache_key = phone_number_provided
-                cached_data = await cache(cache_key, password_provided)
+                hashed_phone_number = generate_deterministic_hash(phone_number_provided)
+                cached_data = await cache_with_password(hashed_phone_number, password_provided)
                 if cached_data:
                     print("cache data returned", cached_data) # debug
 
                     device_fingerprint = generate_fingerprint_hash(request)
-                    encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint) # encrypting device fingerprint
+                    hashed_device_fingerprint = Hash.generate_hash(device_fingerprint) # encrypting device fingerprint
                     session_id = create_session_id()
-                    encrypyted_session_id = Hash.bcrypt(session_id) # encrypting session id
+                    hashed_session_id = Hash.generate_hash(session_id) # encrypting session id
                     # access token
-                    access_token = auth_token.create_access_token(data={"sub": phone_number_provided})
+                    access_token = auth_token.create_access_token(data={"sub": hashed_phone_number})
                     response.delete_cookie("access_token")  # Remove old token
                     response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
 
@@ -892,22 +877,22 @@ async def login(data: models.login, response: Response, request: Request):
                     refresh_token = auth_token.create_refresh_token(data={
                                                                             "sub": session_id,
                                                                             "data": device_fingerprint})
-                    encrypted_refresh_token = Hash.bcrypt(refresh_token)
+                    hashed_refresh_token = Hash.generate_hash(refresh_token)
                     if incoming_refresh_token:
                         await client.delete(f"user:refresh_token:{incoming_refresh_token[:106]}") # delete old refresh token from redis
                     response.delete_cookie("refresh_token")  # Remove old token
                     response.set_cookie(key="refresh_token", value=refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
                     await client.hset(f"user:refresh_token:{refresh_token[:106]}",mapping={
-                                                            "refresh_token": encrypted_refresh_token,
-                                                            "device_fingerprint":encrypyted_device_fingerprint,
-                                                            "data":phone_number_provided,
-                                                            "session_id":encrypyted_session_id})
+                                                            "refresh_token": hashed_refresh_token,
+                                                            "device_fingerprint":hashed_device_fingerprint,
+                                                            "data":hashed_phone_number,
+                                                            "session_id":hashed_session_id})
                     await client.expire(f"user:refresh_token:{refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
 
-                    create_new_log("info", f"{phone_number_provided} logged in successfully", "/api/backend/Auth")
-                    logger.info(f"{phone_number_provided} logged in successfully") # log the cache hit
-                    # RedirectResponse("http://127.0.0.1:8000", status_code=status.HTTP_200_OK)
-                    return {"message":f"{phone_number_provided[:4]+'x'*6+phone_number_provided[11:]} logged in succesfully", "status_code":status.HTTP_200_OK, "token_type": "Bearer", "phone_number": phone_number_provided, "access_token": access_token, "refresh_token": refresh_token}  # Return success message
+                    create_new_log("info", f"{hashed_phone_number} logged in successfully", "/api/backend/Auth")
+                    logger.info(f"{hashed_phone_number} logged in successfully") # log the cache hit
+                    
+                    return {"message":f"{phone_number_provided[:4]+'x'*6+phone_number_provided[11:]} logged in succesfully", "status_code":status.HTTP_200_OK, "phone_number": hashed_phone_number}  # Return success message
 
                 print("cache data returned none") # debug
                 create_new_log("warning", f"login attempt with invalid credentials for phone: {form_data['phone_number']}", "/api/backend/Auth")
@@ -998,9 +983,9 @@ async def refresh_token(request: Request, response: Response):
             await client.delete(f"user:refresh_token:{incoming_refresh_token[:106]}")
 
             device_fingerprint = generate_fingerprint_hash(request)
-            encrypyted_device_fingerprint = Hash.bcrypt(device_fingerprint) # encrypting device fingerprint
+            hashed_device_fingerprint = Hash.generate_hash(device_fingerprint) # encrypting device fingerprint
             session_id = create_session_id()
-            encrypyted_session_id = Hash.bcrypt(session_id) # encrypting session id
+            hashed_session_id = Hash.generate_hash(session_id) # encrypting session id
             # access token
             new_access_token = auth_token.create_access_token(data={"sub": extra_data})
             response.delete_cookie("access_token")  # Remove old token
@@ -1012,12 +997,12 @@ async def refresh_token(request: Request, response: Response):
                                                                         "data":device_fingerprint})
             response.delete_cookie("refresh_token")  # Remove old token
             response.set_cookie(key="refresh_token", value=new_refresh_token, max_age=691200, path="/", samesite="lax", httponly=True, secure=False) # refresh token expires in 7 days
-            new_enctrpted_refresh_token = Hash.bcrypt(new_refresh_token)
+            new_hashed_refresh_token = Hash.generate_hash(new_refresh_token)
             await client.hset(f"user:refresh_token:{new_refresh_token[:106]}",mapping={
-                                                            "refresh_token": new_enctrpted_refresh_token,
+                                                            "refresh_token": new_hashed_refresh_token,
                                                             "data":extra_data,
-                                                            "device_fingerprint":encrypyted_device_fingerprint,
-                                                            "session_id":encrypyted_session_id})
+                                                            "device_fingerprint":hashed_device_fingerprint,
+                                                            "session_id":hashed_session_id})
             await client.expire(f"user:refresh_token:{new_refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
             create_new_log("info", f"Refresh token verified for {device_fingerprint} -> device_fingerprint", "/api/backend/Auth")
             logger.info(f"Refresh token verified for {device_fingerprint} -> device_fingerprint") # log the cache hit
@@ -1053,13 +1038,11 @@ async def reset_password(data: models.email):
         email = form_data.get("email")
         if not email:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is required")
-        user = await mongo_client.auth.user.find_one({"email": email})
+        hashed_email = generate_deterministic_hash(email)
+        user = await mongo_client.auth.user.find_one({"hashed_email": hashed_email})
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        # token = create_verification_token({"email":email})
-        # reset_link = f"http://127.0.0.1:8000/user/create_new_password/{token}"
-        otp = await generate_otp(email)
-        hashed_otp = Hash.bcrypt(otp)
+        otp = await generate_otp(hashed_email)
         html_body = f"""
                     <html>
                         <body style="font-family: Arial, sans-serif; background-color: #f0f2f5; padding: 30px;">
@@ -1091,9 +1074,9 @@ async def reset_password(data: models.email):
         email_sent = (send_mail_to_mailhog(email, "Password Reset Request", html_body, retries=3, delay=5))
         if not email_sent:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending email")
-        create_new_log("info", f"Password reset otp sent successfully to {email}", "/api/backend/Auth")
-        logger.info(f"Password reset link otp successfully to {email}") 
-        return ({"message": "Password reset otp sent successfully", "status_code": status.HTTP_200_OK, "otp": hashed_otp}) # Return success message
+        create_new_log("info", f"Password reset otp sent successfully to {hashed_email}", "/api/backend/Auth")
+        logger.info(f"Password reset link otp successfully to {hashed_email}") 
+        return ({"message": "Password reset otp sent successfully", "status_code": status.HTTP_200_OK}) # Return success message
     
     except Exception as e:
         print(f"Error resetting password: {str(e)}")
@@ -1104,9 +1087,45 @@ async def reset_password(data: models.email):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
         
 
-# @auth_user.get("/user/reset_password", status_code=status.HTTP_200_OK)
-# async def reset_password_form(request: Request):
-#     return templates.TemplateResponse("reset_password.html", {"request": request}, status_code=status.HTTP_200_OK)
+@auth_user.post("/user/reset_password/email_verify_otp", status_code=status.HTTP_200_OK) # verify otp during signup
+async def verify_otp_reset_password(data: models.otp_email):
+    """
+    Endpoint to verify OTP (One-Time Password) during password reset.
+    Accepts a POST request with email and OTP.
+    Args:
+        data (models.otp_email): The OTP data containing 'email' and 'otp'.
+    Returns:
+        dict: A message indicating OTP was verified successfully, or raises an HTTPException on error.
+    Raises:
+        HTTPException: If the OTP is invalid or any other error occurs during verification.
+    """
+
+    try:
+        form_data = dict(data)
+        email = form_data.get("email")
+        otp_entered = form_data.get("otp")
+        
+        # Removed sensitive OTP logging
+        if not otp_entered or len(otp_entered) != 6:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
+        hashed_email = generate_deterministic_hash(email)
+        otp_stored = await client.hgetall(f"otp:{hashed_email}")
+        # Removed sensitive OTP logging
+        if not otp_stored or (otp_stored.get('otp') != otp_entered):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
+        
+        create_new_log("info", f"OTP verified successfully from {hashed_email}", "/api/backend/Auth")
+        logger.info(f"OTP verified successfully from {hashed_email}")
+        return {"message":f"OTP verified successfully from {hashed_email}", "status_code":status.HTTP_200_OK, "email": email}
+                         
+    except Exception as e:
+        print(f"Error verifying OTP: {str(e)}")
+        formatted_error = traceback.format_exc()
+        create_new_log("error", f"Error verifying OTP: {formatted_error}", "/api/backend/Auth")
+        logger.error(f"Error verifying OTP: {str(e)}") # log the cache hit
+        print(f"Error: {traceback.format_exc()}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    
 
 
 @auth_user.post("/user/create_new_password", status_code=status.HTTP_200_OK) 
@@ -1129,12 +1148,10 @@ async def create_new_password(data: models.reset_password):
     """
 
     try:
-        # token_data = decode_verification_token(token)
-        # email = token_data["email"]
         form_data = dict(data)
         email = form_data.get("email")
-        
-        user = await mongo_client.auth.user.find_one({"email": email})
+        hashed_email = generate_deterministic_hash(email)
+        user = await mongo_client.auth.user.find_one({"hashed_email": hashed_email})
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         print(user) # debug
@@ -1151,16 +1168,16 @@ async def create_new_password(data: models.reset_password):
         if last_used_password:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password cannot be the same as the last one")
         
-        hashed_password = Hash.bcrypt(password)
-        # If bcrypt returns bytes, decode to string for MongoDB storage
-        hashed_password = hashed_password.encode('utf-8')
-        result = await mongo_client.auth.user.update_one({"email": email}, {"$set": {"password": hashed_password}})
-        await client.hset(f"user:auth:{email}",mapping={
-                                                            "data":email,
+        hashed_password = Hash.generate_hash(password)
+        hashed_email = generate_deterministic_hash(email)
+        result = await mongo_client.auth.user.update_one({"hashed_email": hashed_email}, {"$set": {"password": hashed_password}})
+        await client.hset(f"user:auth:{hashed_email}",mapping={
+                                                            "data":hashed_email,
                                                             "password": hashed_password})
+        await client.expire(f"user:auth:{hashed_email}", 3600) # expire in 1 hour -> storing user auth in redis
         # Check if user was updated
         if result.modified_count == 0:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unable to update password, please try again later")
         create_new_log("info", f"Password reset successfully for {email}", "/api/backend/Auth")
         logger.info(f"Password reset successfully for {email}")
         return ({"message": "Password updated successfully", "status_code": status.HTTP_200_OK}) # Return success message
@@ -1210,63 +1227,6 @@ async def logout(data: models.logout, response: Response, request: Request):
 
 
 # ***********************************************NOT USED ROUTES***************************************************************************************************
-
-# *****************************this route verified otp for signup using phone number, the route are now merged with route for verifying otp using email******************************
-# @auth_user.post("/user/verify_otp_signup_phone", status_code=status.HTTP_200_OK) # verify otp
-# async def verify_otp_signup_phone(request: Request):
-#     try:
-#         form_data = await request.json()
-#         phone_number = form_data.get("phone_number")
-#         phone_number = "+91" + phone_number # adding country code
-#         otp = await send_otp_sns(phone_number)
-#         if not otp:
-#             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error sending OTP")
-#         otp_entered = form_data.get("otp")
-#         if not otp_entered or len(otp_entered) != 6:
-#             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP required")
-#         otp_stored = await client.hgetall(phone_number)
-#         # phone_number['phone_number'] = str(phone_number['phone_number'])
-#         print("otp_stored:",otp_stored) # debug
-#         if not otp_stored or (otp_stored.get('otp') != otp_entered):
-#             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
-        
-        # phone_number = phone_number[3:] # removing country code
-        # data = await client.hgetall(phone_number)
-        # access_token = auth_token.create_access_token(data={"sub": phone_number})
-        # print("phone_number:",data) # debug
-        # user = await mongo_client.auth.user.find_one({"phone_number":data.get("phone_number")})
-        # print("user:",user) # debug
-        # if user:
-        #     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
-        # mongodb_document = {
-        #     "full_name": data.get("full_name"),
-        #     "email": data.get("email"),
-        #     "password": data.get("password"),
-        #     "phone_number": data.get("phone_number"),
-        #     "created_at": data.get("created_at"),
-        #     "UID": data.get("UID")
-        # }
-        # await mongo_client.auth.user.insert_one(mongodb_document)  # Insert into MongoDB
-        # print("Access token:", access_token)  # debug
-        # response.delete_cookie("access_token")  # Remove old token
-        # response.set_cookie(key="access_token", value=access_token, max_age=3600, path="/", samesite="lax", httponly=True, secure=False)
-        # print(f"{phone_number} signed up succesfully as user")  # Return success message
-    #     print(f"otp verified successfuly through {phone_number}")
-        # create_new_log("info", f"otp verified successfuly through {phone_number}", "/api/backend/Auth")
-    #     logger.info(f"otp verified successfuly through {phone_number}") # log the cache hit
-    #     return(f"otp verified successfuly through {phone_number}")
-       
-        
-    # except Exception as e:
-    #     print(f"Error verifying OTP: {str(e)}")
-    #     formatted_error = traceback.format_exc()
-        # create_new_log("error", f"Error verifying OTP: {formatted_error}", ""/api/backend/Auth"")
-    #     logger.error(f"Error verifying OTP: {str(e)}") # log the cache hit
-    #     print(f"Error: {traceback.format_exc()}")
-    #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-
 
 # ***************************** this route helped in verifying email ****************************************************
 # @auth_user.get("/user/verify_email/{token}", status_code=status.HTTP_200_OK, response_model=models.res)
