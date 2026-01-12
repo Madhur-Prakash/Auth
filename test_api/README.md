@@ -27,7 +27,21 @@ test_api/
 pip install -r test_api/test_requirements.txt
 ```
 
-### 2. Ensure Services Are Running
+### 2. Server Requirements
+
+| Test Type | Server Required | External Services | Command |
+|:----------|:---------------:|:-----------------:|:--------|
+| Unit Tests | ❌ No | ❌ No (mocked) | `python test_api/run_tests.py --unit` |
+| Integration Tests | ❌ No | ❌ No (mocked) | `python test_api/run_tests.py --integration` |
+| Coverage Report | ❌ No | ❌ No (mocked) | `python test_api/run_tests.py --coverage` |
+| Stress Tests | ✅ Yes | ✅ Yes | `python test_api/stress_test.py --test full` |
+| Locust Load Tests | ✅ Yes | ✅ Yes | `locust -f test_api/locustfile.py --host=http://127.0.0.1:8005` |
+
+> **Note:** 
+> - **Unit & Integration Tests**: Use FastAPI's `TestClient` which creates an in-memory test server. External services (Redis, MongoDB, Kafka) are mocked.
+> - **Stress & Load Tests**: Make real HTTP requests to `http://127.0.0.1:8005`. The API server and all external services must be running.
+
+### 3. External Services (for Stress/Load Tests Only)
 
 Before running tests, ensure the following services are available:
 - Redis (default: localhost:6379)
