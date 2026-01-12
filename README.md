@@ -214,7 +214,7 @@ locust -f test_api/locustfile.py --host=http://127.0.0.1:8005
 - **Stress Tests**: Custom async stress testing with detailed metrics
 - **Load Tests**: Locust-based load testing with web UI
 
-For detailed testing documentation, see [test_api/README.md](test_api/README.md).
+For detailed testing documentation, see [README.md](test_api/README.md).
 
 ---
 ## For deeper understanding of the code visit
