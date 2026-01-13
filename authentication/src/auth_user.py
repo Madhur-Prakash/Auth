@@ -30,6 +30,10 @@ load_dotenv()  # Load environment variables from .env file
 
 # Kafka Producer
 DEVELOPMENT_ENV = os.getenv("DEVELOPMENT_ENV", "local")
+# Redis Keys
+REDIS_USER_TWO_FACTOR_KEY = os.getenv("REDIS_USER_TWO_FACTOR_KEY")
+REDIS_USER_NEW_ACCOUNT = os.getenv("REDIS_USER_NEW_ACCOUNT")
+REDIS_USER_AUTH = os.getenv("REDIS_USER_AUTH")
 
 if DEVELOPMENT_ENV == "docker":
     producer = KafkaProducer(
@@ -58,8 +62,8 @@ async def cache_with_password(hashed_data: str, plain_password):
         str or dict or None: Returns the user identifier (str) if found in cache, the user object (dict) if found in the database, or None if authentication fails.
     """
 
-    CachedData = await client.hgetall(f'user:auth:{hashed_data}')
-    new_account = await client.hgetall(f'user:new_account:{hashed_data}')
+    CachedData = await client.hgetall(f'{REDIS_USER_AUTH}:{hashed_data}')
+    new_account = await client.hgetall(f'{REDIS_USER_NEW_ACCOUNT}:{hashed_data}')
     if CachedData:
         hashed_password = await Hash.verify(CachedData["password"], plain_password)
         if hashed_password:
@@ -86,11 +90,11 @@ async def cache_with_password(hashed_data: str, plain_password):
         hashed_password = await Hash.verify(user["password"], plain_password)
         if hashed_password:
             logger.debug("searching inside db")
-            await client.hset(f"user:auth:{hashed_data}",mapping={
+            await client.hset(f"{REDIS_USER_AUTH}:{hashed_data}",mapping={
                 "data":hashed_data,
                 "password":user['password']
             }) 
-            await client.expire(f"user:auth:{hashed_data}", 432000) # expire in 5 days
+            await client.expire(f"{REDIS_USER_AUTH}:{hashed_data}", 432000) # expire in 5 days
             create_new_log("info", f"searched inside db and credential verified for:{hashed_data}", "/api/backend/Auth")
             logger.info(f"searched inside db and credential verified for:{hashed_data}") # log the cache hit
             return user
@@ -110,7 +114,7 @@ async def cache_without_password(hashed_data: str):
         or None if no matching user is found.
     """
 
-    CachedData = await client.get(f'user:auth:2_factor_login:{hashed_data}')
+    CachedData = await client.get(f'{REDIS_USER_TWO_FACTOR_KEY}:{hashed_data}')
     if CachedData:
         logger.debug("Data is cached")
         # Removed sensitive data logging
@@ -123,7 +127,7 @@ async def cache_without_password(hashed_data: str):
         {"hashed_phone_number": hashed_data}]})
     if user:
         logger.debug("searching inside db")
-        await client.set(f"user:auth:2_factor_login:{hashed_data}",hashed_data, ex=432000) # expire in 5 days
+        await client.set(f"{REDIS_USER_TWO_FACTOR_KEY}:{hashed_data}",hashed_data, ex=432000) # expire in 5 days
         return user
     create_new_log("warning", f"login attempt with invalid credentials: {hashed_data}", "/api/backend/Auth")
     logger.warning(f"login attempt with invalid credentials: {hashed_data}") # log the cache hit
@@ -203,7 +207,7 @@ Raises:
             logger.warning("Bloom filter indicates possible existence — verifying with Redis and DB")
 
             # Double-check in Redis (temporary store, e.g., for recent signups or pending activation)
-            email_in_redis = await client.hgetall(f"user:new_account:{hashed_email}")
+            email_in_redis = await client.hgetall(f"{REDIS_USER_NEW_ACCOUNT}:{hashed_email}")
             if email_in_redis:
                 print("Email found in Redis")
                 logger.warning("Email found in Redis")
@@ -235,7 +239,7 @@ Raises:
             logger.warning("Bloom filter indicates possible existence — verifying with Redis and DB")
 
             # Check Redis for recent or pending signups
-            phone_number_in_redis = await client.hgetall(f"user:new_account:{hashed_phone_number}")
+            phone_number_in_redis = await client.hgetall(f"{REDIS_USER_NEW_ACCOUNT}:{hashed_phone_number}")
             if phone_number_in_redis:
                 print("Phone number found in Redis")
                 logger.warning("Phone number found in Redis")
@@ -299,18 +303,17 @@ Raises:
 
         # Generate a cache during signup with email as key
         cache_key = hashed_email # using hashed email as cache key
-        await client.hset(f"user:new_account:{cache_key}",mapping=encrypted_user_data) # store the entire data in redis
-        await client.expire(f"user:new_account:{cache_key}", 691200) # expire in 7 days
-        await client.hset(f"user:new_account:{hashed_phone_number}", mapping=encrypted_user_data)
-        await client.expire(f"user:new_account:{hashed_phone_number}", 691200)  # expire in 7 days
+        await client.hset(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}",mapping=encrypted_user_data) # store the entire data in redis
+        await client.expire(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}", 691200) # expire in 7 days
+        await client.hset(f"{REDIS_USER_NEW_ACCOUNT}:{hashed_phone_number}", mapping=encrypted_user_data)
+        await client.expire(f"{REDIS_USER_NEW_ACCOUNT}:{hashed_phone_number}", 691200)  # expire in 7 days
 
         #  for instant loggin in, after signup
-        await client.set(f"user:auth:2_factor_login:{cache_key}", cache_key, ex=3600) # expire in 1 hour
-        await client.set(f"user:auth:2_factor_login:{hashed_phone_number}", hashed_phone_number, ex=3600) # expire in 1 hour
-
+        await client.set(f"{REDIS_USER_TWO_FACTOR_KEY}:{cache_key}", cache_key, ex=3600) # expire in 1 hour
+        await client.set(f"{REDIS_USER_TWO_FACTOR_KEY}:{hashed_phone_number}", hashed_phone_number, ex=3600) # expire in 1 hour
         # ************* this was done previously **************
-        # await client.hset(f"user:new_account:{cache_key}", mapping=dict_data)
-        # await client.expire(f"user:new_account:{cache_key}", 691200)  # expire in 7 days 
+        # await client.hset(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}", mapping=dict_data)
+        # await client.expire(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}", 691200)  # expire in 7 days 
 
         # ****************send data to kafka topic *****************
         producer.send(TOPIC_NAME, encrypted_user_data) # send data to kafka topic
@@ -1171,10 +1174,10 @@ async def create_new_password(data: models.reset_password):
         hashed_password = Hash.generate_hash(password)
         hashed_email = generate_deterministic_hash(email)
         result = await mongo_client.auth.user.update_one({"hashed_email": hashed_email}, {"$set": {"password": hashed_password}})
-        await client.hset(f"user:auth:{hashed_email}",mapping={
+        await client.hset(f"{REDIS_USER_AUTH}:{hashed_email}",mapping={
                                                             "data":hashed_email,
                                                             "password": hashed_password})
-        await client.expire(f"user:auth:{hashed_email}", 3600) # expire in 1 hour -> storing user auth in redis
+        await client.expire(f"{REDIS_USER_AUTH}:{hashed_email}", 3600) # expire in 1 hour -> storing user auth in redis
         # Check if user was updated
         if result.modified_count == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unable to update password, please try again later")

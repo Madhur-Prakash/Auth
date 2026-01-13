@@ -26,6 +26,9 @@ load_dotenv()
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 SECRET_KEY = os.getenv("SECRET_KEY")
+# Redis Keys
+REDIS_USER_TWO_FACTOR_KEY = os.getenv("REDIS_USER_TWO_FACTOR_KEY")
+REDIS_USER_NEW_ACCOUNT = os.getenv("REDIS_USER_NEW_ACCOUNT")
 
 templates = Jinja2Templates(directory="authentication/templates")
 
@@ -76,7 +79,7 @@ async def cache_without_password(data: str):
         None
     """
 
-    CachedData = await client.get(f'user:auth:2_factor_login:{data}')
+    CachedData = await client.get(f'{REDIS_USER_TWO_FACTOR_KEY}:{data}')
     if CachedData:
         logger.debug("Data is cached")
         # Removed sensitive data logging
@@ -87,7 +90,7 @@ async def cache_without_password(data: str):
     user = await mongo_client.auth.user.find_one({"email": data}) # check if user exists in db
     if user:
         logger.debug("searching inside db")
-        await client.set(f"user:auth:2_factor_login:{data}",data, ex=432000) # expire in 5 days
+        await client.set(f"{REDIS_USER_TWO_FACTOR_KEY}:{data}",data, ex=432000) # expire in 5 days
         return user
     create_new_log("warning", f"login attempt with invalid credentials: {data}", "/api/backend/Auth")
     logger.warning(f"login attempt with invalid credentials: {data}") # log the cache hit
@@ -178,7 +181,7 @@ async def user_google_signup_callback(request: Request, response: Response):
             logger.warning("Bloom filter indicates possible existence — verifying with Redis and DB")
 
             # Double-check in Redis (temporary store, e.g., for recent signups or pending activation)
-            email_in_redis = await client.hgetall(f"user:new_account:{user_data['email']}")
+            email_in_redis = await client.hgetall(f"{REDIS_USER_NEW_ACCOUNT}:{user_data['email']}")
             if email_in_redis:
                 logger.warning("Email found in Redis")
                 create_new_log("warning", f"Signup attempt with existing email: {user_data['email']}", "/api/backend/Auth")
@@ -205,7 +208,7 @@ async def user_google_signup_callback(request: Request, response: Response):
             logger.warning("Bloom filter indicates possible existence — verifying with Redis and DB")
 
             # Double-check in Redis
-            phone_number_in_redis = await client.hgetall(f"user:new_account:{user_data['phone_number']}")
+            phone_number_in_redis = await client.hgetall(f"{REDIS_USER_NEW_ACCOUNT}:{user_data['phone_number']}")
             if phone_number_in_redis:
                 logger.warning("Phone number found in Redis")
                 create_new_log("warning", f"Signup attempt with existing phone number: {user_data['phone_number']}", "/api/backend/Auth")
@@ -241,15 +244,14 @@ async def user_google_signup_callback(request: Request, response: Response):
         cache_key = user_data["email"]
         google_user_email_bloom_filter.add(user_data["email"])
         google_user_phone_bloom_filter.add(user_data["phone_number"])
-        await client.hset(f"user:new_account:{cache_key}",mapping=user_data)
-        await client.expire(f"user:new_account:{cache_key}", 691200) # expire in 7 days
-        await client.hset(f"user:new_account:{user_data['phone_number']}",mapping=user_data)
-        await client.expire(f"user:new_account:{user_data['phone_number']}", 691200) # expire in 7 days
+        await client.hset(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}",mapping=user_data)
+        await client.expire(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}", 691200) # expire in 7 days
+        await client.hset(f"{REDIS_USER_NEW_ACCOUNT}:{user_data['phone_number']}",mapping=user_data)
+        await client.expire(f"{REDIS_USER_NEW_ACCOUNT}:{user_data['phone_number']}", 691200) # expire in 7 days
 
         #  for instant logging in after signup
-        await client.set(f"user:auth:2_factor_login:{user_data['email']}", user_data["email"], ex=3600) # expire in 1 hour
-        await client.set(f"user:auth:2_factor_login:{user_data['phone_number']}", user_data["phone_number"], ex=3600) # expire in 1 hour
-
+        await client.set(f"{REDIS_USER_TWO_FACTOR_KEY}:{user_data['email']}", user_data["email"], ex=3600) # expire in 1 hour
+        await client.set(f"{REDIS_USER_TWO_FACTOR_KEY}:{user_data['phone_number']}", user_data["phone_number"], ex=3600) # expire in 1 hour
 
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
@@ -349,7 +351,7 @@ async def user_phone_number_signup(data:models.google_login, request: Request, r
             logger.warning("Bloom filter indicates possible existence — verifying with Redis and DB")
 
             # Double-check in Redis (temporary store, e.g., for recent signups or pending activation)
-            email_in_redis = await client.hgetall(f"user:new_account:{user_data['email']}")
+            email_in_redis = await client.hgetall(f"{REDIS_USER_NEW_ACCOUNT}:{user_data['email']}")
             if email_in_redis:
                 logger.warning("Email found in Redis")
                 create_new_log("warning", f"Signup attempt with existing email: {user_data['email']}", "/api/backend/Auth")
@@ -376,7 +378,7 @@ async def user_phone_number_signup(data:models.google_login, request: Request, r
             logger.warning("Bloom filter indicates possible existence — verifying with Redis and DB")
 
             # Double-check in Redis
-            phone_number_in_redis = await client.hgetall(f"user:new_account:{user_data['phone_number']}")
+            phone_number_in_redis = await client.hgetall(f"{REDIS_USER_NEW_ACCOUNT}:{user_data['phone_number']}")
             if phone_number_in_redis:
                 logger.warning("Phone number found in Redis")
                 create_new_log("warning", f"Signup attempt with existing phone number: {user_data['phone_number']}", "/api/backend/Auth")
@@ -411,15 +413,14 @@ async def user_phone_number_signup(data:models.google_login, request: Request, r
         cache_key = user_data["email"]
         google_user_email_bloom_filter.add(user_data["email"])
         google_user_phone_bloom_filter.add(user_data["phone_number"])
-        await client.hset(f"user:new_account:{cache_key}",mapping=user_data)
-        await client.expire(f"user:new_account:{cache_key}", 691200) # expire in 7 days
-        await client.hset(f"user:new_account:{phone_number}",mapping=user_data)
-        await client.expire(f"user:new_account:{phone_number}", 691200) # expire in 7 days
+        await client.hset(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}",mapping=user_data)
+        await client.expire(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}", 691200) # expire in 7 days
+        await client.hset(f"{REDIS_USER_NEW_ACCOUNT}:{phone_number}",mapping=user_data)
+        await client.expire(f"{REDIS_USER_NEW_ACCOUNT}:{phone_number}", 691200) # expire in 7 days
 
         #  for instant logging in after signup
-        await client.set(f"user:auth:2_factor_login:{cache_key}", cache_key, ex=691200) # expire in 1 hour
-        await client.set(f"user:auth:2_factor_login:{phone_number}", phone_number, ex=691200) # expire in 1 hour
-
+        await client.set(f"{REDIS_USER_TWO_FACTOR_KEY}:{cache_key}", cache_key, ex=691200) # expire in 1 hour
+        await client.set(f"{REDIS_USER_TWO_FACTOR_KEY}:{phone_number}", phone_number, ex=691200) # expire in 1 hour
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
         refresh_token = auth_token.create_refresh_token(data={
@@ -534,7 +535,7 @@ async def user_phone_number_login(data: models.google_login, request: Request, r
             logger.warning("Bloom filter indicates possible existence — verifying with Redis and DB")
 
             # Double-check in Redis (temporary store, e.g., for recent signups or pending activation)
-            email_in_redis = await client.hgetall(f"user:new_account:{new_user['email']}")
+            email_in_redis = await client.hgetall(f"{REDIS_USER_NEW_ACCOUNT}:{new_user['email']}")
             if email_in_redis:
                 logger.info("Email found in Redis")
                 create_new_log("warning", f"Signup attempt with existing email: {new_user['email']}", "/api/backend/Auth")
@@ -561,7 +562,7 @@ async def user_phone_number_login(data: models.google_login, request: Request, r
             logger.warning("Bloom filter indicates possible existence — verifying with Redis and DB")
 
             # Double-check in Redis
-            phone_number_in_redis = await client.hgetall(f"user:new_account:{new_user['phone_number']}")
+            phone_number_in_redis = await client.hgetall(f"{REDIS_USER_NEW_ACCOUNT}:{new_user['phone_number']}")
             if phone_number_in_redis:
                 logger.info("Phone number found in Redis")
                 create_new_log("warning", f"Signup attempt with existing phone number: {new_user['phone_number']}", "/api/backend/Auth")
@@ -588,18 +589,17 @@ async def user_phone_number_login(data: models.google_login, request: Request, r
         cache_key = new_user["email"]
         google_user_email_bloom_filter.add(new_user["email"])
         google_user_phone_bloom_filter.add(new_user["phone_number"])
-        await client.hset(f"user:new_account:{cache_key}",mapping=new_user)
-        await client.expire(f"user:new_account:{cache_key}", 691200) # expire in 7 days
-        await client.hset(f"user:new_account:{phone_number}",mapping=new_user)
-        await client.expire(f"user:new_account:{phone_number}", 691200) # expire in 7 days
+        await client.hset(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}",mapping=new_user)
+        await client.expire(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}", 691200) # expire in 7 days
+        await client.hset(f"{REDIS_USER_NEW_ACCOUNT}:{phone_number}",mapping=new_user)
+        await client.expire(f"{REDIS_USER_NEW_ACCOUNT}:{phone_number}", 691200) # expire in 7 days
 
          #  for instant logging in after signup
-        await client.set(f"user:auth:2_factor_login:{cache_key}", cache_key, ex=3600) # expire in 1 hour
-        await client.set(f"user:auth:2_factor_login:{phone_number}", phone_number, ex=3600) # expire in 1 hour
-
+        await client.set(f"{REDIS_USER_TWO_FACTOR_KEY}:{cache_key}", cache_key, ex=3600) # expire in 1 hour
+        await client.set(f"{REDIS_USER_TWO_FACTOR_KEY}:{phone_number}", phone_number, ex=3600) # expire in 1 hour
         # ***** this was done previously to store data in redis cache *****
-        # await client.hset(f"user:new_account:{cache_key}", mapping=new_user)
-        # await client.expire(f"user:new_account:{cache_key}", 691200)  # expire in 7 days 
+        # await client.hset(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}", mapping=new_user)
+        # await client.expire(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}", 691200)  # expire in 7 days 
         
         device_fingerprint = generate_fingerprint_hash(request)
         session_id = create_session_id()
@@ -678,7 +678,7 @@ async def user_google_login_callback(request: Request, response: Response):
 
             # Generate access token
             cache_key = existing_email
-            await client.set(f"user:new_account:{cache_key}", cache_key, ex=3600) 
+            await client.set(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}", cache_key, ex=3600) 
             access_token = create_access_token(data={"sub": cache_key})
             
             response.delete_cookie("access_token")
@@ -735,7 +735,7 @@ async def user_google_login_callback(request: Request, response: Response):
                 logger.info("Bloom filter indicates possible existence — verifying with Redis and DB")
 
                 # Double-check in Redis (temporary store, e.g., for recent signups or pending activation)
-                email_in_redis = await client.hgetall(f"user:new_account:{user_doc['email']}")
+                email_in_redis = await client.hgetall(f"{REDIS_USER_NEW_ACCOUNT}:{user_doc['email']}")
                 if email_in_redis:
                     logger.info("Email found in Redis")
                     create_new_log("warning", f"Signup attempt with existing email: {user_doc['email']}", "/api/backend/Auth")
@@ -762,7 +762,7 @@ async def user_google_login_callback(request: Request, response: Response):
                 logger.info("Bloom filter indicates possible existence — verifying with Redis and DB")
 
                 # Double-check in Redis
-                phone_number_in_redis = await client.hgetall(f"user:new_account:{user_doc['phone_number']}")
+                phone_number_in_redis = await client.hgetall(f"{REDIS_USER_NEW_ACCOUNT}:{user_doc['phone_number']}")
                 if phone_number_in_redis:
                     logger.info("Phone number found in Redis")
                     create_new_log("warning", f"Signup attempt with existing phone number: {user_doc['phone_number']}", "/api/backend/Auth")
@@ -792,13 +792,13 @@ async def user_google_login_callback(request: Request, response: Response):
 
 
             cache_key = user_doc["email"]
-            await client.hset(f"user:new_account:{cache_key}",mapping=user_doc)
-            await client.expire(f"user:new_account:{cache_key}", 691200) # expire in  7 days
-            await client.hset(f"user:new_account:{phone_number}",mapping=user_doc)
-            await client.expire(f"user:new_account:{phone_number}", 691200) # expire in 7 days
+            await client.hset(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}",mapping=user_doc)
+            await client.expire(f"{REDIS_USER_NEW_ACCOUNT}:{cache_key}", 691200) # expire in  7 days
+            await client.hset(f"{REDIS_USER_NEW_ACCOUNT}:{phone_number}",mapping=user_doc)
+            await client.expire(f"{REDIS_USER_NEW_ACCOUNT}:{phone_number}", 691200) # expire in 7 days
             #  for instant logging in after signup
-            await client.set(f"user:auth:2_factor_login:{cache_key}", cache_key, ex=3600) # expire in 1 hour
-            await client.set(f"user:auth:2_factor_login:{phone_number}", phone_number, ex=3600) # expire in 1 hour
+            await client.set(f"{REDIS_USER_TWO_FACTOR_KEY}:{cache_key}", cache_key, ex=3600) # expire in 1 hour
+            await client.set(f"{REDIS_USER_TWO_FACTOR_KEY}:{phone_number}", phone_number, ex=3600) # expire in 1 hour
 
             # html_path = "/root/SecureGate_Auth/authentication/templates/index.html" # -> for production
             html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
