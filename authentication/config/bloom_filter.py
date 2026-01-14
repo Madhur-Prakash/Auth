@@ -1,6 +1,5 @@
 import mmh3
 import math
-from pybloom_live import BloomFilter
 
 
 class CountingBloomFilter:
