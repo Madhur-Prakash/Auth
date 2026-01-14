@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-from ..models import models
+from ...models import models
 import os
 from dotenv import load_dotenv
 load_dotenv()

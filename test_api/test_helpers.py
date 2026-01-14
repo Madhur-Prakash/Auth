@@ -26,7 +26,7 @@ class TestHashModule:
     
     def test_generate_hash_returns_string(self):
         """Test that generate_hash returns a string."""
-        from authentication.helper.hashing import Hash
+        from authentication.service.hashing_service.hashing import Hash
         
         password = "TestPassword123"
         hashed = Hash.generate_hash(password)
@@ -37,7 +37,7 @@ class TestHashModule:
 
     def test_generate_hash_different_for_same_password(self):
         """Test that generate_hash produces different hashes for same password."""
-        from authentication.helper.hashing import Hash
+        from authentication.service.hashing_service.hashing import Hash
         
         password = "TestPassword123"
         hash1 = Hash.generate_hash(password)
@@ -48,14 +48,14 @@ class TestHashModule:
 
     def test_generate_hash_empty_password_raises_error(self):
         """Test that empty password raises ValueError."""
-        from authentication.helper.hashing import Hash
+        from authentication.service.hashing_service.hashing import Hash
         
         with pytest.raises(ValueError):
             Hash.generate_hash("")
 
     def test_generate_hash_whitespace_only_raises_error(self):
         """Test that whitespace-only password raises ValueError."""
-        from authentication.helper.hashing import Hash
+        from authentication.service.hashing_service.hashing import Hash
         
         with pytest.raises(ValueError):
             Hash.generate_hash("   ")
@@ -63,7 +63,7 @@ class TestHashModule:
     @pytest.mark.asyncio
     async def test_verify_correct_password(self):
         """Test verify returns True for correct password."""
-        from authentication.helper.hashing import Hash
+        from authentication.service.hashing_service.hashing import Hash
         
         password = "TestPassword123"
         hashed = Hash.generate_hash(password)
@@ -74,7 +74,7 @@ class TestHashModule:
     @pytest.mark.asyncio
     async def test_verify_incorrect_password(self):
         """Test verify returns False for incorrect password."""
-        from authentication.helper.hashing import Hash
+        from authentication.service.hashing_service.hashing import Hash
         
         password = "TestPassword123"
         wrong_password = "WrongPassword456"
@@ -86,7 +86,7 @@ class TestHashModule:
     @pytest.mark.asyncio
     async def test_verify_empty_password_returns_false(self):
         """Test verify returns False for empty plain password."""
-        from authentication.helper.hashing import Hash
+        from authentication.service.hashing_service.hashing import Hash
         
         hashed = Hash.generate_hash("TestPassword123")
         result = await Hash.verify(hashed, "")
@@ -95,7 +95,7 @@ class TestHashModule:
     @pytest.mark.asyncio
     async def test_verify_none_inputs_returns_false(self):
         """Test verify returns False when inputs are None."""
-        from authentication.helper.hashing import Hash
+        from authentication.service.hashing_service.hashing import Hash
         
         result = await Hash.verify(None, "test")
         assert result is False
@@ -109,14 +109,14 @@ class TestDeterministicHash:
     
     def test_generate_deterministic_hash_returns_string(self):
         """Test that function returns a string."""
-        from authentication.helper.deterministic_hash import generate_deterministic_hash
+        from authentication.service.hashing_service.deterministic_hash import generate_deterministic_hash
         
         result = generate_deterministic_hash("test@example.com")
         assert isinstance(result, str)
 
     def test_generate_deterministic_hash_consistent(self):
         """Test that same input produces same output."""
-        from authentication.helper.deterministic_hash import generate_deterministic_hash
+        from authentication.service.hashing_service.deterministic_hash import generate_deterministic_hash
         
         input_str = "test@example.com"
         hash1 = generate_deterministic_hash(input_str)
@@ -126,7 +126,7 @@ class TestDeterministicHash:
 
     def test_generate_deterministic_hash_different_inputs(self):
         """Test that different inputs produce different outputs."""
-        from authentication.helper.deterministic_hash import generate_deterministic_hash
+        from authentication.service.hashing_service.deterministic_hash import generate_deterministic_hash
         
         hash1 = generate_deterministic_hash("test1@example.com")
         hash2 = generate_deterministic_hash("test2@example.com")
@@ -135,7 +135,7 @@ class TestDeterministicHash:
 
     def test_generate_deterministic_hash_length(self):
         """Test that SHA-256 hash has correct length."""
-        from authentication.helper.deterministic_hash import generate_deterministic_hash
+        from authentication.service.hashing_service.deterministic_hash import generate_deterministic_hash
         
         result = generate_deterministic_hash("test")
         # SHA-256 produces 64 character hex string
@@ -147,7 +147,7 @@ class TestAuthToken:
     
     def test_create_access_token(self):
         """Test access token creation."""
-        from authentication.helper.auth_token import create_access_token
+        from authentication.helper.auth_helper.auth_token import create_access_token
         
         token = create_access_token(data={"sub": "test@example.com"})
         
@@ -158,7 +158,7 @@ class TestAuthToken:
 
     def test_create_refresh_token(self):
         """Test refresh token creation."""
-        from authentication.helper.auth_token import create_refresh_token
+        from authentication.helper.auth_helper.auth_token import create_refresh_token
         
         token = create_refresh_token(data={"sub": "session_id", "data": "fingerprint"})
         
@@ -168,7 +168,7 @@ class TestAuthToken:
 
     def test_verify_token_valid(self):
         """Test token verification with valid token."""
-        from authentication.helper.auth_token import create_access_token, verify_token
+        from authentication.helper.auth_helper.auth_token import create_access_token, verify_token
         from fastapi import HTTPException
         
         token = create_access_token(data={"sub": "test@example.com"})
@@ -179,7 +179,7 @@ class TestAuthToken:
 
     def test_verify_token_invalid(self):
         """Test token verification with invalid token."""
-        from authentication.helper.auth_token import verify_token
+        from authentication.helper.auth_helper.auth_token import verify_token
         from fastapi import HTTPException
         
         credentials_exception = HTTPException(status_code=401, detail="Invalid credentials")
@@ -189,7 +189,7 @@ class TestAuthToken:
 
     def test_decode_token(self):
         """Test token decoding."""
-        from authentication.helper.auth_token import create_access_token, decode_token
+        from authentication.helper.auth_helper.auth_token import create_access_token, decode_token
         from fastapi import HTTPException
         
         token = create_access_token(data={"sub": "test@example.com"})
@@ -200,7 +200,7 @@ class TestAuthToken:
 
     def test_decode_token_data(self):
         """Test decoding data field from token."""
-        from authentication.helper.auth_token import create_refresh_token, decode_token_data
+        from authentication.helper.auth_helper.auth_token import create_refresh_token, decode_token_data
         from fastapi import HTTPException
         
         token = create_refresh_token(data={"sub": "session_id", "data": "fingerprint_data"})
@@ -211,7 +211,7 @@ class TestAuthToken:
 
     def test_access_token_contains_expiration(self):
         """Test that access token contains expiration."""
-        from authentication.helper.auth_token import create_access_token
+        from authentication.helper.auth_helper.auth_token import create_access_token
         from jose import jwt
         
         token = create_access_token(data={"sub": "test@example.com"})
@@ -311,7 +311,7 @@ class TestBloomFilter:
     
     def test_bloom_filter_add_and_contains(self):
         """Test adding and checking items in bloom filter."""
-        from authentication.config.bloom_filter import CountingBloomFilter
+        from authentication.config.helper_config.bloom_filter import CountingBloomFilter
         
         bf = CountingBloomFilter(capacity=1000, error_rate=0.01)
         
@@ -321,7 +321,7 @@ class TestBloomFilter:
 
     def test_bloom_filter_not_contains(self):
         """Test that non-added items are not found."""
-        from authentication.config.bloom_filter import CountingBloomFilter
+        from authentication.config.helper_config.bloom_filter import CountingBloomFilter
         
         bf = CountingBloomFilter(capacity=1000, error_rate=0.01)
         
@@ -329,7 +329,7 @@ class TestBloomFilter:
 
     def test_bloom_filter_remove(self):
         """Test removing items from counting bloom filter."""
-        from authentication.config.bloom_filter import CountingBloomFilter
+        from authentication.config.helper_config.bloom_filter import CountingBloomFilter
         
         bf = CountingBloomFilter(capacity=1000, error_rate=0.01)
         
@@ -341,7 +341,7 @@ class TestBloomFilter:
 
     def test_bloom_filter_multiple_adds(self):
         """Test adding multiple items."""
-        from authentication.config.bloom_filter import CountingBloomFilter
+        from authentication.config.helper_config.bloom_filter import CountingBloomFilter
         
         bf = CountingBloomFilter(capacity=1000, error_rate=0.01)
         

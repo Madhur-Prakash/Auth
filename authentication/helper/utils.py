@@ -7,8 +7,8 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import requests
 import uuid
-from helper.hashing import Hash 
-from helper.encryption import EncryptionHelper
+from authentication.service.hashing_service.hashing import Hash 
+from authentication.service.encryption_service.encryption import EncryptionHelper
 import os
 import pycountry, phonenumbers
 from phonenumbers.phonenumberutil import region_code_for_number

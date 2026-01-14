@@ -4,11 +4,10 @@ from fastapi import status
 from fastapi.exceptions import HTTPException
 import random
 import os
-from ..helper.deterministic_hash import generate_deterministic_hash
-from ..config.redis_config import client as redis_client
+from ..hashing_service.deterministic_hash import generate_deterministic_hash
+from ...config.database_config.redis_config import client as redis_client
 import traceback
-from ..helper.utils import setup_logging
-from ..config.database import mongo_client
+from ...helper.utils import setup_logging
 
 
 # Twilio Credentials (Get these from Twilio Console)

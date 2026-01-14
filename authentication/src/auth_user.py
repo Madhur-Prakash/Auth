@@ -2,25 +2,26 @@ from fastapi import APIRouter, Request, status, HTTPException, Depends, Backgrou
 import traceback
 from kafka import KafkaProducer
 import json
+from ..helper.auth_helper import auth_token
 from ..models import models
-from ..otp_service.otp_verify import send_otp, generate_otp, send_otp_sns_during_login, send_otp_sns_during_signup
-from ..config.database import mongo_client
+from ..service.otp_service.otp_verify import send_otp, generate_otp, send_otp_sns_during_login, send_otp_sns_during_signup
+from ..config.database_config.database import mongo_client
 from fastapi.responses import Response
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
-from ..config.redis_config import client
+from ..config.database_config.redis_config import client
 import os
 from dotenv import load_dotenv
-from ..config.rate_limiting import limiter
-from ..helper.oauth2 import create_verification_token, decode_verification_token
-from ..helper.hashing import Hash
+from ..config.helper_config.rate_limiting import limiter
+from ..helper.auth_helper.oauth2 import create_verification_token, decode_verification_token
+from ..service.hashing_service.hashing import Hash
 from ..helper.utils import create_session_id, create_new_log, generate_fingerprint_hash, get_country_name, generate_random_string, setup_logging, encrypt_user_data
-from ..helper.deterministic_hash import generate_deterministic_hash
+from ..service.hashing_service.deterministic_hash import generate_deterministic_hash
 from datetime import datetime
-from ..otp_service.send_mail import send_email_ses, send_email,send_mail_to_mailhog
-from ..helper import oauth2, auth_token
-from config.bloom_filter import CountingBloomFilter
-from ..config.security import validate_password, validate_email, sanitize_input, validate_phone_number, get_secure_cookie_settings
+from ..service.otp_service.send_mail import send_email_ses, send_email,send_mail_to_mailhog
+from ..helper.auth_helper import oauth2
+from authentication.config.helper_config.bloom_filter import CountingBloomFilter
+from ..config.security_config import validate_password, validate_email, sanitize_input, validate_phone_number, get_secure_cookie_settings
 
 auth_user = APIRouter(tags=["user Authentication"]) # create a router for user
 templates = Jinja2Templates(directory="authentication/templates")

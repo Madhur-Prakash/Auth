@@ -4,19 +4,19 @@ from kafka import KafkaProducer
 import json
 from datetime import datetime
 from ..models import models
-from ..config.database import mongo_client
+from ..config.database_config.database import mongo_client
 from ..helper.utils import create_session_id, create_new_log, generate_fingerprint_hash, get_country_name, generate_random_string, setup_logging
 from fastapi.responses import RedirectResponse, HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
 from authlib.integrations.starlette_client import OAuth, OAuthError
-from ..config.redis_config import client
-from ..helper.auth_token import create_access_token
+from ..config.database_config.redis_config import client
+from ..helper.auth_helper.auth_token import create_access_token
 import os
-from ..otp_service.send_mail import send_email
-from ..helper.hashing import Hash
-from ..helper import auth_token
+from ..service.otp_service.send_mail import send_email
+from ..service.hashing_service.hashing import Hash
+from ..helper.auth_helper import auth_token
 from fastapi.templating import Jinja2Templates
-from ..config.bloom_filter import CountingBloomFilter
+from ..config.helper_config.bloom_filter import CountingBloomFilter
 from dotenv import load_dotenv
 
 google_user_auth = APIRouter(tags=["Google Authentication"])

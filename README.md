@@ -232,41 +232,53 @@ Auth/
 ├── CHANGELOG.md
 ├── Dockerfile.auth
 ├── Dockerfile.kafka1
-├── Dockerfile.kafka2
 ├── LICENSE
 ├── README.md  # Project documentation
 ├── __init__.py  # initializes package
 ├── app.py  # main FastAPI app
 ├── authentication
 │   ├── __init__.py  # initializes package
-│   ├── config
+│   ├── config # configuration files
 │   │   ├── __init__.py  # initializes package
-│   │   ├── bloom_filter.py
-│   │   ├── celery_app.py
-│   │   ├── database.py  # database configuration
-│   │   ├── kafka1_config.py
-│   │   ├── kafka2_config.py
-│   │   ├── rate_limiting.py
-│   │   └── redis_config.py
-│   ├── fake_user.py
-│   ├── helper
+│   │   ├── database_config
+│   │   │   ├── __init__.py  # initializes package
+│   │   │   ├── database.py  # database configuration
+│   │   │   └── redis_config.py
+│   │   ├── helper_config
+│   │   │   ├── __init__.py  # initializes package
+│   │   │   ├── bloom_filter.py
+│   │   │   ├── celery_app.py
+│   │   │   ├── kafka1_config.py
+│   │   │   └── rate_limiting.py
+│   │   └── security_config.py
+│   ├── helper # helper functions
 │   │   ├── __init__.py  # initializes package
-│   │   ├── auth_token.py
-│   │   ├── hashing.py
-│   │   ├── oauth2.py
+│   │   ├── auth_helper # authentication helpers
+│   │   │   ├── __init__.py  # initializes package
+│   │   │   ├── auth_token.py
+│   │   │   └── oauth2.py
 │   │   └── utils.py  # utility functions
 │   ├── models
 │   │   ├── __init__.py  # initializes package
 │   │   └── models.py  # models
-│   ├── otp_service
+│   ├── service # service modules
 │   │   ├── __init__.py  # initializes package
-│   │   ├── otp_verify.py
-│   │   └── send_mail.py
-│   ├── src
+│   │   ├── encryption_service # encryption related services
+│   │   │   ├── __init__.py  # initializes package
+│   │   │   └── encryption.py
+│   │   ├── hashing_service # hashing related services
+│   │   │   ├── __init__.py  # initializes package
+│   │   │   ├── deterministic_hash.py
+│   │   │   └── hashing.py
+│   │   └── otp_service # OTP related services
+│   │       ├── __init__.py  # initializes package
+│   │       ├── otp_verify.py
+│   │       └── send_mail.py
+│   ├── src # main source code
 │   │   ├── __init__.py  # initializes package
 │   │   ├── auth_user.py
 │   │   └── google_auth.py
-│   └── templates
+│   └── templates # HTML templates
 │       ├── create_new_password.html
 │       ├── google_login.html
 │       ├── index.html
@@ -278,22 +290,23 @@ Auth/
 │       ├── success.html
 │       ├── user.html
 │       └── user_login.html
-├── credentials.json
+├── credentials.json # Google OAuth2 credentials
 ├── docker-compose.yml
+├── pytest.ini # pytest configuration
 ├── requirements.txt
-├── test_api
+├── test_api # test suite
+│   ├── README.md  # Project documentation
 │   ├── __init__.py  # initializes package
-│   ├── conftest.py  # pytest fixtures and configuration
-│   ├── test_auth_endpoints.py  # unit tests for auth endpoints
-│   ├── test_helpers.py  # unit tests for helper functions
-│   ├── test_security.py  # unit tests for security module
-│   ├── test_models.py  # unit tests for Pydantic models
-│   ├── test_integration.py  # integration tests
-│   ├── stress_test.py  # custom stress testing script
-│   ├── locustfile.py  # Locust load testing
-│   ├── run_tests.py  # unified test runner
-│   ├── test_requirements.txt  # test dependencies
-│   └── README.md  # testing documentation
+│   ├── conftest.py
+│   ├── locustfile.py
+│   ├── run_tests.py
+│   ├── stress_test.py
+│   ├── test_auth_endpoints.py
+│   ├── test_helpers.py
+│   ├── test_integration.py
+│   ├── test_models.py
+│   ├── test_requirements.txt
+│   └── test_security.py
 ├── token.pickle
 └── waitforkafka.sh
 ```

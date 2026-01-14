@@ -12,3 +12,4 @@ auth.log
 .vscode
 .python-version
 mongo-data
+htmlcov

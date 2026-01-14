@@ -153,14 +153,14 @@ async def async_test_client(test_app):
 @pytest.fixture
 def valid_access_token():
     """Generate a valid access token for testing."""
-    from authentication.helper.auth_token import create_access_token
+    from authentication.helper.auth_helper.auth_token import create_access_token
     return create_access_token(data={"sub": "test_user@example.com"})
 
 
 @pytest.fixture
 def valid_refresh_token():
     """Generate a valid refresh token for testing."""
-    from authentication.helper.auth_token import create_refresh_token
+    from authentication.helper.auth_helper.auth_token import create_refresh_token
     return create_refresh_token(data={"sub": "test_session_id", "data": "test_fingerprint"})
 
 

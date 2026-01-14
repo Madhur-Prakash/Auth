@@ -3,7 +3,7 @@ import os
 import sys
 import asyncio
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from database import mongo_client  # Use absolute import instead of relative import
+from authentication.config.database_config.database import mongo_client  # Use absolute import instead of relative import
 import json
 from helper.utils import create_new_log, setup_logging
 import traceback
