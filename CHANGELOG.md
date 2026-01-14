@@ -5,7 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.0](https://github.com/Madhur-Prakash/Auth/compare/v1.1.0...v1.2.0) - 2025-10-10
+## [v2.0.0](https://github.com/Madhur-Prakash/Auth/compare/v1.2.0...v2.0.0) - 14-01-2026
+
+### Added
+- **Full Data Encryption**
+  - Implemented encryption for sensitive user data including email, phone number, and personal identifiers.
+  - Ensured encryption is applied before persisting data to the database (data-at-rest protection).
+- **Deterministic Hashing**
+  - Introduced deterministic hashing for selected fields to enable secure equality checks.
+  - Enabled safe lookups without exposing or storing plaintext values.
+- **Security-First Architecture**
+  - Added helper utilities for encryption, decryption, and hashing consistency.
+  - Improved internal security workflows and data handling standards.
+
+### Changed
+- Refactored file structure and data access layers to support encrypted fields and deterministic hashing.
+- Updated authentication, signup, and verification flows to work with encrypted and hashed data.
+- Modified validation and lookup logic to rely on deterministic hashes instead of plaintext comparisons.
+- Improved logging strategy to avoid accidental exposure of sensitive information.
+
+### Fixed
+- Potential security gaps related to plaintext data handling.
+- Edge cases where sensitive data could appear in logs or error traces.
+
+### Removed
+- Plaintext storage of sensitive fields.
+- Legacy lookup mechanisms that relied on raw, unencrypted data.
+
+### Breaking Changes
+- Plaintext search on sensitive fields is no longer supported.
+- Existing databases require migration to encrypted and hashed formats.
+- Any integrations relying on raw data access must be updated.
+
+### Notes
+- This release represents a **major security overhaul**.
+- Data migration is required before deploying this version in production.
+- Strongly recommended for environments requiring higher security and compliance readiness.
+
+## [1.2.0](https://github.com/Madhur-Prakash/Auth/compare/v1.1.0...v1.2.0) - 10-10-2025
 
 ### Added
 - **XSS Protection:**
@@ -33,8 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The project is now more **resilient**, **maintainable**, and **ready for production deployment** with improved developer experience.
 
 
-## [1.1.0](https://github.com/Madhur-Prakash/Auth/compare/v1.0.2...v1.1.0) - 2025-08-17
-
+## [1.1.0](https://github.com/Madhur-Prakash/Auth/compare/v1.0.2...v1.1.0) - 17-08-2025
 ### Added
 - **Complete Dockerization** of the authentication service for streamlined containerized deployment:
   - Added `Dockerfile` for building the auth service image.
@@ -59,15 +95,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - This release significantly improves **deployability, scalability, and reliability**, allowing the authentication service to run consistently across different environments.
 - Developers can now rely on the Docker workflow for all setups, testing, and deployment.
 
-## [1.0.2](https://github.com/Madhur-Prakash/Auth/compare/v1.0.1...v1.0.2) - 2025-08-11
+## [1.0.2](https://github.com/Madhur-Prakash/Auth/compare/v1.0.1...v1.0.2) - 11-08-2025
 ### Changed
 - Updated Readme for clear instructions.
 
-## [1.0.1](https://github.com/Madhur-Prakash/Auth/compare/v1.0.0...v1.0.1) - 2025-08-10
+## [1.0.1](https://github.com/Madhur-Prakash/Auth/compare/v1.0.0...v1.0.1) - 10-08-2025
 ### Changed
 - Improved `.env` configuration guidance for setting up environment variables.
 
-## [1.0.0](https://github.com/Madhur-Prakash/Auth/releases/tag/v1.0.0) - 2025-07-01
+## [1.0.0](https://github.com/Madhur-Prakash/Auth/releases/tag/v1.0.0) - 07-07-2025
 
 ### Added
 - FastAPI app setup with Docker and env configs
