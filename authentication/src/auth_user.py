@@ -1010,6 +1010,8 @@ async def refresh_token(request: Request, response: Response):
             create_new_log("info", f"Refresh token verified for {device_fingerprint} -> device_fingerprint", "/api/backend/Auth")
             logger.info(f"Refresh token verified for {device_fingerprint} -> device_fingerprint") # log the cache hit
             return({"status_code":status.HTTP_200_OK, "message":"Refresh token verified,user logged in", "token_type":"Bearer", "data":extra_data, "access_token": new_access_token, "refresh_token": new_refresh_token})
+        else:
+            return ({"status_code":status.HTTP_401_UNAUTHORIZED, "message":"Invalid refresh token"})
         
       
     except Exception as e:
