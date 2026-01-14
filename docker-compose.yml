@@ -103,5 +103,5 @@ services:
     environment:
       - KAFKA_HOST=kafka
       - KAFKA_PORT=29092
-    command: ["/authentication/waitforkafka.sh", "python", "authentication/config/kafka1_config.py"]
+    command: ["/authentication/waitforkafka.sh", "python", "authentication/config/helper_config/kafka1_config.py"]
 

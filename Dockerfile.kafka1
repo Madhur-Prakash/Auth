@@ -15,4 +15,4 @@ COPY . .
 RUN chmod +x waitforkafka.sh
 
 # Default CMD just runs the Kafka config (compose will override this with wait script + Python)
-CMD ["python", "authentication/config/kafka1_config.py"]
+CMD ["python", "authentication/config/helper_config/kafka1_config.py"]

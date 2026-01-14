@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, status, HTTPException, Depends, BackgroundTasks
+from fastapi import Request, status, HTTPException, Depends
 import traceback
 from kafka import KafkaProducer
 import json
@@ -23,7 +23,6 @@ from ..helper.auth_helper import oauth2
 from authentication.config.helper_config.bloom_filter import CountingBloomFilter
 from ..config.security_config import validate_password, validate_email, sanitize_input, validate_phone_number, get_secure_cookie_settings
 
-auth_user = APIRouter(tags=["user Authentication"]) # create a router for user
 templates = Jinja2Templates(directory="authentication/templates")
 
 logger = setup_logging() # initialize logger
@@ -141,7 +140,6 @@ user_email_bloom_filter = CountingBloomFilter(capacity=100000, error_rate=0.01)
 user_phone_bloom_filter = CountingBloomFilter(capacity=100000, error_rate=0.01)
 
 
-@auth_user.post("/user/signup", status_code=status.HTTP_201_CREATED)
 async def signup(data: models.user, response: Response, request: Request):
     """Handles user signup by validating input data, checking for duplicate email and phone number using Bloom filters, Redis, and MongoDB, and performing various data processing steps. 
 Steps performed:
@@ -351,10 +349,8 @@ Raises:
         logger.error(f"Error creating new user: {formatted_error}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-# ***********************************************************************************************************************************************
 
 
-@auth_user.post("/user/signup/send_otp", status_code=status.HTTP_200_OK) # verify otp
 async def send_otp_signup(data: models.verify_otp_signup):
     """Asynchronously verifies OTP (One-Time Password) for user signup via email or phone number.
     Depending on the provided data, this function either:
@@ -435,9 +431,6 @@ async def send_otp_signup(data: models.verify_otp_signup):
         print(f"Formatted Error: {formatted_error}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
-
-
-@auth_user.post("/user/signup/email_verify_otp", status_code=status.HTTP_200_OK) # verify otp during signup
 async def verify_otp_signup_email(data: models.otp_email):
     """
     Endpoint to verify OTP (One-Time Password) during user signup via email.
@@ -476,8 +469,6 @@ async def verify_otp_signup_email(data: models.otp_email):
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-
-@auth_user.post("/user/signup/phone_verify_otp", status_code=status.HTTP_200_OK) # verify otp during signup
 async def verify_otp_signup_phone(data: models.otp_phone):
     """
     Endpoint to verify OTP (One-Time Password) during user signup via phone number.
@@ -516,10 +507,6 @@ async def verify_otp_signup_phone(data: models.otp_phone):
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-
-# async def login(response: Response, request: Request, form_data: OAuth2UserRequestForm = Depends(), auth_token: OAuth2PasswordBearer = Depends(oauth2.oauth2_scheme)): -> for locking the route use this instead of below
-# ***************** login through email/phone_number and otp ****************************************************
-@auth_user.post("/user/login/send_otp", status_code=status.HTTP_200_OK) # login using email 
 async def send_otp_login(data: models.login_otp):
     """Endpoint to log in a user using OTP (One-Time Password) via email or phone number.
 Accepts a POST request with either an email or a phone number (and country code for phone).
@@ -620,10 +607,8 @@ Raises:
         logger.error(f"login attempt failed: {str(e)}") # log the cache hit
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-# ***************************************************************************************************************************************************************
 
-@auth_user.post("/user/login/email_verify_otp", status_code=status.HTTP_200_OK) 
-async def verify_otp__login_email(data: models.otp_email, response: Response, request: Request):
+async def verify_otp_login_email(data: models.otp_email, response: Response, request: Request):
     """
     Asynchronously verifies a one-time password (OTP) for user authentication.
     Args:
@@ -697,8 +682,7 @@ async def verify_otp__login_email(data: models.otp_email, response: Response, re
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
-@auth_user.post("/user/login/phone_verify_otp", status_code=status.HTTP_200_OK)
-async def verify_otp__login_phone(data: models.otp_phone, response: Response, request: Request):
+async def verify_otp_login_phone(data: models.otp_phone, response: Response, request: Request):
     """
     Verifies the OTP (One-Time Password) for a user's phone number and manages authentication tokens.
     Args:
@@ -774,11 +758,6 @@ async def verify_otp__login_phone(data: models.otp_phone, response: Response, re
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-
-
-# ********************************************************************* login with email/phone_number and password ************************************
-# @limiter.limit("5/minute")  #******************************* Rate limit *********************************************************************
-@auth_user.post("/user/login", status_code=status.HTTP_200_OK) # login using email and password
 async def login(data: models.login, response: Response, request: Request):
     """
     Handles user login via email or phone number and password.
@@ -911,10 +890,7 @@ async def login(data: models.login, response: Response, request: Request):
         print(f"Error: {traceback.format_exc()}")
         print(f"Formatted Error: {formatted_error}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-# ***************************************************************************************************************************************************************
    
-
-@auth_user.get("/user/refresh_token", status_code=status.HTTP_200_OK)
 async def refresh_token(request: Request, response: Response):
     """
     Handles the refresh token process for user authentication.
@@ -1016,8 +992,7 @@ async def refresh_token(request: Request, response: Response):
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
-@auth_user.post("/user/reset_password", status_code=status.HTTP_200_OK)
-async def reset_password(data: models.email):
+async def send_otp_reset_password(data: models.email):
     """Asynchronously handles password reset requests by generating and emailing a one-time password (OTP) to the user.
     Args:
         data (models.email): An object containing the user's email address.
@@ -1085,8 +1060,6 @@ async def reset_password(data: models.email):
         print(f"Error: {formatted_error}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
         
-
-@auth_user.post("/user/reset_password/email_verify_otp", status_code=status.HTTP_200_OK) # verify otp during signup
 async def verify_otp_reset_password(data: models.otp_email):
     """
     Endpoint to verify OTP (One-Time Password) during password reset.
@@ -1125,9 +1098,6 @@ async def verify_otp_reset_password(data: models.otp_email):
         print(f"Error: {traceback.format_exc()}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
-
-
-@auth_user.post("/user/create_new_password", status_code=status.HTTP_200_OK) 
 async def create_new_password(data: models.reset_password):
     """
     Asynchronously resets a user's password after validating the provided data.
@@ -1189,8 +1159,6 @@ async def create_new_password(data: models.reset_password):
         print(f"Error: {formatted_error}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-
-@auth_user.post("/user/logout", status_code=status.HTTP_200_OK)
 async def logout(data: models.logout, response: Response, request: Request):
     """
     Logs out a user by deleting their refresh and access tokens from cookies and cache.

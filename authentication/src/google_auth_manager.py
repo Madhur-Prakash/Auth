@@ -97,20 +97,16 @@ async def cache_without_password(data: str):
     return None
 
 TOPIC_NAME = 'user_signups'
-# ---- user Signup ----
 
-
-@google_user_auth.get("/user")
 async def index(request: Request):
     return templates.TemplateResponse("user.html", {"request": request})
 
 
-@google_user_auth.get("/user/google_signup")
 async def user_google_signup(request: Request):
     redirect_uri = "http://127.0.0.1:8000/user/google_signup/callback"
     return await oauth.google_user.authorize_redirect(request, redirect_uri)
 
-@google_user_auth.get("/user/google_signup/callback")
+
 async def user_google_signup_callback(request: Request, response: Response):
     """
     Handles the Google OAuth2 signup callback for a user.
@@ -294,8 +290,7 @@ async def user_google_signup_callback(request: Request, response: Response):
         logger.exception(f"OAuth Error: {formatted_error}")
         raise HTTPException(status_code=400, detail="Authentication failed")
 
-@google_user_auth.post("/user/phone_number/signup")
-async def user_phone_number_signup(data:models.google_login, request: Request, response: Response):
+async def user_google_phone_number_signup(data:models.google_login, request: Request, response: Response):
     """
     Handles user signup using phone number after Google authentication.
     This asynchronous function performs the following steps:
@@ -462,23 +457,17 @@ async def user_phone_number_signup(data:models.google_login, request: Request, r
         logger.error(f"Signup attempt failed: {str(e)}")
         raise HTTPException(status_code=400, detail="Internal server error")
 
-# Phone Number Entry Page (GET)
-@google_user_auth.get("/user/phone_number")
 async def phone_number_page(request: Request):
     return templates.TemplateResponse("phone_number.html", {"request": request, "type": "user"})
 
 
-# ---- user Login ----
-@google_user_auth.get("/user/google_login")
 async def user_google_login(request: Request):
     redirect_uri = "http://127.0.0.1:8000/user/google_login/callback"
     return await oauth.google_user.authorize_redirect(request, redirect_uri)
 
-@google_user_auth.get("/user/phone_number_login")
 async def phone_number_page_login(request: Request):
     return templates.TemplateResponse("phone_number.html", {"request": request, "type": "user", "flow": "login"})
 
-@google_user_auth.post("/user/phone_number/login")
 async def user_phone_number_login(data: models.google_login, request: Request, response: Response):
     """
     Handles user login or signup using phone number after Google authentication.
@@ -641,9 +630,6 @@ async def user_phone_number_login(data: models.google_login, request: Request, r
         logger.error(f"Login attempt failed: {str(e)}")
         raise HTTPException(status_code=400, detail="Internal server error")
 
-
-
-@google_user_auth.get("/user/google_login/callback")
 async def user_google_login_callback(request: Request, response: Response):
     """
     Handles the Google OAuth2 login callback for user authentication and registration.

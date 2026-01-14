@@ -1,14 +1,14 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
-from authentication.src.auth_user import auth_user
 from fastapi.middleware.cors import CORSMiddleware
-from authentication.src.google_auth import google_user_auth
+from authentication.routes.user_auth import auth_user_router
+from authentication.routes.google_auth import auth_google_router
 import os
 from scalar_fastapi import get_scalar_api_reference
 from starlette.middleware.sessions import SessionMiddleware
 app = FastAPI()
-app.include_router(auth_user)
-app.include_router(google_user_auth)
+app.include_router(auth_user_router)
+app.include_router(auth_google_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Configure this appropriately for production
