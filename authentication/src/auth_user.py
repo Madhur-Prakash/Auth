@@ -686,7 +686,7 @@ async def verify_otp__login_email(data: models.otp_email, response: Response, re
         print(f"{email} logged in succesfully")  # Return success message
         create_new_log("info", f"{email} logged in successfully", "/api/backend/Auth")
         logger.info(f"{email} logged in successfully") # log the cache hit
-        return {"message":f"OTP verified successfully from {email}", "status_code":status.HTTP_200_OK, "token_type":"Bearer", "email": email, "access_token": access_token, "refresh_token": refresh_token}
+        return {"message":f"OTP verified successfully from {email}", "status_code":status.HTTP_200_OK, "email": hashed_email}
                          
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -763,7 +763,7 @@ async def verify_otp__login_phone(data: models.otp_phone, response: Response, re
         print(f"{phone_number} logged in succesfully")  # Return success message
         create_new_log("info", f"{phone_number} logged in successfully", "/api/backend/Auth")
         logger.info(f"{phone_number} logged in successfully") # log the cache hit
-        return {"message":f"OTP verified successfully from {phone_number}", "status_code":status.HTTP_200_OK, "token_type":"Bearer", "phone_number": phone_number, "access_token": access_token, "refresh_token": refresh_token}
+        return {"message":f"OTP verified successfully from {phone_number}", "status_code":status.HTTP_200_OK, "phone_number": hashed_phone_number}
 
     except Exception as e:
         print(f"Error verifying OTP: {str(e)}")
@@ -912,7 +912,6 @@ async def login(data: models.login, response: Response, request: Request):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 # ***************************************************************************************************************************************************************
    
-# ************ this still needs to be done ********************************************************************************************************************
 
 @auth_user.get("/user/refresh_token", status_code=status.HTTP_200_OK)
 async def refresh_token(request: Request, response: Response):
@@ -951,24 +950,17 @@ async def refresh_token(request: Request, response: Response):
         if not incoming_refresh_token:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token required")
         incoming_session_id = auth_token.decode_token(incoming_refresh_token, credentials_exception) # verify access token and getting the session_id from it
-        incoming_device_fingireprint = auth_token.decode_token_data(incoming_refresh_token, credentials_exception) # verify access token and getting the device_fingerprint from it
+        incoming_device_fingerprint = auth_token.decode_token_data(incoming_refresh_token, credentials_exception) # verify access token and getting the device_fingerprint from it
         # incoming_session_id = request.cookies.get("session_id") or request.headers.get("session_id") or request.query_params.get("session_id")
 
-        print("incoming refresh token:",incoming_refresh_token) # debug
-        print("incoming session id:",incoming_session_id) # debug
         
         #  handling stored refresh token
         stored_refresh_token_in_redis = await client.hgetall(f"user:refresh_token:{incoming_refresh_token[:106]}")  # get refresh token from redis
-        print("stored refresh token from redis:",stored_refresh_token_in_redis) # debug
 
         extra_data = stored_refresh_token_in_redis.get("data") # extract data from redis data
         stored_refresh_token = stored_refresh_token_in_redis.get("refresh_token") # extract refresh_token from redis data
         stored_session_id = stored_refresh_token_in_redis.get("session_id") # extract session_id from redis data
         stored_device_fingerprint = stored_refresh_token_in_redis.get("device_fingerprint") # extract device_fingerprint from redis data
-
-        print("stored refresh token:",stored_refresh_token) # debug
-        print("stored session id:",stored_session_id) # debug
-        print("stored device fingerprint:",stored_device_fingerprint) # debug
 
         if not stored_refresh_token:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
@@ -978,8 +970,9 @@ async def refresh_token(request: Request, response: Response):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session id")
         
         verify_refresh_token = await Hash.verify(stored_refresh_token, incoming_refresh_token)
-        verify_device_fingerprint = await Hash.verify(stored_device_fingerprint, incoming_device_fingireprint)
+        verify_device_fingerprint = await Hash.verify(stored_device_fingerprint, incoming_device_fingerprint)
         verify_session_id = await Hash.verify(stored_session_id, incoming_session_id)
+        logger.info(f"Refresh token verification: {verify_refresh_token}, Device fingerprint verification: {verify_device_fingerprint}, Session ID verification: {verify_session_id}")
 
         if verify_refresh_token and verify_device_fingerprint and verify_session_id:  # if refresh token is valid, give access token
             print({"refresh_token":"valid", "device_fingerprint":"valid", "session_id":"valid"}) # debug
@@ -1009,7 +1002,7 @@ async def refresh_token(request: Request, response: Response):
             await client.expire(f"user:refresh_token:{new_refresh_token[:106]}", 691200) # expire in 7 days -> storing refresh token in redis
             create_new_log("info", f"Refresh token verified for {device_fingerprint} -> device_fingerprint", "/api/backend/Auth")
             logger.info(f"Refresh token verified for {device_fingerprint} -> device_fingerprint") # log the cache hit
-            return({"status_code":status.HTTP_200_OK, "message":"Refresh token verified,user logged in", "token_type":"Bearer", "data":extra_data, "access_token": new_access_token, "refresh_token": new_refresh_token})
+            return({"status_code":status.HTTP_200_OK, "message":"Refresh token verified,user logged in", "data": extra_data}) # send extra_data as it is hashed
         else:
             return ({"status_code":status.HTTP_401_UNAUTHORIZED, "message":"Invalid refresh token"})
         

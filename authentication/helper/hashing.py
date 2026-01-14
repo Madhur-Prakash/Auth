@@ -1,32 +1,46 @@
-import bcrypt
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, VerificationError
 
-class Hash():
-    def generate_hash(password: str):
+class Hash:
+    # Argon2 configuration (safe defaults)
+    _ph = PasswordHasher(
+        time_cost=3,        # iterations
+        memory_cost=65536,  # 64 MB
+        parallelism=2,
+        hash_len=32,
+        salt_len=16
+    )
+
+    @staticmethod
+    def generate_hash(password: str) -> str:
+        """
+        Hash a password using Argon2.
+        Use ONLY for user passwords.
+        """
         try:
-            if not password or len(password.strip()) == 0:
+            if not password or not password.strip():
                 raise ValueError("Password cannot be empty")
-            pwd_bytes = password.encode('utf-8')[:72] # bcrypt limit
-            salt = bcrypt.gensalt()  # Increased rounds for better security
-            hashed_password = bcrypt.hashpw(password=pwd_bytes, salt=salt)
-            hashed_password_str = hashed_password.decode('utf-8')
-            return hashed_password_str
-        except Exception as e:
+
+            return Hash._ph.hash(password)
+
+        except Exception:
             raise ValueError("Password hashing failed")
- 
-    async def verify(hashed_password, plain_password):
+
+    @staticmethod
+    async def verify(hashed_password: str, plain_password: str) -> bool:
+        """
+        Verify a password against an Argon2 hash.
+        """
         try:
             if not hashed_password or not plain_password:
                 return False
-            
-            # Ensure plain_password is encoded
-            if isinstance(plain_password, str):
-                plain_password = plain_password.encode('utf-8')
-            
-            # Ensure hashed_password is encoded
-            if isinstance(hashed_password, str):
-                hashed_password = hashed_password.encode('utf-8')
-            
-            # Use positional arguments instead of keyword arguments
-            return bcrypt.checkpw(plain_password, hashed_password)
+
+            Hash._ph.verify(hashed_password, plain_password)
+            return True
+
+        except VerifyMismatchError:
+            return False
+        except VerificationError:
+            return False
         except Exception:
-            return False  # Don't expose error details
+            return False
