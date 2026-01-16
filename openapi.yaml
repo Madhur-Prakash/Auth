@@ -1,0 +1,307 @@
+openapi: 3.0.3
+info:
+  title: User Authentication API
+  description: Authentication, OTP, login, password reset, token refresh APIs
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+tags:
+  - name: User Authentication
+    description: User signup, login, OTP, tokens, and password management
+
+paths:
+
+  /user/signup:
+    post:
+      tags: [User Authentication]
+      summary: User signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      responses:
+        "201":
+          description: User created successfully
+        "422":
+          description: Validation error
+
+  /user/signup/send_otp:
+    post:
+      tags: [User Authentication]
+      summary: Send OTP during signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyOtpSignup"
+      responses:
+        "200":
+          description: OTP sent successfully
+
+  /user/signup/email_verify_otp:
+    post:
+      tags: [User Authentication]
+      summary: Verify email OTP during signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpEmail"
+      responses:
+        "200":
+          description: Email OTP verified
+
+  /user/signup/phone_verify_otp:
+    post:
+      tags: [User Authentication]
+      summary: Verify phone OTP during signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpPhone"
+      responses:
+        "200":
+          description: Phone OTP verified
+
+  /user/login/send_otp:
+    post:
+      tags: [User Authentication]
+      summary: Send OTP for login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginOtp"
+      responses:
+        "200":
+          description: OTP sent for login
+
+  /user/login/email_verify_otp:
+    post:
+      tags: [User Authentication]
+      summary: Verify email OTP for login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpEmail"
+      responses:
+        "200":
+          description: Login successful via email OTP
+
+  /user/login/phone_verify_otp:
+    post:
+      tags: [User Authentication]
+      summary: Verify phone OTP for login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpPhone"
+      responses:
+        "200":
+          description: Login successful via phone OTP
+
+  /user/login:
+    post:
+      tags: [User Authentication]
+      summary: Login using email/phone and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Login"
+      responses:
+        "200":
+          description: Login successful
+
+  /user/refresh_token:
+    get:
+      tags: [User Authentication]
+      summary: Refresh access token
+      responses:
+        "200":
+          description: Token refreshed successfully
+
+  /user/reset_password/send_otp:
+    post:
+      tags: [User Authentication]
+      summary: Send OTP for password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Email"
+      responses:
+        "200":
+          description: OTP sent for password reset
+
+  /user/reset_password/email_verify_otp:
+    post:
+      tags: [User Authentication]
+      summary: Verify OTP during password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpEmail"
+      responses:
+        "200":
+          description: OTP verified
+
+  /user/reset_password/create_new_password:
+    post:
+      tags: [User Authentication]
+      summary: Create new password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPassword"
+      responses:
+        "200":
+          description: Password reset successful
+
+  /user/logout:
+    post:
+      tags: [User Authentication]
+      summary: Logout user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Logout"
+      responses:
+        "200":
+          description: User logged out successfully
+
+components:
+
+  schemas:
+
+    User:
+      type: object
+      required: [first_name, last_name, email, phone_number, country_code, password]
+      properties:
+        first_name:
+          type: string
+          example: Madhur
+        last_name:
+          type: string
+          example: Mangal
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        phone_number:
+          type: string
+          example: "9876543210"
+        country_code:
+          type: string
+          example: "+91"
+        password:
+          type: string
+          example: StrongPassword@123
+
+    VerifyOtpSignup:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        phone_number:
+          type: string
+        country_code:
+          type: string
+
+    OtpEmail:
+      type: object
+      required: [otp, email]
+      properties:
+        otp:
+          type: string
+          example: "123456"
+        email:
+          type: string
+          format: email
+
+    OtpPhone:
+      type: object
+      required: [otp, phone_number, country_code]
+      properties:
+        otp:
+          type: string
+          example: "123456"
+        phone_number:
+          type: string
+        country_code:
+          type: string
+
+    Login:
+      type: object
+      required: [password]
+      properties:
+        email:
+          type: string
+          format: email
+        phone_number:
+          type: string
+        password:
+          type: string
+          example: StrongPassword@123
+
+    LoginOtp:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        phone_number:
+          type: string
+        country_code:
+          type: string
+
+    ResetPassword:
+      type: object
+      required: [email, password, confirm_password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        confirm_password:
+          type: string
+
+    Email:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    Logout:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: string
+          example: logout
