@@ -9,7 +9,6 @@ import requests
 import uuid
 from authentication.service.hashing_service.hashing import Hash 
 from authentication.service.encryption_service.encryption import EncryptionHelper
-import os
 import pycountry, phonenumbers
 from phonenumbers.phonenumberutil import region_code_for_number
 from concurrent_log_handler import ConcurrentRotatingFileHandler
