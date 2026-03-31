@@ -162,6 +162,12 @@ Raises:
     try:
         form_data = dict(data)
         dict_data = dict(form_data)
+
+        required_fields = ["first_name", "last_name", "email", "password", "phone_number", "country_code"]
+        for field in required_fields:
+            if field not in dict_data:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
+        
         dict_data["full_name"] = dict_data["first_name"] + ' ' + dict_data["last_name"]
         dict_data["created_at"] = datetime.now().isoformat()
         dict_data["UID"] = generate_random_string()
@@ -171,11 +177,6 @@ Raises:
         country_name = get_country_name(updated_phone_number)
         country_name = country_name.lower()
         dict_data["country_name"] = country_name
-
-        required_fields = ["first_name", "last_name", "email", "password", "phone_number", "country_code"]
-        for field in required_fields:
-            if field not in dict_data:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All fields are required")
         
         # Sanitize user inputs to prevent XSS attacks
         form_data["first_name"] = sanitize_input(form_data["first_name"])
