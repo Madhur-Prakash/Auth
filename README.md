@@ -112,8 +112,10 @@ This is the simplest method and handles all service dependencies automatically. 
    ```bash
    docker run -d \
       --name kafka \
+      --restart "no" \
       -p 2181:2181 \
       -p 9092:9092 \
+      -p 29092:29092 \
       -e KAFKA_LISTENERS="INTERNAL://:29092,EXTERNAL://:9092" \
       -e KAFKA_ADVERTISED_LISTENERS="INTERNAL://kafka:29092,EXTERNAL://localhost:9092" \
       -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP="INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT" \
