@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated project documentation for clearer setup and usage guidance.
 - Improved logging output to make runtime behavior and debugging information easier to read.
 
-## [v2.0.0](https://github.com/Madhur-Prakash/Auth/compare/v1.2.0...v2.0.0) - 14-01-2026
+## [v2.0.0](https://github.com/Madhur-Prakash/Auth/compare/v1.2.0...v2.0.0) - 2026-01-14
 
 ### Added
 - **Full Data Encryption**
@@ -48,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Data migration is required before deploying this version in production.
 - Strongly recommended for environments requiring higher security and compliance readiness.
 
-## [1.2.0](https://github.com/Madhur-Prakash/Auth/compare/v1.1.0...v1.2.0) - 10-10-2025
+## [1.2.0](https://github.com/Madhur-Prakash/Auth/compare/v1.1.0...v1.2.0) - 2025-10-10
 
 ### Added
 - **XSS Protection:**
@@ -76,7 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The project is now more **resilient**, **maintainable**, and **ready for production deployment** with improved developer experience.
 
 
-## [1.1.0](https://github.com/Madhur-Prakash/Auth/compare/v1.0.2...v1.1.0) - 17-08-2025
+## [1.1.0](https://github.com/Madhur-Prakash/Auth/compare/v1.0.2...v1.1.0) - 2025-08-17
 ### Added
 - **Complete Dockerization** of the authentication service for streamlined containerized deployment:
   - Added `Dockerfile` for building the auth service image.
@@ -101,15 +101,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - This release significantly improves **deployability, scalability, and reliability**, allowing the authentication service to run consistently across different environments.
 - Developers can now rely on the Docker workflow for all setups, testing, and deployment.
 
-## [1.0.2](https://github.com/Madhur-Prakash/Auth/compare/v1.0.1...v1.0.2) - 11-08-2025
+## [1.0.2](https://github.com/Madhur-Prakash/Auth/compare/v1.0.1...v1.0.2) - 2025-08-11
 ### Changed
 - Updated Readme for clear instructions.
 
-## [1.0.1](https://github.com/Madhur-Prakash/Auth/compare/v1.0.0...v1.0.1) - 10-08-2025
+## [1.0.1](https://github.com/Madhur-Prakash/Auth/compare/v1.0.0...v1.0.1) - 2025-08-10
 ### Changed
 - Improved `.env` configuration guidance for setting up environment variables.
 
-## [1.0.0](https://github.com/Madhur-Prakash/Auth/releases/tag/v1.0.0) - 07-07-2025
+## [1.0.0](https://github.com/Madhur-Prakash/Auth/releases/tag/v1.0.0) - 2025-07-07
 
 ### Added
 - FastAPI app setup with Docker and env configs
