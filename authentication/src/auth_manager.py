@@ -332,7 +332,7 @@ Raises:
 
         # html_path = "/root/SecureGate/authentication/templates/index.html" # -> for production
         html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'index.html') # in local testing
-        with open(html_path,'r') as file:
+        with open(html_path,'r',  encoding="utf-8") as file:
             html_body = file.read()
 
         # send email verification link
