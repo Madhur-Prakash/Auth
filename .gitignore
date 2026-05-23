@@ -1,5 +1,6 @@
 __pycache__
 auth
+.venv
 logs
 python=3.11
 .DS_Store
