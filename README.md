@@ -108,7 +108,9 @@ This is the simplest method and handles all service dependencies automatically. 
    ```
 
 6. Set up Kafka and Zookeeper:
-   ### For kafka + zookeeper setup run the following command:
+   ### Start Kafka and Zookeeper
+
+Run the following command to start Kafka and Zookeeper containers:
    ```bash
    docker run -d \
       --name kafka \
@@ -164,9 +166,13 @@ This is the simplest method and handles all service dependencies automatically. 
 
 9. Set up environment variables:
 
-      ``` bash
-      # Copy the .env.sample file to .env and fill in the required values.
-      ```
+      Copy the environment file:
+
+```bash
+cp .env.sample .env
+```
+
+Then update the required variables inside `.env`.
 ---
 
 ## Usage
@@ -318,7 +324,27 @@ Auth/
 ## Future Enhancements
 - Implement OAuth2 for social login (e.g., Github, Facebook).
 - Enhance rate-limiting for login attempts to prevent brute-force attacks.
+## Troubleshooting
 
+### Docker containers fail to start
+Ensure Docker Desktop is running before executing:
+
+```bash
+docker-compose up -d --build
+```
+
+### Port already in use
+Check running containers using:
+
+```bash
+docker ps
+```
+
+Stop conflicting containers using:
+
+```bash
+docker stop <container_id>
+```
 ---
 
 ## Contribution Guidelines
