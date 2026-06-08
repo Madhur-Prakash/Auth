@@ -56,6 +56,7 @@ This is the simplest method and handles all service dependencies automatically. 
 2. **Set up environment variables**:
       ``` bash
       # Copy the .env.sample file to .env and fill in the required values.
+      cp .env.sample .env
       ```
 
 3.  **Start Services**
